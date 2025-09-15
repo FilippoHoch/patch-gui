@@ -1,8 +1,29 @@
 # Patch GUI – Diff Applier (PySide6)
 
-Applicazione desktop (GUI) in **Python + PySide6/Qt** per applicare patch **unified diff** (anche nel formato `*** Begin Patch / *** Update File`) a file di progetto. Supporta caricamento da **file**, **clipboard**, **textarea**, ricerca ricorsiva dei file target, **dry‑run/anteprima**, matching **esatto→fuzzy**, risoluzione **interattiva** delle ambiguità, **backup** automatici e **report** dettagliati.
+Applicazione desktop (GUI) in **Python + PySide6/Qt** per applicare patch **unified diff** (anche `*** Begin Patch` / `*** Update File`) a file di progetto.
+
+Caratteristiche principali:
+
+* Caricamento da **file**, **clipboard** o **textarea**
+* Ricerca ricorsiva dei file target
+* Modalità **dry‑run** con anteprima
+* Matching **esatto → fuzzy** con soglia configurabile
+* Risoluzione **interattiva** delle ambiguità
+* **Backup** automatici e **report** dettagliati
 
 ---
+
+## Indice
+
+* [Requisiti](#requisiti)
+* [Installazione](#installazione-consigliata-con-virtualenv)
+* [Avvio rapido](#avvio-rapido)
+* [Guida all'uso](#guida-alluso)
+* [Opzioni/Dettagli tecnici](#opzionidettagli-tecnici)
+* [Risoluzione problemi](#risoluzione-problemi)
+* [Struttura backup/report](#struttura-backupreport)
+* [Note](#note)
+* [Licenza](#licenza)
 
 ## Requisiti
 
@@ -65,7 +86,7 @@ unidiff
 
 ---
 
-## Avvio
+## Avvio rapido
 
 ```bash
 source .venv/bin/activate
@@ -74,7 +95,7 @@ python diff_applier_gui.py
 
 ---
 
-## Come funziona
+## Guida all'uso
 
 1. **Root progetto** → seleziona la cartella base: i percorsi nei diff saranno risolti relativamente a questa root.
 2. **Carica diff**:
@@ -102,6 +123,7 @@ python diff_applier_gui.py
    * `apply-report.json` (strutturato),
    * `apply-report.txt` (leggibile).
 7. **Ripristino**: pulsante **Ripristina da backup…** → seleziona il timestamp → i file vengono ripristinati.
+Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
 
 ---
 
