@@ -6,13 +6,22 @@ import argparse
 import sys
 from typing import Sequence
 
+from PySide6 import QtCore
+
 from . import cli
+from .i18n import install_translators
 from .utils import APP_NAME
 
 __all__ = ["main"]
 
 CLI_FLAGS = {"--dry-run", "--threshold", "--backup", "--root"}
 CLI_PREFIXES = ("--threshold=", "--backup=")
+
+
+def _tr(text: str) -> str:
+    """Translate ``text`` using the ``diff_applier_gui`` context."""
+
+    return QtCore.QCoreApplication.translate("diff_applier_gui", text)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -64,25 +73,44 @@ def _launch_gui() -> int:
 
 
 def _print_gui_help() -> None:
-    print("Uso: patch-gui gui", file=sys.stdout)
-    print("Apre l'interfaccia grafica dell'applicazione.", file=sys.stdout)
+    _ensure_translator()
+    print(_tr("Usage: patch-gui gui"), file=sys.stdout)
+    print(_tr("Opens the application's graphical interface."), file=sys.stdout)
 
 
 def _print_help() -> None:
+    _ensure_translator()
+    description = _tr("{app_name} – launch the GUI (default) or apply a patch via the CLI.")
     parser = argparse.ArgumentParser(
         prog="patch-gui",
-        description=f"{APP_NAME} – avvia la GUI (default) oppure applica una patch via CLI.",
+        description=description.format(app_name=APP_NAME),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "command",
         nargs="?",
         choices=["gui", "apply"],
-        help="Comando da eseguire (default: gui).",
+        help=_tr("Command to execute (default: gui)."),
     )
     parser.print_help()
-    print("\nOpzioni CLI:", file=sys.stdout)
+    print(_tr("\nCLI options:"), file=sys.stdout)
     cli.build_parser().print_help()
+
+
+def _ensure_translator() -> None:
+    """Create a temporary ``QCoreApplication`` and install translations if needed."""
+
+    app = QtCore.QCoreApplication.instance()
+    if app is None:
+        # ``[]`` so the temporary instance does not inherit CLI arguments that belong to
+        # ``argparse``; this avoids warnings from Qt about unknown options.
+        app = QtCore.QCoreApplication([])
+        app.setApplicationName(APP_NAME)
+
+    if getattr(app, "_installed_translators", None):
+        return
+
+    app._installed_translators = install_translators(app)
 
 
 if __name__ == "__main__":

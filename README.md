@@ -20,6 +20,7 @@ Caratteristiche principali:
 * [Installazione](#installazione-consigliata-con-virtualenv)
 * [Avvio rapido](#avvio-rapido)
 * [Guida all'uso](#guida-alluso)
+* [Internazionalizzazione](#internazionalizzazione)
 * [Opzioni/Dettagli tecnici](#opzionidettagli-tecnici)
 * [Risoluzione problemi](#risoluzione-problemi)
 * [Struttura backup/report](#struttura-backupreport)
@@ -144,6 +145,35 @@ pytest
    * `apply-report.txt` (leggibile).
 7. **Ripristino**: pulsante **Ripristina da backup…** → seleziona il timestamp → i file vengono ripristinati.
 Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
+
+---
+
+## Internazionalizzazione
+
+Il progetto utilizza file di traduzione Qt (`.ts`) nella cartella `patch_gui/translations/`.
+All'avvio l'applicazione compila automaticamente i file `.ts` in `.qm` nella cache di Qt
+e li carica tramite `QTranslator`, evitando di conservare binari nel repository. Vengono
+fornite le traduzioni **inglese** e **italiana**; se non viene trovata una traduzione
+compatibile, l'interfaccia resta in inglese.
+
+### Aggiungere una nuova lingua
+
+1. Copia `patch_gui/translations/patch_gui_en.ts` in
+   `patch_gui/translations/patch_gui_<codice>.ts` (es. `patch_gui_es.ts`).
+2. Aggiorna i blocchi `<translation>…</translation>` con il nuovo testo, mantenendo i
+   placeholder (es. `{app_name}`) invariati.
+3. Facoltativo: verifica la compilazione con
+   `pyside6-lrelease patch_gui/translations/patch_gui_<codice>.ts`.
+4. Non aggiungere i file `.qm` al controllo versione: vengono generati automaticamente
+   nella cache e sono già ignorati da `.gitignore`.
+
+Per forzare una lingua specifica senza cambiare il locale di sistema puoi impostare la
+variabile d'ambiente `PATCH_GUI_LANG` prima di lanciare l'applicazione, ad esempio:
+
+```bash
+export PATCH_GUI_LANG=it
+patch-gui
+```
 
 ---
 
