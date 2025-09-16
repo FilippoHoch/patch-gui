@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
@@ -20,6 +20,7 @@ from .patcher import (
     ApplySession,
     FileResult,
     HunkView,
+    build_hunk_view,
     apply_hunks,
     backup_file,
     find_file_candidates,
@@ -119,7 +120,13 @@ logger = logging.getLogger(__name__)
 
 
 class CandidateDialog(QtWidgets.QDialog):
-    def __init__(self, parent, file_text: str, candidates: List[Tuple[int, float]], hv: HunkView):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None,
+        file_text: str,
+        candidates: List[Tuple[int, float]],
+        hv: HunkView,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Seleziona posizione hunk (ambiguità)")
         self.setModal(True)
@@ -195,7 +202,12 @@ class CandidateDialog(QtWidgets.QDialog):
 
 
 class FileChoiceDialog(QtWidgets.QDialog):
-    def __init__(self, parent, title: str, choices: List[Path]):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None,
+        title: str,
+        choices: List[Path],
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setModal(True)
@@ -259,7 +271,7 @@ class PatchApplyWorker(QtCore.QThread):
             logger.exception("Errore durante l'applicazione della patch: %s", exc)
             self.error.emit(str(exc))
 
-    def apply_file_patch(self, pf, rel_path: str) -> FileResult:
+    def apply_file_patch(self, pf: Any, rel_path: str) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
         candidates = find_file_candidates(self.session.project_root, rel_path)
@@ -504,10 +516,10 @@ class MainWindow(QtWidgets.QMainWindow):
         return True
 
     def restore_last_project_root(self) -> None:
-        last_root = self.settings.value("last_project_root", type=str)
-        if not last_root:
+        raw_value = self.settings.value("last_project_root", type=str)
+        if not isinstance(raw_value, str) or not raw_value:
             return
-        path = Path(last_root).expanduser()
+        path = Path(raw_value).expanduser()
         if path.exists() and path.is_dir():
             self.set_project_root(path, persist=False)
         else:
@@ -690,7 +702,7 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             worker.provide_hunk_choice(None)
 
-    def apply_file_patch(self, pf, rel_path: str, session: ApplySession) -> FileResult:
+    def apply_file_patch(self, pf: Any, rel_path: str, session: ApplySession) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
         assert self.project_root is not None
@@ -798,7 +810,8 @@ def main():
     configure_logging()
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    app._installed_translators = install_translators(app)
+    translators = install_translators(app)
+    setattr(app, "_installed_translators", translators)
     w = MainWindow()
     w.show()
     sys.exit(app.exec())

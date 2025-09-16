@@ -7,9 +7,22 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
 from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+
+
+class _HunkLine(Protocol):
+    line_type: str
+    value: str
+
+
+class _HunkLike(Protocol):
+    def __iter__(self) -> Iterator[_HunkLine]:
+        ...
+
+    def __str__(self) -> str:
+        ...
 
 
 @dataclass
@@ -41,7 +54,7 @@ class ApplySession:
     started_at: float
     results: List[FileResult] = field(default_factory=list)
 
-    def to_json(self) -> Dict:
+    def to_json(self) -> dict[str, object]:
         return {
             "project_root": str(self.project_root),
             "backup_dir": str(self.backup_dir),
@@ -110,7 +123,7 @@ class HunkView:
 ManualResolver = Callable[["HunkView", List[str], List[Tuple[int, float]], HunkDecision, str], Optional[int]]
 
 
-def build_hunk_view(hunk) -> HunkView:
+def build_hunk_view(hunk: _HunkLike) -> HunkView:
     """Construct lists of strings for the "before" and "after" sequences for a hunk."""
 
     before: List[str] = []
@@ -136,7 +149,9 @@ def text_similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def find_candidates(file_lines: List[str], before_lines: List[str], threshold: float) -> List[Tuple[int, float]]:
+def find_candidates(
+    file_lines: Sequence[str], before_lines: Sequence[str], threshold: float
+) -> List[Tuple[int, float]]:
     """Return candidate start positions with similarity >= threshold, sorted by score desc."""
 
     candidates: List[Tuple[int, float]] = []
@@ -167,7 +182,7 @@ def find_candidates(file_lines: List[str], before_lines: List[str], threshold: f
     return candidates
 
 
-def apply_hunk_at_position(file_lines: List[str], hv: HunkView, pos: int) -> List[str]:
+def apply_hunk_at_position(file_lines: Sequence[str], hv: HunkView, pos: int) -> List[str]:
     """Apply the hunk at the given starting line index."""
 
     window_len = len(hv.before_lines)
@@ -176,12 +191,12 @@ def apply_hunk_at_position(file_lines: List[str], hv: HunkView, pos: int) -> Lis
         raise IndexError("Hunk window beyond end of file")
 
     new_chunk: List[str] = hv.after_lines
-    return file_lines[:pos] + new_chunk + file_lines[end:]
+    return list(file_lines[:pos]) + list(new_chunk) + list(file_lines[end:])
 
 
 def apply_hunks(
     file_lines: List[str],
-    hunks: Iterable,
+    hunks: Iterable[_HunkLike],
     *,
     threshold: float,
     manual_resolver: Optional[ManualResolver] = None,

@@ -44,7 +44,7 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
-def test_apply_patchset_dry_run(tmp_path) -> None:
+def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
 
     session = cli.apply_patchset(
@@ -65,7 +65,7 @@ def test_apply_patchset_dry_run(tmp_path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
-def test_apply_patchset_real_run_creates_backup(tmp_path) -> None:
+def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     target = project / "sample.txt"
     original = target.read_text(encoding="utf-8")
@@ -97,7 +97,7 @@ def test_apply_patchset_real_run_creates_backup(tmp_path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
-def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
+def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
 
@@ -128,7 +128,9 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
     assert "tests/app/sample.txt" in report
 
 
-def test_apply_patchset_interactive_candidate_selection(monkeypatch, tmp_path) -> None:
+def test_apply_patchset_interactive_candidate_selection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     project = tmp_path / "project"
     project.mkdir()
 
@@ -156,7 +158,7 @@ def test_apply_patchset_interactive_candidate_selection(monkeypatch, tmp_path) -
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
-def test_apply_patchset_skipped_reason_lists_candidates(tmp_path) -> None:
+def test_apply_patchset_skipped_reason_lists_candidates(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
 
@@ -183,7 +185,7 @@ def test_apply_patchset_skipped_reason_lists_candidates(tmp_path) -> None:
     assert "legacy/sample.txt" in file_result.skipped_reason
 
 
-def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
+def test_load_patch_applies_non_utf8_diff(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     patch_path = tmp_path / "non-utf8.diff"
     patch_path.write_bytes(NON_UTF8_DIFF.encode("utf-16"))
@@ -206,7 +208,9 @@ def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
-def test_load_patch_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
+def test_load_patch_logs_warning_on_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     patch_path = tmp_path / "fallback.diff"
     patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
 
@@ -225,7 +229,7 @@ def test_load_patch_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> N
     assert any("fallback" in record.message.lower() for record in caplog.records)
 
 
-def test_load_patch_missing_file_raises_clierror(tmp_path) -> None:
+def test_load_patch_missing_file_raises_clierror(tmp_path: Path) -> None:
     missing = tmp_path / "not-there.diff"
 
     with pytest.raises(cli.CLIError) as excinfo:
@@ -236,7 +240,7 @@ def test_load_patch_missing_file_raises_clierror(tmp_path) -> None:
     assert str(missing) in message
 
 
-def test_load_patch_invalid_diff_raises_clierror(tmp_path) -> None:
+def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:
     invalid = tmp_path / "invalid.diff"
     invalid.write_text(
         """--- a/file
@@ -255,11 +259,15 @@ def test_load_patch_invalid_diff_raises_clierror(tmp_path) -> None:
     assert "@@ -1 +1 @@" in message
 
 
-def test_run_cli_requires_root_argument(monkeypatch, tmp_path) -> None:
+def test_run_cli_requires_root_argument(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     patch_path = tmp_path / "input.diff"
     patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
 
-    def fake_exit(self, status=0, message=None):
+    def fake_exit(
+        self: argparse.ArgumentParser, status: int = 0, message: str | None = None
+    ) -> None:
         raise cli.CLIError(message.strip() if message else "parser exited")
 
     monkeypatch.setattr(argparse.ArgumentParser, "exit", fake_exit, raising=False)
@@ -272,7 +280,9 @@ def test_run_cli_requires_root_argument(monkeypatch, tmp_path) -> None:
     assert "error" in message.lower()
 
 
-def test_apply_patchset_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
+def test_apply_patchset_logs_warning_on_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     project = _create_project(tmp_path)
 
     real_decode = utils.decode_bytes
@@ -295,7 +305,7 @@ def test_apply_patchset_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) 
     assert any("fallback" in record.message.lower() for record in caplog.records)
 
 
-def test_run_cli_configures_requested_log_level(tmp_path) -> None:
+def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     patch_path = tmp_path / "run-cli.diff"
     patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")

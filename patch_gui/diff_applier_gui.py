@@ -126,7 +126,8 @@ def _ensure_translator() -> None:
     if getattr(app, "_installed_translators", None):
         return
 
-    app._installed_translators = install_translators(app)
+    translators = install_translators(app)
+    setattr(app, "_installed_translators", translators)
 
 
 def _print_missing_gui_dependency(exc: Optional[Exception] = None) -> None:

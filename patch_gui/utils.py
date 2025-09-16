@@ -3,12 +3,25 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import Callable, List, Optional, Protocol, Tuple, cast
+
+class _CharsetMatch(Protocol):
+    encoding: Optional[str]
+
+
+class _CharsetMatches(Protocol):
+    def best(self) -> Optional[_CharsetMatch]:
+        """Return the best match for the analysed bytes if available."""
+
+
+_CNFromBytes = Callable[[bytes], _CharsetMatches]
 
 try:  # pragma: no cover - optional dependency imported at runtime
-    from charset_normalizer import from_bytes as _cn_from_bytes
+    from charset_normalizer import from_bytes as _charset_from_bytes
 except ImportError:  # pragma: no cover - library not installed in runtime env
-    _cn_from_bytes = None
+    _cn_from_bytes: _CNFromBytes | None = None
+else:
+    _cn_from_bytes = cast(_CNFromBytes, _charset_from_bytes)
 
 APP_NAME = "Patch GUI – Diff Applier"
 BACKUP_DIR = ".diff_backups"
@@ -33,7 +46,7 @@ def detect_encoding(data: bytes) -> Tuple[str, bool]:
 
     if _cn_from_bytes is not None:
         match = _cn_from_bytes(data).best()
-        if match and match.encoding:
+        if match is not None and match.encoding:
             encoding = match.encoding
             try:
                 data.decode(encoding)
