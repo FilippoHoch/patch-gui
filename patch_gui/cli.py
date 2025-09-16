@@ -7,7 +7,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, List, Optional, Sequence, Tuple
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
@@ -15,6 +15,8 @@ from unidiff.errors import UnidiffParseError
 from .patcher import (
     ApplySession,
     FileResult,
+    HunkDecision,
+    HunkView,
     apply_hunks,
     backup_file,
     find_file_candidates,
@@ -195,7 +197,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     try:
         patch = load_patch(args.patch)
-        backup_base = Path(args.backup).expanduser() if args.backup else None
+        raw_backup = args.backup
+        backup_base = (
+            Path(raw_backup).expanduser() if isinstance(raw_backup, str) and raw_backup else None
+        )
         session = apply_patchset(
             patch,
             Path(args.root),
@@ -226,23 +231,14 @@ def _threshold_value(value: str) -> float:
     return parsed
 
 
-def _prepare_backup_dir(project_root: Path, backup_base: Optional[Path], dry_run: bool) -> Path:
-    base = backup_base if backup_base is not None else project_root / BACKUP_DIR
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_dir = base / timestamp
-    if not dry_run:
-        backup_dir.mkdir(parents=True, exist_ok=True)
-    return backup_dir
-
-
-def _relative_path_from_patch(pf) -> str:
+def _relative_path_from_patch(pf: Any) -> str:
     rel = pf.path or pf.target_file or pf.source_file or ""
     return rel.strip()
 
 
 def _apply_file_patch(
     project_root: Path,
-    pf,
+    pf: Any,
     rel_path: str,
     session: ApplySession,
     *,
@@ -314,7 +310,7 @@ def _apply_file_patch(
 
 
 def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
-    display_paths: list[str] = []
+    display_paths: List[str] = []
     for path in candidates:
         try:
             display_paths.append(str(path.relative_to(project_root)))
@@ -355,7 +351,7 @@ def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) 
 
 def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> str:
     max_display = 5
-    shown: list[str] = []
+    shown: List[str] = []
     for path in candidates[:max_display]:
         try:
             shown.append(str(path.relative_to(project_root)))
@@ -367,11 +363,17 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     joined = ", ".join(shown)
     return (
         "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente. "
-        f"Candidati: {joined}"
-    )
+      f"Candidati: {joined}"
+  )
 
 
-def _cli_manual_resolver(hv, lines, candidates, decision, reason):
+def _cli_manual_resolver(
+    hv: HunkView,
+    lines: List[str],
+    candidates: List[Tuple[int, float]],
+    decision: HunkDecision,
+    reason: str,
+) -> Optional[int]:
     del hv, lines  # unused in CLI resolver
     decision.candidates = candidates
     decision.strategy = "ambiguous"

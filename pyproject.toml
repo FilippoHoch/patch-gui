@@ -31,3 +31,27 @@ include = ["patch_gui*"]
 [tool.setuptools.cmdclass]
 build_py = "build_translations:BuildPy"
 sdist = "build_translations:SDist"
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+files = ["patch_gui", "tests"]
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6",
+    "PySide6.*",
+    "charset_normalizer",
+    "charset_normalizer.*",
+    "unidiff",
+    "unidiff.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "patch_gui.app",
+    "patch_gui.diff_applier_gui",
+]
+allow_untyped_defs = true
+allow_untyped_calls = true

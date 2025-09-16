@@ -88,13 +88,15 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
             for idx in range(dots):
                 painter.drawPoint(QtCore.QPointF(start_x + dot_spacing * idx, centre_y))
         else:
-            painter.drawLine(start_x, centre_y, end_x, centre_y)
+            painter.drawLine(
+                QtCore.QPointF(start_x, centre_y),
+                QtCore.QPointF(end_x, centre_y),
+            )
             if kind == "plus":
+                mid_x = (start_x + end_x) / 2
                 painter.drawLine(
-                    (start_x + end_x) / 2,
-                    centre_y - line_height * 0.55,
-                    (start_x + end_x) / 2,
-                    centre_y + line_height * 0.55,
+                    QtCore.QPointF(mid_x, centre_y - line_height * 0.55),
+                    QtCore.QPointF(mid_x, centre_y + line_height * 0.55),
                 )
         y += line_height + vertical_margin
 
