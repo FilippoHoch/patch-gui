@@ -10,7 +10,7 @@ Caratteristiche principali:
 * Matching **esatto → fuzzy** con soglia configurabile
 * Risoluzione **interattiva** delle ambiguità
 * **Backup** automatici e **report** dettagliati
-* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`
+* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--non-interactive`
 
 ---
 
@@ -97,11 +97,14 @@ python -m patch_gui apply --root /percorso/al/progetto diff.patch
 # Esempi di opzioni
 patch-gui apply --root . --dry-run --threshold 0.90 diff.patch
 git diff | patch-gui apply --root . --backup ~/diff_backups -
+# per disabilitare le richieste interattive in caso di ambiguità
+patch-gui apply --root . --non-interactive diff.patch
 ```
 
 * `--dry-run` esegue solo l'analisi lasciando i file invariati.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
 
 ---
@@ -181,7 +184,7 @@ patch-gui
 
 * **Soglia fuzzy**: regola la tolleranza nel confronto del contesto (Algorithm: `difflib.SequenceMatcher`).
 * **EOL**: preserva lo stile originale del file (LF/CRLF) al salvataggio.
-* **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), altrimenti ricerca **per nome** in modo ricorsivo; in caso di multipli chiede quale usare.
+* **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), altrimenti ricerca **per nome** in modo ricorsivo; in caso di multipli chiede quale usare (la CLI può essere resa non interattiva con `--non-interactive`).
 * **Formati supportati**: file di testo in generale (JS, TS, HTML, CSS, MD, Rust, …).
 * **Logging**:
   * `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, oppure valori numerici come `20`). Il default è `INFO`.
