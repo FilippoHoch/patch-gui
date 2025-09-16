@@ -10,7 +10,10 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6 import QtCore
+try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
+    from PySide6 import QtCore
+except ImportError:  # pragma: no cover - executed when PySide6 is not installed
+    QtCore = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +31,11 @@ def install_translators(
     ``None`` the system locale is used. Compiled ``.qm`` files are stored in the Qt cache
     directory (or ``tempfile.gettempdir()`` as a fallback).
     """
+
+    if QtCore is None:
+        raise RuntimeError(
+            "PySide6 non è installato: le traduzioni della GUI richiedono l'extra 'gui'."
+        )
 
     sources = _translation_sources()
     if not sources:

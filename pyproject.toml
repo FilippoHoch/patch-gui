@@ -9,9 +9,13 @@ description = "PySide6 desktop application for applying unified diffs interactiv
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "PySide6",
     "charset-normalizer>=3.3.2",
     "unidiff",
+]
+
+[project.optional-dependencies]
+gui = [
+    "PySide6",
 ]
 
 [project.scripts]

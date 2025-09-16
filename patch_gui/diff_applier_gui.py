@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Sequence
+from typing import Optional, Sequence
 
-from PySide6 import QtCore
+try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
+    from PySide6 import QtCore
+except ImportError:  # pragma: no cover - executed when PySide6 is not installed
+    QtCore = None  # type: ignore[assignment]
 
 from . import cli
 from .i18n import install_translators
@@ -21,6 +24,8 @@ CLI_PREFIXES = ("--threshold=", "--backup=")
 def _tr(text: str) -> str:
     """Translate ``text`` using the ``diff_applier_gui`` context."""
 
+    if QtCore is None:
+        return text
     return QtCore.QCoreApplication.translate("diff_applier_gui", text)
 
 
@@ -66,7 +71,15 @@ def _looks_like_cli(args: Sequence[str]) -> bool:
 
 
 def _launch_gui() -> int:
-    from .app import main as gui_main
+    if QtCore is None:
+        _print_missing_gui_dependency()
+        return 1
+
+    try:
+        from .app import main as gui_main
+    except ImportError as exc:  # pragma: no cover - defensive guard for partial installs
+        _print_missing_gui_dependency(exc)
+        return 1
 
     gui_main()
     return 0
@@ -100,6 +113,9 @@ def _print_help() -> None:
 def _ensure_translator() -> None:
     """Create a temporary ``QCoreApplication`` and install translations if needed."""
 
+    if QtCore is None:
+        return
+
     app = QtCore.QCoreApplication.instance()
     if app is None:
         # ``[]`` so the temporary instance does not inherit CLI arguments that belong to
@@ -111,6 +127,16 @@ def _ensure_translator() -> None:
         return
 
     app._installed_translators = install_translators(app)
+
+
+def _print_missing_gui_dependency(exc: Optional[Exception] = None) -> None:
+    message = (
+        "PySide6 non è installato. Installa le dipendenze della GUI con "
+        "'pip install .[gui]' oppure includi l'extra 'gui' quando installi il pacchetto."
+    )
+    print(message, file=sys.stderr)
+    if exc is not None:
+        print(f"Dettagli originali: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":
