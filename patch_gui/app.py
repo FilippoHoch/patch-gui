@@ -16,6 +16,7 @@ from unidiff import PatchSet
 
 from .i18n import install_translators
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
+from .platform import running_under_wsl
 from .patcher import (
     ApplySession,
     FileResult,
@@ -117,6 +118,29 @@ class GuiLogHandler(logging.Handler):
 
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_platform_workarounds() -> None:
+    """Adjust Qt settings to improve rendering on specific platforms."""
+
+    if not running_under_wsl():
+        return
+
+    logger.debug("Rilevata esecuzione in WSL: applicazione workaround High DPI.")
+
+    attribute = getattr(QtCore.Qt, "AA_UseHighDpiPixmaps", None)
+    if attribute is None:
+        attribute = getattr(getattr(QtCore.Qt, "ApplicationAttribute", object), "AA_UseHighDpiPixmaps", None)
+    if attribute is not None:
+        QtCore.QCoreApplication.setAttribute(attribute)
+
+    if not os.getenv("QT_SCALE_FACTOR_ROUNDING_POLICY"):
+        policy_enum = getattr(QtCore.Qt, "HighDpiScaleFactorRoundingPolicy", None)
+        try:
+            if policy_enum is not None:
+                QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(policy_enum.PassThrough)
+        except AttributeError:
+            logger.debug("Qt non supporta la configurazione del rounding High DPI; workaround ignorato.")
 
 
 class CandidateDialog(QtWidgets.QDialog):
@@ -808,6 +832,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def main():
     configure_logging()
+    _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     translators = install_translators(app)
