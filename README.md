@@ -197,4 +197,4 @@ Aggiungi l’italiano e alcune parole tecniche:
 
 ## Licenza
 
-Definisci la licenza desiderata (es. MIT) in un file `LICENSE`.
+Il progetto è distribuito con licenza [MIT](LICENSE). Vedi il file `LICENSE` per il testo completo.
