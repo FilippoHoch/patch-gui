@@ -162,10 +162,15 @@ Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
 ## Internazionalizzazione
 
 Il progetto utilizza file di traduzione Qt (`.ts`) nella cartella `patch_gui/translations/`.
-All'avvio l'applicazione compila automaticamente i file `.ts` in `.qm` nella cache di Qt
-e li carica tramite `QTranslator`, evitando di conservare binari nel repository. Vengono
-fornite le traduzioni **inglese** e **italiana**; se non viene trovata una traduzione
-compatibile, l'interfaccia resta in inglese.
+Durante la fase di build (`pip install .`, `python -m build`, ecc.) viene eseguito
+automaticamente lo script `python -m build_translations`, che invoca `lrelease` (o
+`pyside6-lrelease`) per generare i corrispondenti file binari `.qm` nella stessa
+cartella. I `.qm` restano ignorati da Git ma vengono inclusi nei pacchetti distribuiti.
+Se gli strumenti Qt non sono disponibili, l'applicazione ricade sulla compilazione al
+volo nella cache di Qt, come in passato. All'avvio la GUI prova quindi a caricare i
+`.qm` già presenti e usa `lrelease` solo se assenti o obsoleti. Sono fornite le
+traduzioni **inglese** e **italiana**; se non viene trovata una traduzione compatibile,
+l'interfaccia resta in inglese.
 
 ### Aggiungere una nuova lingua
 
@@ -173,10 +178,10 @@ compatibile, l'interfaccia resta in inglese.
    `patch_gui/translations/patch_gui_<codice>.ts` (es. `patch_gui_es.ts`).
 2. Aggiorna i blocchi `<translation>…</translation>` con il nuovo testo, mantenendo i
    placeholder (es. `{app_name}`) invariati.
-3. Facoltativo: verifica la compilazione con
-   `pyside6-lrelease patch_gui/translations/patch_gui_<codice>.ts`.
-4. Non aggiungere i file `.qm` al controllo versione: vengono generati automaticamente
-   nella cache e sono già ignorati da `.gitignore`.
+3. Rigenera i binari con `python -m build_translations` (richiede `lrelease` oppure
+   `pyside6-lrelease` nel `PATH`).
+4. I file `.qm` generati rimangono ignorati da Git ma verranno inclusi nei pacchetti
+   quando si esegue `python -m build`, `pip install .`, ecc.
 
 Per forzare una lingua specifica senza cambiare il locale di sistema puoi impostare la
 variabile d'ambiente `PATCH_GUI_LANG` prima di lanciare l'applicazione, ad esempio:

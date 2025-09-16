@@ -26,4 +26,8 @@ where = ["."]
 include = ["patch_gui*"]
 
 [tool.setuptools.package-data]
-"patch_gui" = ["translations/*.ts"]
+"patch_gui" = ["translations/*.ts", "translations/*.qm"]
+
+[tool.setuptools.cmdclass]
+build_py = "build_translations:BuildPy"
+sdist = "build_translations:SDist"

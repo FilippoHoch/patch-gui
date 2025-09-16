@@ -132,10 +132,43 @@ def _compiled_dir(app: QtCore.QCoreApplication) -> Path:
 
 
 def _ensure_compiled(ts_path: Path, target_dir: Path) -> Optional[Path]:
+    packaged_qm = ts_path.with_suffix(".qm")
+    if packaged_qm.exists():
+        try:
+            if packaged_qm.stat().st_mtime >= ts_path.stat().st_mtime:
+                logger.debug("Using bundled translation %s", packaged_qm.name)
+                return packaged_qm
+            logger.debug(
+                "Bundled translation %s is older than source %s; recompiling",
+                packaged_qm.name,
+                ts_path.name,
+            )
+        except OSError:
+            logger.debug("Unable to compare timestamps for %s; using bundled file", packaged_qm)
+            return packaged_qm
+
+        compiled = _compile_with_lrelease(ts_path, target_dir)
+        if compiled is not None:
+            return compiled
+
+        logger.warning(
+            "Falling back to bundled translation %s because compilation failed",
+            packaged_qm.name,
+        )
+        return packaged_qm
+
+    return _compile_with_lrelease(ts_path, target_dir)
+
+
+def _compile_with_lrelease(ts_path: Path, target_dir: Path) -> Optional[Path]:
     target_dir.mkdir(parents=True, exist_ok=True)
     qm_path = target_dir / f"{ts_path.stem}.qm"
-    if qm_path.exists() and ts_path.stat().st_mtime <= qm_path.stat().st_mtime:
-        return qm_path
+    try:
+        if qm_path.exists() and ts_path.stat().st_mtime <= qm_path.stat().st_mtime:
+            return qm_path
+    except OSError:
+        # Rebuild when we cannot compare timestamps (e.g. packaged resources).
+        pass
 
     executable = _find_lrelease()
     if executable is None:
