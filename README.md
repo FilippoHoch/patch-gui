@@ -10,7 +10,7 @@ Caratteristiche principali:
 * Matching **esatto → fuzzy** con soglia configurabile
 * Risoluzione **interattiva** delle ambiguità
 * **Backup** automatici e **report** dettagliati
-* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--non-interactive`, `--log-level`
+* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--report-json`, `--report-txt`, `--no-report`, `--non-interactive`, `--log-level`
 
 ---
 
@@ -111,6 +111,8 @@ patch-gui apply --root . --non-interactive diff.patch
 * `--dry-run` esegue solo l'analisi lasciando i file invariati.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* `--report-json` / `--report-txt` impostano il percorso dei report generati (default `<backup>/apply-report.json` e `<backup>/apply-report.txt`).
+* `--no-report` disattiva entrambi i file di report.
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
 * `--log-level` imposta la verbosità del logger su stdout (`debug`, `info`, `warning`, `error`, `critical`; default `warning`).
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
