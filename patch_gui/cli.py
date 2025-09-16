@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import shutil
 import sys
 import time
@@ -33,6 +34,8 @@ from .utils import (
     preprocess_patch_text,
     write_text_preserving_encoding,
 )
+
+_LOG_LEVEL_CHOICES = ("critical", "error", "warning", "info", "debug")
 
 __all__ = [
     "CLIError",
@@ -98,6 +101,14 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         help=(
             "Disabilita le richieste interattive su STDIN e mantiene il "
             "comportamento precedente in caso di ambiguità."
+        ),
+    )
+    parser.add_argument(
+        "--log-level",
+        default="warning",
+        choices=_LOG_LEVEL_CHOICES,
+        help=(
+            "Livello di logging da inviare su stdout (debug, info, warning, error, critical)."
         ),
     )
     return parser
@@ -168,6 +179,14 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    level_name = args.log_level.upper()
+    logging.basicConfig(
+        level=getattr(logging, level_name, logging.WARNING),
+        format="%(levelname)s: %(message)s",
+        stream=sys.stdout,
+        force=True,
+    )
 
     try:
         patch = load_patch(args.patch)
