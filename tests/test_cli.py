@@ -16,6 +16,13 @@ SAMPLE_DIFF = """--- a/sample.txt
  line2
 """
 
+AMBIGUOUS_DIFF = """--- a/app/sample.txt
++++ b/app/sample.txt
+@@ -1 +1 @@
+-old line
++new line
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -75,3 +82,33 @@ def test_apply_patchset_real_run_creates_backup(tmp_path) -> None:
 
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    src_dir = project / "src/app"
+    tests_dir = project / "tests/app"
+    src_dir.mkdir(parents=True)
+    tests_dir.mkdir(parents=True)
+
+    (src_dir / "sample.txt").write_text("old line\n", encoding="utf-8")
+    (tests_dir / "sample.txt").write_text("old line\n", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(AMBIGUOUS_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is not None
+    assert "src/app/sample.txt" in file_result.skipped_reason
+    assert "tests/app/sample.txt" in file_result.skipped_reason
+
+    report = session.to_txt()
+    assert "src/app/sample.txt" in report
+    assert "tests/app/sample.txt" in report
