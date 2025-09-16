@@ -23,6 +23,14 @@ AMBIGUOUS_DIFF = """--- a/app/sample.txt
 +new line
 """
 
+NON_UTF8_DIFF = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,2 +1,2 @@
+-old line
++nuova riga con caffè
+ line2
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -112,3 +120,26 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
     report = session.to_txt()
     assert "src/app/sample.txt" in report
     assert "tests/app/sample.txt" in report
+
+
+def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "non-utf8.diff"
+    patch_path.write_bytes(NON_UTF8_DIFF.encode("utf-16"))
+
+    patch = cli.load_patch(str(patch_path))
+    assert "nuova riga con caffè" in str(patch)
+
+    session = cli.apply_patchset(
+        patch,
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    target = project / "sample.txt"
+    assert target.read_text(encoding="utf-8") == "nuova riga con caffè\nline2\n"
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
