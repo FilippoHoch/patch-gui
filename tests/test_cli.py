@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -201,6 +203,43 @@ def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_run_cli_configures_requested_log_level(tmp_path) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "run-cli.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    root_logger = logging.getLogger()
+    previous_handlers = root_logger.handlers[:]
+    previous_level = root_logger.level
+
+    try:
+        exit_code = cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--dry-run",
+                "--log-level",
+                "debug",
+                str(patch_path),
+            ]
+        )
+        assert exit_code == 0
+
+        configured_logger = logging.getLogger()
+        assert configured_logger.level == logging.DEBUG
+        assert any(
+            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+            for handler in configured_logger.handlers
+        )
+    finally:
+        configured_logger = logging.getLogger()
+        for handler in configured_logger.handlers[:]:
+            configured_logger.removeHandler(handler)
+        for handler in previous_handlers:
+            configured_logger.addHandler(handler)
+        configured_logger.setLevel(previous_level)
 
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

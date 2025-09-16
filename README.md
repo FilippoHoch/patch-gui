@@ -10,7 +10,7 @@ Caratteristiche principali:
 * Matching **esatto → fuzzy** con soglia configurabile
 * Risoluzione **interattiva** delle ambiguità
 * **Backup** automatici e **report** dettagliati
-* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--non-interactive`
+* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--non-interactive`, `--log-level`
 
 ---
 
@@ -97,6 +97,8 @@ python -m patch_gui apply --root /percorso/al/progetto diff.patch
 # Esempi di opzioni
 patch-gui apply --root . --dry-run --threshold 0.90 diff.patch
 git diff | patch-gui apply --root . --backup ~/diff_backups -
+# log dettagliati su stdout
+patch-gui apply --root . --dry-run --log-level debug diff.patch
 # per disabilitare le richieste interattive in caso di ambiguità
 patch-gui apply --root . --non-interactive diff.patch
 ```
@@ -105,6 +107,7 @@ patch-gui apply --root . --non-interactive diff.patch
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
+* `--log-level` imposta la verbosità del logger su stdout (`debug`, `info`, `warning`, `error`, `critical`; default `warning`).
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
 
 ---
