@@ -92,6 +92,14 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
             "'<root>/%s'." % BACKUP_DIR
         ),
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help=(
+            "Disabilita le richieste interattive su STDIN e mantiene il "
+            "comportamento precedente in caso di ambiguità."
+        ),
+    )
     return parser
 
 
@@ -127,6 +135,7 @@ def apply_patchset(
     dry_run: bool,
     threshold: float,
     backup_base: Optional[Path] = None,
+    interactive: bool = True,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
 
@@ -145,7 +154,7 @@ def apply_patchset(
 
     for pf in patch:
         rel = _relative_path_from_patch(pf)
-        fr = _apply_file_patch(root, pf, rel, session)
+        fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
     if not dry_run:
@@ -169,6 +178,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
             threshold=args.threshold,
             backup_base=backup_base,
+            interactive=not args.non_interactive,
         )
     except CLIError as exc:
         parser.exit(1, f"Errore: {exc}\n")
@@ -206,7 +216,14 @@ def _relative_path_from_patch(pf) -> str:
     return rel.strip()
 
 
-def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySession) -> FileResult:
+def _apply_file_patch(
+    project_root: Path,
+    pf,
+    rel_path: str,
+    session: ApplySession,
+    *,
+    interactive: bool,
+) -> FileResult:
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
 
@@ -219,10 +236,16 @@ def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySessi
         fr.skipped_reason = "File non trovato nella root del progetto"
         return fr
     if len(candidates) > 1:
-        fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
-        return fr
-
-    path = candidates[0]
+        if not interactive:
+            fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
+            return fr
+        selected = _prompt_candidate_selection(project_root, candidates)
+        if selected is None:
+            fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
+            return fr
+        path = selected
+    else:
+        path = candidates[0]
     fr.file_path = path
     try:
         fr.relative_to_root = str(path.relative_to(project_root))
@@ -341,6 +364,46 @@ def _locate_candidates(project_root: Path, rel_path: str) -> Iterable[Path]:
     if len(suffix_matches) == 1:
         return suffix_matches
     return sorted(matches)
+
+
+def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
+    display_paths: List[str] = []
+    for path in candidates:
+        try:
+            display_paths.append(str(path.relative_to(project_root)))
+        except ValueError:
+            display_paths.append(str(path))
+
+    print("Sono stati trovati più file che corrispondono al percorso della patch:")
+    for idx, value in enumerate(display_paths, start=1):
+        print(f"  {idx}) {value}")
+    prompt = (
+        f"Seleziona il numero del file da utilizzare (1-{len(candidates)}). "
+        "Premi Invio o digita 's' per saltare: "
+    )
+
+    while True:
+        try:
+            choice = input(prompt)
+        except EOFError:
+            return None
+        except KeyboardInterrupt:
+            raise
+
+        choice = choice.strip()
+        if not choice or choice.lower() in {"s", "skip", "n", "no", "q", "quit"}:
+            return None
+
+        try:
+            index = int(choice)
+        except ValueError:
+            print("Input non valido. Inserire un numero o lasciare vuoto per annullare.")
+            continue
+
+        if 1 <= index <= len(candidates):
+            return candidates[index - 1]
+
+        print("Numero fuori dall'intervallo indicato. Riprova.")
 
 
 def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> str:
