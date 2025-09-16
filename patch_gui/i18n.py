@@ -123,7 +123,9 @@ def _pick_source(sources: Dict[str, Path], code: str) -> Optional[Path]:
 
 
 def _compiled_dir(app: QtCore.QCoreApplication) -> Path:
-    location = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.CacheLocation)
+    location = QtCore.QStandardPaths.writableLocation(
+        QtCore.QStandardPaths.StandardLocation.CacheLocation
+    )
     if not location:
         location = os.path.join(tempfile.gettempdir(), app.applicationName() or "patch_gui")
     path = Path(location) / "translations"

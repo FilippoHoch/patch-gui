@@ -15,7 +15,11 @@ def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
     file_lines = ["abc\n", "dxf\n", "zzz\n", "ab\n", "def\n"]
     before_lines = ["abc\n", "def\n"]
     result = find_candidates(file_lines, before_lines, threshold=0.5)
-    assert result == [(3, pytest.approx(0.9333333333)), (0, pytest.approx(0.875))]
+    assert len(result) == 2
+    assert result[0][0] == 3
+    assert result[0][1] == pytest.approx(0.9333333333)
+    assert result[1][0] == 0
+    assert result[1][1] == pytest.approx(0.875)
 
 
 def test_find_candidates_with_empty_before_lines_returns_empty() -> None:

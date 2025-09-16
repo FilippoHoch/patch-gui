@@ -14,6 +14,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
+from unidiff.patch import PatchedFile
 
 from .patcher import (
     ApplySession,
@@ -240,14 +241,14 @@ def _prepare_backup_dir(project_root: Path, backup_base: Optional[Path], dry_run
     return backup_dir
 
 
-def _relative_path_from_patch(pf) -> str:
+def _relative_path_from_patch(pf: PatchedFile) -> str:
     rel = pf.path or pf.target_file or pf.source_file or ""
     return rel.strip()
 
 
 def _apply_file_patch(
     project_root: Path,
-    pf,
+    pf: PatchedFile,
     rel_path: str,
     session: ApplySession,
     *,

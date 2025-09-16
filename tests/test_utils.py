@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from patch_gui.utils import decode_bytes, preprocess_patch_text
 
 
@@ -12,7 +14,7 @@ def test_decode_bytes_reports_encoding_without_fallback() -> None:
     assert used_fallback is False
 
 
-def test_decode_bytes_uses_replace_when_fallback(monkeypatch) -> None:
+def test_decode_bytes_uses_replace_when_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_detect(data: bytes) -> tuple[str, bool]:
         return "utf-8", True
 

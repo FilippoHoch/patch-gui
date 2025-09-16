@@ -3,12 +3,21 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import Callable, List, Tuple, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from charset_normalizer import CharsetMatches
+else:  # pragma: no cover - runtime fallback when typing info is unavailable
+    CharsetMatches = object
+
+CnFromBytes = Callable[[bytes], CharsetMatches]
 
 try:  # pragma: no cover - optional dependency imported at runtime
-    from charset_normalizer import from_bytes as _cn_from_bytes
+    from charset_normalizer import from_bytes as _cn_from_bytes_impl
 except ImportError:  # pragma: no cover - library not installed in runtime env
-    _cn_from_bytes = None
+    _cn_from_bytes: CnFromBytes | None = None
+else:
+    _cn_from_bytes = cast(CnFromBytes, _cn_from_bytes_impl)
 
 APP_NAME = "Patch GUI – Diff Applier"
 BACKUP_DIR = ".diff_backups"

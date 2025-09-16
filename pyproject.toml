@@ -27,3 +27,19 @@ include = ["patch_gui*"]
 
 [tool.setuptools.package-data]
 "patch_gui" = ["translations/*.ts"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+files = ["patch_gui", "tests"]
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6",
+    "PySide6.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["unidiff", "unidiff.*"]
+ignore_missing_imports = true

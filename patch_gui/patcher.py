@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
+
+from unidiff.patch import Hunk
 
 from .utils import APP_NAME
 
@@ -39,7 +41,7 @@ class ApplySession:
     started_at: float
     results: List[FileResult] = field(default_factory=list)
 
-    def to_json(self) -> Dict:
+    def to_json(self) -> dict[str, Any]:
         return {
             "project_root": str(self.project_root),
             "backup_dir": str(self.backup_dir),
@@ -105,7 +107,7 @@ class HunkView:
     after_lines: List[str]
 
 
-def build_hunk_view(hunk) -> HunkView:
+def build_hunk_view(hunk: Hunk) -> HunkView:
     """Construct lists of strings for the "before" and "after" sequences for a hunk."""
 
     before: List[str] = []
