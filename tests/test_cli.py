@@ -75,3 +75,41 @@ def test_apply_patchset_real_run_creates_backup(tmp_path) -> None:
 
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_apply_patchset_with_non_utf8_patch(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "accento.txt"
+
+    original_text = "riga con accénto\nseconda linea\n"
+    modified_text = "riga aggiornata con accénto\nseconda linea\n"
+    target.write_bytes(original_text.encode("utf-16"))
+
+    patch_text = (
+        "--- a/accento.txt\n"
+        "+++ b/accento.txt\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-riga con accénto\n"
+        "+riga aggiornata con accénto\n"
+        " seconda linea\n"
+    )
+    patch_file = tmp_path / "accento.diff"
+    patch_file.write_bytes(patch_text.encode("utf-16"))
+
+    patch = cli.load_patch(str(patch_file))
+    session = cli.apply_patchset(
+        patch,
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+
+    assert target.read_bytes() == modified_text.encode("utf-16")
+    backup_copy = session.backup_dir / "accento.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == original_text.encode("utf-16")

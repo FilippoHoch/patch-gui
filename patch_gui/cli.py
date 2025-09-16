@@ -105,7 +105,8 @@ def load_patch(source: str) -> PatchSet:
         if not path.exists():
             raise CLIError(f"File diff non trovato: {path}")
         try:
-            text = path.read_text(encoding="utf-8")
+            raw = path.read_bytes()
+            text, _ = decode_bytes(raw)
         except Exception as exc:  # pragma: no cover - extremely rare I/O error types
             raise CLIError(f"Impossibile leggere {path}: {exc}") from exc
 
