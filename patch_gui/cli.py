@@ -92,6 +92,14 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
             "'<root>/%s'." % BACKUP_DIR
         ),
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help=(
+            "Disabilita i prompt interattivi: i file con percorsi ambigui vengono "
+            "saltati automaticamente."
+        ),
+    )
     return parser
 
 
@@ -127,8 +135,19 @@ def apply_patchset(
     dry_run: bool,
     threshold: float,
     backup_base: Optional[Path] = None,
+    interactive: bool = True,
 ) -> ApplySession:
-    """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
+    """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`.
+
+    Args:
+        patch: Il diff da applicare.
+        project_root: Cartella base del progetto.
+        dry_run: Se ``True`` esegue solo una simulazione.
+        threshold: Soglia per il matching fuzzy.
+        backup_base: Cartella base per i backup.
+        interactive: Se ``True`` consente di scegliere interattivamente
+            il file giusto in caso di percorsi ambigui.
+    """
 
     root = project_root.expanduser().resolve()
     if not root.exists() or not root.is_dir():
@@ -145,7 +164,7 @@ def apply_patchset(
 
     for pf in patch:
         rel = _relative_path_from_patch(pf)
-        fr = _apply_file_patch(root, pf, rel, session)
+        fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
     if not dry_run:
@@ -169,6 +188,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
             threshold=args.threshold,
             backup_base=backup_base,
+            interactive=not args.non_interactive,
         )
     except CLIError as exc:
         parser.exit(1, f"Errore: {exc}\n")
@@ -206,7 +226,14 @@ def _relative_path_from_patch(pf) -> str:
     return rel.strip()
 
 
-def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySession) -> FileResult:
+def _apply_file_patch(
+    project_root: Path,
+    pf,
+    rel_path: str,
+    session: ApplySession,
+    *,
+    interactive: bool,
+) -> FileResult:
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
 
@@ -218,11 +245,17 @@ def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySessi
     if not candidates:
         fr.skipped_reason = "File non trovato nella root del progetto"
         return fr
-    if len(candidates) > 1:
-        fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
-        return fr
-
-    path = candidates[0]
+    if len(candidates) == 1:
+        path = candidates[0]
+    else:
+        if not interactive:
+            fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
+            return fr
+        selected = _prompt_user_to_select_candidate(project_root, rel_path, candidates)
+        if selected is None:
+            fr.skipped_reason = "Applicazione annullata dall'utente per percorso ambiguo."
+            return fr
+        path = selected
     fr.file_path = path
     try:
         fr.relative_to_root = str(path.relative_to(project_root))
@@ -359,6 +392,51 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
         "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente. "
         f"Candidati: {joined}"
     )
+
+
+def _prompt_user_to_select_candidate(
+    project_root: Path, rel_path: str, candidates: Sequence[Path]
+) -> Optional[Path]:
+    target = rel_path or "<percorso non specificato>"
+    print(
+        f"Sono stati trovati {len(candidates)} possibili file per '{target}'.",
+        flush=True,
+    )
+    print("Seleziona il file corretto oppure premi Invio per saltare.", flush=True)
+    for idx, candidate in enumerate(candidates, start=1):
+        try:
+            display = str(candidate.relative_to(project_root))
+        except ValueError:
+            display = str(candidate)
+        print(f"  [{idx}] {display}", flush=True)
+
+    prompt = f"Selezione (1-{len(candidates)} / Invio per annullare): "
+    while True:
+        try:
+            choice = input(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("", flush=True)
+            return None
+        if not choice:
+            return None
+        lowered = choice.lower()
+        if lowered in {"q", "quit", "s", "skip"}:
+            return None
+        try:
+            index = int(choice)
+        except ValueError:
+            print(
+                "Input non valido. Inserisci un numero oppure premi Invio per annullare.",
+                flush=True,
+            )
+            continue
+        if 1 <= index <= len(candidates):
+            return candidates[index - 1]
+        print(
+            f"Numero fuori intervallo. Seleziona un valore tra 1 e {len(candidates)} "
+            "oppure premi Invio per annullare.",
+            flush=True,
+        )
 
 
 def _backup_file(project_root: Path, path: Path, backup_root: Path) -> None:

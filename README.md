@@ -10,7 +10,7 @@ Caratteristiche principali:
 * Matching **esatto → fuzzy** con soglia configurabile
 * Risoluzione **interattiva** delle ambiguità
 * **Backup** automatici e **report** dettagliati
-* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`
+* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`, `--non-interactive`
 
 ---
 
@@ -102,6 +102,8 @@ git diff | patch-gui apply --root . --backup ~/diff_backups -
 * `--dry-run` esegue solo l'analisi lasciando i file invariati.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* `--non-interactive` disabilita i prompt di disambiguazione e mantiene il comportamento "salta i duplicati".
+  Senza questo flag, la CLI propone un elenco dei file candidati quando trova più percorsi compatibili.
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
 
 ---

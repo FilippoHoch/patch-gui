@@ -109,6 +109,7 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
         project,
         dry_run=True,
         threshold=0.85,
+        interactive=False,
     )
 
     assert len(session.results) == 1
@@ -121,6 +122,34 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
     assert "src/app/sample.txt" in report
     assert "tests/app/sample.txt" in report
 
+
+def test_apply_patchset_interactive_disambiguates(monkeypatch, tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    src_dir = project / "src/app"
+    tests_dir = project / "tests/app"
+    src_dir.mkdir(parents=True)
+    tests_dir.mkdir(parents=True)
+
+    (src_dir / "sample.txt").write_text("old line\n", encoding="utf-8")
+    (tests_dir / "sample.txt").write_text("old line\n", encoding="utf-8")
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": "1")
+
+    session = cli.apply_patchset(
+        PatchSet(AMBIGUOUS_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+        interactive=True,
+    )
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.relative_to_root == "src/app/sample.txt"
+    assert file_result.hunks_applied == file_result.hunks_total == 1
 
 def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     project = _create_project(tmp_path)
