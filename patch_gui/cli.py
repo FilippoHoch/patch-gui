@@ -23,7 +23,16 @@ from .patcher import (
     build_hunk_view,
     find_candidates,
 )
-from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT, normalize_newlines, preprocess_patch_text
+from .utils import (
+    APP_NAME,
+    BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
+    decode_bytes,
+    normalize_newlines,
+    preprocess_patch_text,
+    write_text_preserving_encoding,
+)
 
 __all__ = [
     "CLIError",
@@ -227,7 +236,7 @@ def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySessi
         fr.skipped_reason = f"Impossibile leggere il file: {exc}"
         return fr
 
-    content = raw.decode("utf-8", errors="replace")
+    content, file_encoding = decode_bytes(raw)
     orig_eol = "\r\n" if "\r\n" in content else "\n"
     lines = normalize_newlines(content).splitlines(keepends=True)
 
@@ -275,7 +284,7 @@ def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySessi
 
     if not session.dry_run and modified:
         new_text = "".join(lines).replace("\n", orig_eol)
-        path.write_text(new_text, encoding="utf-8")
+        write_text_preserving_encoding(path, new_text, file_encoding)
 
     return fr
 

@@ -2,7 +2,13 @@
 from __future__ import annotations
 
 import re
-from typing import List
+from pathlib import Path
+from typing import List, Tuple
+
+try:  # pragma: no cover - optional dependency imported at runtime
+    from charset_normalizer import from_bytes as _cn_from_bytes
+except ImportError:  # pragma: no cover - library not installed in runtime env
+    _cn_from_bytes = None
 
 APP_NAME = "Patch GUI – Diff Applier"
 BACKUP_DIR = ".diff_backups"
@@ -13,6 +19,58 @@ BEGIN_PATCH_RE = re.compile(r"^\*\*\* Begin Patch", re.MULTILINE)
 END_PATCH_RE = re.compile(r"^\*\*\* End Patch", re.MULTILINE)
 UPDATE_FILE_RE = re.compile(r"^\*\*\* Update File: (.+)$", re.MULTILINE)
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@.*$")
+
+
+_BOM_PREFIXES = [
+    (b"\xef\xbb\xbf", "utf-8-sig"),
+    (b"\xff\xfe", "utf-16"),
+    (b"\xfe\xff", "utf-16"),
+]
+
+
+def detect_encoding(data: bytes) -> Tuple[str, bool]:
+    """Return the detected encoding for ``data`` and whether it was a fallback."""
+
+    if _cn_from_bytes is not None:
+        match = _cn_from_bytes(data).best()
+        if match and match.encoding:
+            encoding = match.encoding
+            try:
+                data.decode(encoding)
+            except (LookupError, UnicodeDecodeError):
+                pass
+            else:
+                return encoding, False
+
+    for bom, encoding in _BOM_PREFIXES:
+        if data.startswith(bom):
+            try:
+                data.decode(encoding)
+            except (LookupError, UnicodeDecodeError):
+                continue
+            return encoding, False
+
+    return "utf-8", True
+
+
+def decode_bytes(data: bytes) -> Tuple[str, str]:
+    """Decode ``data`` using the detected encoding with UTF-8 fallback."""
+
+    encoding, used_fallback = detect_encoding(data)
+    if used_fallback:
+        text = data.decode(encoding, errors="replace")
+    else:
+        text = data.decode(encoding)
+    return text, encoding
+
+
+def write_text_preserving_encoding(path: Path, text: str, encoding: str) -> None:
+    """Write ``text`` using ``encoding`` and fall back to UTF-8 on failure."""
+
+    try:
+        path.write_text(text, encoding=encoding)
+    except (LookupError, UnicodeEncodeError):
+        path.write_text(text, encoding="utf-8")
 
 
 def normalize_newlines(text: str) -> str:
@@ -100,6 +158,9 @@ __all__ = [
     "BACKUP_DIR",
     "REPORT_JSON",
     "REPORT_TXT",
+    "decode_bytes",
+    "detect_encoding",
     "normalize_newlines",
     "preprocess_patch_text",
+    "write_text_preserving_encoding",
 ]
