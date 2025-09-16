@@ -89,12 +89,57 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     text_report = session.backup_dir / REPORT_TXT
     assert json_report.exists()
     assert text_report.exists()
+    assert session.report_json_path == json_report
+    assert session.report_txt_path == text_report
 
     data = json.loads(json_report.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
 
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    json_dest = tmp_path / "reports" / "custom" / "apply.json"
+    txt_dest = tmp_path / "reports" / "apply.txt"
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+        report_json=json_dest,
+        report_txt=txt_dest,
+    )
+
+    assert session.report_json_path == json_dest
+    assert session.report_txt_path == txt_dest
+    assert json_dest.exists()
+    assert txt_dest.exists()
+    assert not (session.backup_dir / REPORT_JSON).exists()
+    assert not (session.backup_dir / REPORT_TXT).exists()
+
+    data = json.loads(json_dest.read_text(encoding="utf-8"))
+    assert data["files"][0]["hunks_applied"] == 1
+
+
+def test_apply_patchset_no_report(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+        write_report_files=False,
+    )
+
+    assert session.report_json_path is None
+    assert session.report_txt_path is None
+    assert not (session.backup_dir / REPORT_JSON).exists()
+    assert not (session.backup_dir / REPORT_TXT).exists()
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
@@ -278,6 +323,36 @@ def test_run_cli_requires_root_argument(
     message = str(excinfo.value)
     assert "--root" in message
     assert "error" in message.lower()
+
+
+def test_run_cli_rejects_report_conflicts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "report-options.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def fake_exit(
+        self: argparse.ArgumentParser, status: int = 0, message: str | None = None
+    ) -> None:
+        raise cli.CLIError(message.strip() if message else "parser exited")
+
+    monkeypatch.setattr(argparse.ArgumentParser, "exit", fake_exit, raising=False)
+
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--no-report",
+                "--report-json",
+                str(tmp_path / "custom.json"),
+                str(patch_path),
+            ]
+        )
+
+    message = str(excinfo.value)
+    assert "--no-report" in message or "no-report" in message
 
 
 def test_apply_patchset_logs_warning_on_fallback(

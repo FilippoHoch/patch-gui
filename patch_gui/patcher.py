@@ -53,6 +53,8 @@ class ApplySession:
     threshold: float
     started_at: float
     results: List[FileResult] = field(default_factory=list)
+    report_json_path: Optional[Path] = None
+    report_txt_path: Optional[Path] = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -356,15 +358,48 @@ def backup_file(project_root: Path, path: Path, backup_root: Path) -> None:
     shutil.copy2(path, dest)
 
 
-def write_reports(session: ApplySession) -> None:
-    """Persist JSON and text reports for ``session`` in its backup directory."""
+def write_reports(
+    session: ApplySession,
+    *,
+    json_path: Path | str | None = None,
+    txt_path: Path | str | None = None,
+    write_json: bool = True,
+    write_txt: bool = True,
+) -> tuple[Optional[Path], Optional[Path]]:
+    """Persist JSON and text reports for ``session`` and return written paths."""
+
+    if not write_json and not write_txt:
+        return None, None
 
     session.backup_dir.mkdir(parents=True, exist_ok=True)
-    (session.backup_dir / REPORT_JSON).write_text(
-        json.dumps(session.to_json(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    (session.backup_dir / REPORT_TXT).write_text(session.to_txt(), encoding="utf-8")
+
+    def _resolve_path(raw: Path | str | None, default: Path) -> Path:
+        if raw is None:
+            return default
+        if isinstance(raw, str):
+            cleaned = raw.strip()
+            if not cleaned:
+                return default
+            return Path(cleaned).expanduser()
+        return raw.expanduser()
+
+    json_target: Optional[Path] = None
+    txt_target: Optional[Path] = None
+
+    if write_json:
+        json_target = _resolve_path(json_path, session.backup_dir / REPORT_JSON)
+        json_target.parent.mkdir(parents=True, exist_ok=True)
+        json_target.write_text(
+            json.dumps(session.to_json(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    if write_txt:
+        txt_target = _resolve_path(txt_path, session.backup_dir / REPORT_TXT)
+        txt_target.parent.mkdir(parents=True, exist_ok=True)
+        txt_target.write_text(session.to_txt(), encoding="utf-8")
+
+    return json_target, txt_target
 
 
 __all__ = [

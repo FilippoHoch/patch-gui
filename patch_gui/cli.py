@@ -26,6 +26,8 @@ from .patcher import (
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
     decode_bytes,
     normalize_newlines,
     preprocess_patch_text,
@@ -96,6 +98,25 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         ),
     )
     parser.add_argument(
+        "--report-json",
+        help=(
+            "Percorso del report JSON generato; di default '<backup>/%s'."
+            % REPORT_JSON
+        ),
+    )
+    parser.add_argument(
+        "--report-txt",
+        help=(
+            "Percorso del report testuale generato; di default '<backup>/%s'."
+            % REPORT_TXT
+        ),
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Non creare i file di report JSON/TXT.",
+    )
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help=(
@@ -154,6 +175,9 @@ def apply_patchset(
     threshold: float,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
+    report_json: Path | str | None = None,
+    report_txt: Path | str | None = None,
+    write_report_files: bool = True,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
 
@@ -176,7 +200,12 @@ def apply_patchset(
         session.results.append(fr)
 
     if not dry_run:
-        write_reports(session)
+        _write_reports(
+            session,
+            report_json=report_json,
+            report_txt=report_txt,
+            enable_reports=write_report_files,
+        )
 
     return session
 
@@ -186,6 +215,11 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    if args.no_report and (args.report_json or args.report_txt):
+        parser.error(
+            "Le opzioni --report-json/--report-txt non sono compatibili con --no-report."
+        )
 
     level_name = args.log_level.upper()
     logging.basicConfig(
@@ -208,6 +242,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             threshold=args.threshold,
             backup_base=backup_base,
             interactive=not args.non_interactive,
+            report_json=args.report_json,
+            report_txt=args.report_txt,
+            write_report_files=not args.no_report,
         )
     except CLIError as exc:
         parser.exit(1, f"Errore: {exc}\n")
@@ -216,7 +253,16 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     if args.dry_run:
         print("\nModalità dry-run: nessun file è stato modificato e non sono stati creati backup.")
     else:
-        print(f"\nBackup e report salvati in: {session.backup_dir}")
+        print(f"\nBackup salvati in: {session.backup_dir}")
+        if session.report_json_path or session.report_txt_path:
+            details = []
+            if session.report_json_path:
+                details.append(f"JSON: {session.report_json_path}")
+            if session.report_txt_path:
+                details.append(f"Testo: {session.report_txt_path}")
+            print("Report salvati in: " + ", ".join(details))
+        else:
+            print("Report disattivati (--no-report)")
 
     return 0 if _session_completed(session) else 1
 
@@ -395,3 +441,40 @@ def _session_completed(session: ApplySession) -> bool:
         if fr.hunks_total and fr.hunks_applied != fr.hunks_total:
             return False
     return True
+
+
+def _write_reports(
+    session: ApplySession,
+    *,
+    report_json: Path | str | None,
+    report_txt: Path | str | None,
+    enable_reports: bool,
+) -> tuple[Optional[Path], Optional[Path]]:
+    if not enable_reports:
+        session.report_json_path = None
+        session.report_txt_path = None
+        return None, None
+
+    json_path = _coerce_report_path(report_json)
+    txt_path = _coerce_report_path(report_txt)
+
+    written = write_reports(
+        session,
+        json_path=json_path,
+        txt_path=txt_path,
+        write_json=True,
+        write_txt=True,
+    )
+    session.report_json_path, session.report_txt_path = written
+    return written
+
+
+def _coerce_report_path(value: Path | str | None) -> Optional[Path]:
+    if value is None:
+        return None
+    if isinstance(value, Path):
+        return value.expanduser()
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    return Path(cleaned).expanduser()
