@@ -183,6 +183,18 @@ patch-gui
 * **EOL**: preserva lo stile originale del file (LF/CRLF) al salvataggio.
 * **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), altrimenti ricerca **per nome** in modo ricorsivo; in caso di multipli chiede quale usare.
 * **Formati supportati**: file di testo in generale (JS, TS, HTML, CSS, MD, Rust, …).
+* **Logging**:
+  * `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, oppure valori numerici come `20`). Il default è `INFO`.
+  * `PATCH_GUI_LOG_FILE` imposta il percorso del file di log (valori come `~/logs/patch_gui.log`). In assenza della variabile viene usato `~/.patch_gui.log`.
+
+  ```bash
+  # Avvio della GUI con log dettagliati nel percorso di default (~/.patch_gui.log)
+  PATCH_GUI_LOG_LEVEL=DEBUG patch-gui
+
+  # Modalità CLI con log in una posizione personalizzata
+  PATCH_GUI_LOG_FILE="$HOME/logs/patch_gui-app.log" PATCH_GUI_LOG_LEVEL=WARNING \
+    patch-gui apply --root . diff.patch
+  ```
 
 ---
 
