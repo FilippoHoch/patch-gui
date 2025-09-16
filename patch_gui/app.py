@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 import shutil
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
@@ -30,6 +32,88 @@ from .utils import (
     normalize_newlines,
     preprocess_patch_text,
 )
+
+
+LOG_FILE_ENV_VAR = "PATCH_GUI_LOG_FILE"
+LOG_LEVEL_ENV_VAR = "PATCH_GUI_LOG_LEVEL"
+DEFAULT_LOG_FILE = Path.home() / ".patch_gui.log"
+LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _resolve_log_level(level: str | int | None) -> int:
+    """Convert ``level`` to a ``logging`` level integer."""
+
+    if level is None:
+        level = os.getenv(LOG_LEVEL_ENV_VAR, "INFO")
+
+    if isinstance(level, int):
+        return level
+
+    if isinstance(level, str):
+        candidate = level.strip()
+        if not candidate:
+            return logging.INFO
+        if candidate.isdigit():
+            return int(candidate)
+        numeric = logging.getLevelName(candidate.upper())
+        if isinstance(numeric, int):
+            return numeric
+
+    return logging.INFO
+
+
+def configure_logging(*, level: str | int | None = None, log_file: str | Path | None = None) -> Path:
+    """Configure the global logging setup with a file handler."""
+
+    resolved_level = _resolve_log_level(level)
+    file_path = Path(os.getenv(LOG_FILE_ENV_VAR, log_file or DEFAULT_LOG_FILE)).expanduser()
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt=LOG_TIMESTAMP_FORMAT,
+    )
+
+    file_handler = logging.FileHandler(file_path, encoding="utf-8")
+    file_handler.setLevel(resolved_level)
+    file_handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(resolved_level)
+
+    for handler in list(root_logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            root_logger.removeHandler(handler)
+            handler.close()
+
+    root_logger.addHandler(file_handler)
+    return file_path
+
+
+class _QtLogEmitter(QtCore.QObject):
+    """Helper ``QObject`` used to forward log messages to the GUI thread."""
+
+    message = QtCore.Signal(str, int)
+
+
+class GuiLogHandler(logging.Handler):
+    """Logging handler that forwards messages to a Qt callback."""
+
+    def __init__(self, callback: Callable[[str, int], None]):
+        super().__init__()
+        self._emitter = _QtLogEmitter()
+        self._emitter.message.connect(callback)
+
+    def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - UI feedback
+        try:
+            message = self.format(record)
+        except Exception:  # pragma: no cover - defensive guard for logging issues
+            self.handleError(record)
+            return
+        self._emitter.message.emit(message, record.levelno)
+
+
+logger = logging.getLogger(__name__)
 
 
 class CandidateDialog(QtWidgets.QDialog):
@@ -148,6 +232,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.patch: Optional[PatchSet] = None
 
         self.threshold = 0.85
+        self._qt_log_handler: Optional[GuiLogHandler] = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -235,9 +320,32 @@ class MainWindow(QtWidgets.QMainWindow):
         splitter.addWidget(right)
         splitter.setSizes([400, 800])
 
+        self._setup_gui_logging()
+
         self.statusBar().showMessage("Pronto")
 
         self.restore_last_project_root()
+
+    def _setup_gui_logging(self) -> None:
+        handler = GuiLogHandler(self._handle_log_message)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        handler.setLevel(logging.NOTSET)
+        logging.getLogger().addHandler(handler)
+        self._qt_log_handler = handler
+
+    @QtCore.Slot(str, int)
+    def _handle_log_message(self, message: str, level: int) -> None:  # pragma: no cover - UI feedback
+        self.log.appendPlainText(message)
+        lines = [line for line in message.strip().splitlines() if line]
+        if lines:
+            self.statusBar().showMessage(lines[0][:100])
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self._qt_log_handler is not None:
+            logging.getLogger().removeHandler(self._qt_log_handler)
+            self._qt_log_handler.close()
+            self._qt_log_handler = None
+        super().closeEvent(event)
 
     def set_project_root(self, path: Path, persist: bool = True) -> bool:
         resolved = Path(path).expanduser().resolve()
@@ -276,7 +384,7 @@ class MainWindow(QtWidgets.QMainWindow):
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             self.diff_text = f.read()
         self.text_diff.setPlainText(self.diff_text)
-        self.log_append(f"Caricato diff da file: {path}")
+        logger.info("Caricato diff da file: %s", path)
 
     def load_from_clipboard(self):
         cb = QtGui.QGuiApplication.clipboard()
@@ -286,14 +394,14 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.diff_text = text
         self.text_diff.setPlainText(self.diff_text)
-        self.log_append("Diff caricato dagli appunti.")
+        logger.info("Diff caricato dagli appunti.")
 
     def parse_from_textarea(self):
         self.diff_text = self.text_diff.toPlainText()
         if not self.diff_text.strip():
             QtWidgets.QMessageBox.warning(self, "Nessun testo", "Inserisci del testo diff nella textarea.")
             return
-        self.log_append("Testo diff pronto per analisi.")
+        logger.info("Testo diff pronto per analisi.")
 
     def analyze_diff(self):
         if not self.project_root:
@@ -324,7 +432,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 child = QtWidgets.QTreeWidgetItem([hv.header, ""])
                 node.addChild(child)
         self.tree.expandAll()
-        self.log_append(f"Analisi completata. File nel diff: {len(self.patch)}")
+        logger.info("Analisi completata. File nel diff: %s", len(self.patch))
 
     def apply_patch(self):
         if not self.patch:
@@ -350,7 +458,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.write_report(session)
 
-        self.log_append("\n=== RISULTATO ===\n" + session.to_txt())
+        logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
         QtWidgets.QMessageBox.information(
             self, "Completato", "Operazione terminata. Vedi log e report nella cartella di backup."
         )
@@ -361,7 +469,7 @@ class MainWindow(QtWidgets.QMainWindow):
         candidates = self.find_files_in_project(rel_path)
         if not candidates:
             fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
-            self.log_append(f"SKIP: {rel_path} non trovato.")
+            logger.warning("SKIP: %s non trovato.", rel_path)
             return fr
         if len(candidates) > 1:
             dlg = FileChoiceDialog(self, f"Seleziona file per {rel_path}", candidates)
@@ -531,12 +639,8 @@ class MainWindow(QtWidgets.QMainWindow):
         matches = [p for p in self.project_root.rglob(name) if p.is_file()]
         return matches
 
-    def log_append(self, msg: str):
-        self.log.appendPlainText(msg)
-        self.statusBar().showMessage(msg[:100])
-
-
 def main():
+    configure_logging()
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     w = MainWindow()
@@ -544,4 +648,4 @@ def main():
     sys.exit(app.exec())
 
 
-__all__ = ["CandidateDialog", "FileChoiceDialog", "MainWindow", "main"]
+__all__ = ["CandidateDialog", "FileChoiceDialog", "GuiLogHandler", "MainWindow", "configure_logging", "main"]
