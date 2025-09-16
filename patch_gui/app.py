@@ -20,9 +20,9 @@ from .patcher import (
     ApplySession,
     FileResult,
     HunkView,
-    build_hunk_view,
     apply_hunks,
     backup_file,
+    build_hunk_view as patcher_build_hunk_view,
     find_file_candidates,
     prepare_backup_dir,
     write_reports,
@@ -584,7 +584,7 @@ class MainWindow(QtWidgets.QMainWindow):
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole, rel)
             self.tree.addTopLevelItem(node)
             for h in pf:
-                hv = build_hunk_view(h)
+                hv = patcher_build_hunk_view(h)
                 child = QtWidgets.QTreeWidgetItem([hv.header, ""])
                 node.addChild(child)
         self.tree.expandAll()
