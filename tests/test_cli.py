@@ -225,6 +225,53 @@ def test_load_patch_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> N
     assert any("fallback" in record.message.lower() for record in caplog.records)
 
 
+def test_load_patch_missing_file_raises_clierror(tmp_path) -> None:
+    missing = tmp_path / "not-there.diff"
+
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.load_patch(str(missing))
+
+    message = str(excinfo.value)
+    assert "File diff non trovato" in message
+    assert str(missing) in message
+
+
+def test_load_patch_invalid_diff_raises_clierror(tmp_path) -> None:
+    invalid = tmp_path / "invalid.diff"
+    invalid.write_text(
+        """--- a/file
++++ b/file
+@@ -1 +1 @@
+@@ -1 +1 @@
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.load_patch(str(invalid))
+
+    message = str(excinfo.value)
+    assert "Diff non valido" in message
+    assert "@@ -1 +1 @@" in message
+
+
+def test_run_cli_requires_root_argument(monkeypatch, tmp_path) -> None:
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def fake_exit(self, status=0, message=None):
+        raise cli.CLIError(message.strip() if message else "parser exited")
+
+    monkeypatch.setattr(argparse.ArgumentParser, "exit", fake_exit, raising=False)
+
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.run_cli([str(patch_path)])
+
+    message = str(excinfo.value)
+    assert "--root" in message
+    assert "error" in message.lower()
+
+
 def test_apply_patchset_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
     project = _create_project(tmp_path)
 
