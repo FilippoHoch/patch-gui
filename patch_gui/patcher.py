@@ -1,13 +1,15 @@
 """Patch application data structures and helper routines."""
 from __future__ import annotations
 
+import json
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
-from .utils import APP_NAME
+from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
 
 
 @dataclass
@@ -105,6 +107,9 @@ class HunkView:
     after_lines: List[str]
 
 
+ManualResolver = Callable[["HunkView", List[str], List[Tuple[int, float]], HunkDecision, str], Optional[int]]
+
+
 def build_hunk_view(hunk) -> HunkView:
     """Construct lists of strings for the "before" and "after" sequences for a hunk."""
 
@@ -174,13 +179,192 @@ def apply_hunk_at_position(file_lines: List[str], hv: HunkView, pos: int) -> Lis
     return file_lines[:pos] + new_chunk + file_lines[end:]
 
 
+def apply_hunks(
+    file_lines: List[str],
+    hunks: Iterable,
+    *,
+    threshold: float,
+    manual_resolver: Optional[ManualResolver] = None,
+) -> Tuple[List[str], List[HunkDecision], int]:
+    """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions."""
+
+    current_lines = file_lines
+    decisions: List[HunkDecision] = []
+    applied_count = 0
+
+    def _apply(
+        lines: List[str],
+        hv: HunkView,
+        decision: HunkDecision,
+        pos: int,
+        similarity: Optional[float],
+        strategy: Optional[str],
+    ) -> Tuple[List[str], bool]:
+        try:
+            new_lines = apply_hunk_at_position(lines, hv, pos)
+        except Exception as exc:
+            decision.strategy = "failed"
+            decision.message = f"Errore durante l'applicazione del hunk: {exc}"
+            return lines, False
+        if strategy:
+            decision.strategy = strategy
+        decision.selected_pos = pos
+        if similarity is not None:
+            decision.similarity = similarity
+        return new_lines, True
+
+    for hunk in hunks:
+        hv = build_hunk_view(hunk)
+        decision = HunkDecision(hunk_header=hv.header, strategy="")
+
+        exact_candidates = find_candidates(current_lines, hv.before_lines, threshold=1.0)
+        if exact_candidates:
+            pos, score = exact_candidates[0]
+            current_lines, success = _apply(current_lines, hv, decision, pos, score, "exact")
+            if success:
+                applied_count += 1
+            decisions.append(decision)
+            continue
+
+        fuzzy_candidates = find_candidates(current_lines, hv.before_lines, threshold=threshold)
+        if len(fuzzy_candidates) == 1:
+            pos, score = fuzzy_candidates[0]
+            current_lines, success = _apply(current_lines, hv, decision, pos, score, "fuzzy")
+            if success:
+                applied_count += 1
+            decisions.append(decision)
+            continue
+        if len(fuzzy_candidates) > 1:
+            decision.strategy = "manual"
+            decision.candidates = fuzzy_candidates
+            chosen: Optional[int] = None
+            if manual_resolver is not None:
+                chosen = manual_resolver(hv, current_lines, fuzzy_candidates, decision, "fuzzy")
+            if chosen is not None:
+                similarity = next((score for pos_, score in fuzzy_candidates if pos_ == chosen), None)
+                current_lines, success = _apply(current_lines, hv, decision, chosen, similarity, None)
+                if success:
+                    applied_count += 1
+                decisions.append(decision)
+                continue
+            if decision.strategy == "manual" and not decision.message:
+                decision.strategy = "failed"
+                decision.message = "Applicazione annullata per ambiguità fuzzy."
+            decisions.append(decision)
+            continue
+
+        context_lines = [ln for ln in hv.before_lines if not ln.startswith(("+", "-"))]
+        context_candidates: List[Tuple[int, float]] = []
+        if context_lines:
+            context_candidates = find_candidates(current_lines, context_lines, threshold=threshold)
+        if context_candidates:
+            decision.strategy = "manual"
+            decision.candidates = context_candidates
+            chosen = None
+            if manual_resolver is not None:
+                chosen = manual_resolver(hv, current_lines, context_candidates, decision, "context")
+            if chosen is not None:
+                similarity = next((score for pos_, score in context_candidates if pos_ == chosen), None)
+                current_lines, success = _apply(current_lines, hv, decision, chosen, similarity, None)
+                if success:
+                    applied_count += 1
+                decisions.append(decision)
+                continue
+            if decision.strategy == "manual" and not decision.message:
+                decision.strategy = "failed"
+                decision.message = "Applicazione annullata (solo contesto)."
+            decisions.append(decision)
+            continue
+
+        decision.strategy = "failed"
+        if not decision.message:
+            decision.message = "Nessun candidato compatibile trovato sopra la soglia impostata."
+        decisions.append(decision)
+
+    return current_lines, decisions, applied_count
+
+
+def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
+    """Return possible file matches for ``rel_path`` relative to ``project_root``."""
+
+    rel = rel_path.strip()
+    if rel.startswith("a/") or rel.startswith("b/"):
+        rel = rel[2:]
+    if not rel:
+        return []
+
+    exact = project_root / rel
+    if exact.exists():
+        return [exact]
+
+    name = Path(rel).name
+    matches = [p for p in project_root.rglob(name) if p.is_file()]
+    if not matches:
+        return []
+
+    suffix_matches = []
+    for path in matches:
+        try:
+            relative = path.relative_to(project_root)
+        except ValueError:
+            continue
+        if str(relative).endswith(rel):
+            suffix_matches.append(path)
+    if len(suffix_matches) == 1:
+        return suffix_matches
+
+    return sorted(matches)
+
+
+def prepare_backup_dir(
+    project_root: Path,
+    *,
+    dry_run: bool,
+    backup_base: Optional[Path] = None,
+) -> Path:
+    """Return a timestamped backup directory for the session."""
+
+    base = backup_base.expanduser() if backup_base is not None else project_root / BACKUP_DIR
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_dir = base / timestamp
+    if not dry_run:
+        backup_dir.mkdir(parents=True, exist_ok=True)
+    return backup_dir
+
+
+def backup_file(project_root: Path, path: Path, backup_root: Path) -> None:
+    """Copy ``path`` inside ``backup_root`` preserving the relative structure."""
+
+    rel = path.relative_to(project_root)
+    dest = backup_root / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(path, dest)
+
+
+def write_reports(session: ApplySession) -> None:
+    """Persist JSON and text reports for ``session`` in its backup directory."""
+
+    session.backup_dir.mkdir(parents=True, exist_ok=True)
+    (session.backup_dir / REPORT_JSON).write_text(
+        json.dumps(session.to_json(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (session.backup_dir / REPORT_TXT).write_text(session.to_txt(), encoding="utf-8")
+
+
 __all__ = [
     "ApplySession",
     "FileResult",
     "HunkDecision",
     "HunkView",
+    "ManualResolver",
     "apply_hunk_at_position",
+    "apply_hunks",
+    "backup_file",
     "build_hunk_view",
+    "find_file_candidates",
     "find_candidates",
+    "prepare_backup_dir",
     "text_similarity",
+    "write_reports",
 ]

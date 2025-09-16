@@ -1,7 +1,6 @@
 """GUI application logic for the Patch GUI diff applier."""
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -9,7 +8,6 @@ import shutil
 import sys
 import threading
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -21,17 +19,16 @@ from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .patcher import (
     ApplySession,
     FileResult,
-    HunkDecision,
     HunkView,
-    apply_hunk_at_position,
-    build_hunk_view,
-    find_candidates,
+    apply_hunks,
+    backup_file,
+    find_file_candidates,
+    prepare_backup_dir,
+    write_reports,
 )
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
-    REPORT_JSON,
-    REPORT_TXT,
     decode_bytes,
     normalize_newlines,
     preprocess_patch_text,
@@ -265,7 +262,7 @@ class PatchApplyWorker(QtCore.QThread):
     def apply_file_patch(self, pf, rel_path: str) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
-        candidates = self.find_files_in_project(rel_path)
+        candidates = find_file_candidates(self.session.project_root, rel_path)
         if not candidates:
             fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
             logger.warning("SKIP: %s non trovato.", rel_path)
@@ -301,76 +298,19 @@ class PatchApplyWorker(QtCore.QThread):
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
         if not self.session.dry_run:
-            self.backup_file(path)
+            backup_file(self.session.project_root, path, self.session.backup_dir)
 
-        for h in pf:
-            hv = build_hunk_view(h)
-            decision = HunkDecision(hunk_header=hv.header, strategy="")
+        lines, decisions, applied = apply_hunks(
+            lines,
+            pf,
+            threshold=self.session.threshold,
+            manual_resolver=self._resolve_hunk_choice,
+        )
 
-            cand = find_candidates(lines, hv.before_lines, threshold=1.0)
-            if cand:
-                pos = cand[0][0]
-                if not self.session.dry_run:
-                    lines = apply_hunk_at_position(lines, hv, pos)
-                decision.strategy = "exact"
-                decision.selected_pos = pos
-                decision.similarity = 1.0
-                fr.hunks_applied += 1
-                fr.decisions.append(decision)
-                continue
+        fr.hunks_applied = applied
+        fr.decisions.extend(decisions)
 
-            cand = find_candidates(lines, hv.before_lines, threshold=self.session.threshold)
-            if len(cand) == 1:
-                pos, score = cand[0]
-                if not self.session.dry_run:
-                    lines = apply_hunk_at_position(lines, hv, pos)
-                decision.strategy = "fuzzy"
-                decision.selected_pos = pos
-                decision.similarity = score
-                fr.hunks_applied += 1
-                fr.decisions.append(decision)
-                continue
-            elif len(cand) > 1:
-                decision.strategy = "manual"
-                decision.candidates = cand
-                pos = self._wait_for_hunk_choice(hv, lines, cand)
-                if pos is not None:
-                    if not self.session.dry_run:
-                        lines = apply_hunk_at_position(lines, hv, pos)
-                    decision.selected_pos = pos
-                    chosen_score = next((s for p, s in cand if p == pos), None)
-                    decision.similarity = chosen_score
-                    fr.hunks_applied += 1
-                else:
-                    decision.strategy = "failed"
-                    decision.message = "Scelta annullata dall'utente"
-                fr.decisions.append(decision)
-                continue
-
-            before_ctx = [l for l in hv.before_lines if not l.startswith(("+", "-"))]
-            cand = find_candidates(lines, before_ctx, threshold=self.session.threshold)
-            if cand:
-                decision.strategy = "manual"
-                decision.candidates = cand
-                pos = self._wait_for_hunk_choice(hv, lines, cand)
-                if pos is not None:
-                    if not self.session.dry_run:
-                        lines = apply_hunk_at_position(lines, hv, pos)
-                    decision.selected_pos = pos
-                    chosen_score = next((s for p, s in cand if p == pos), None)
-                    decision.similarity = chosen_score
-                    fr.hunks_applied += 1
-                else:
-                    decision.strategy = "failed"
-                    decision.message = "Scelta annullata (solo contesto)"
-                fr.decisions.append(decision)
-                continue
-
-            decision.strategy = "failed"
-            decision.message = "Nessun candidato trovato sopra la soglia"
-            fr.decisions.append(decision)
-
-        if not self.session.dry_run:
+        if not self.session.dry_run and applied:
             new_text = "".join(lines)
             new_text = new_text.replace("\n", orig_eol)
             write_text_preserving_encoding(path, new_text, file_encoding)
@@ -394,21 +334,15 @@ class PatchApplyWorker(QtCore.QThread):
         self._hunk_choice_event.wait()
         return self._hunk_choice_result
 
-    def find_files_in_project(self, rel_path: str) -> List[Path]:
-        rel_path = rel_path.strip()
-        if rel_path.startswith("a/") or rel_path.startswith("b/"):
-            rel_path = rel_path[2:]
-        exact = self.session.project_root / rel_path
-        if exact.exists():
-            return [exact]
-        name = Path(rel_path).name
-        return [p for p in self.session.project_root.rglob(name) if p.is_file()]
-
-    def backup_file(self, path: Path) -> None:
-        rel = path.relative_to(self.session.project_root)
-        dst = self.session.backup_dir / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dst)
+    def _resolve_hunk_choice(self, hv, lines, candidates, decision, reason):
+        pos = self._wait_for_hunk_choice(hv, lines, candidates)
+        if pos is None:
+            decision.strategy = "failed"
+            if reason == "context":
+                decision.message = "Scelta annullata (solo contesto)"
+            else:
+                decision.message = "Scelta annullata dall'utente"
+        return pos
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -686,7 +620,7 @@ class MainWindow(QtWidgets.QMainWindow):
         thr = float(self.spin_thresh.value())
         session = ApplySession(
             project_root=self.project_root,
-            backup_dir=self.ensure_backup_dir(),
+            backup_dir=prepare_backup_dir(self.project_root, dry_run=dry),
             dry_run=dry,
             threshold=thr,
             started_at=time.time(),
@@ -714,7 +648,7 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot(object)
     def _on_worker_finished(self, session: ApplySession) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
-        self.write_report(session)
+        write_reports(session)
         logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
         self._set_busy(False)
         QtWidgets.QMessageBox.information(
@@ -759,7 +693,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def apply_file_patch(self, pf, rel_path: str, session: ApplySession) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
-        candidates = self.find_files_in_project(rel_path)
+        assert self.project_root is not None
+        candidates = find_file_candidates(self.project_root, rel_path)
         if not candidates:
             fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
             logger.warning("SKIP: %s non trovato.", rel_path)
@@ -795,104 +730,36 @@ class MainWindow(QtWidgets.QMainWindow):
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
         if not session.dry_run:
-            self.backup_file(path, session.backup_dir)
+            backup_file(self.project_root, path, session.backup_dir)
 
-        for h in pf:
-            hv = build_hunk_view(h)
-            decision = HunkDecision(hunk_header=hv.header, strategy="")
+        lines, decisions, applied = apply_hunks(
+            lines,
+            pf,
+            threshold=session.threshold,
+            manual_resolver=self._dialog_hunk_choice,
+        )
 
-            cand = find_candidates(lines, hv.before_lines, threshold=1.0)
-            if cand:
-                pos = cand[0][0]
-                if not session.dry_run:
-                    lines = apply_hunk_at_position(lines, hv, pos)
-                decision.strategy = "exact"
-                decision.selected_pos = pos
-                decision.similarity = 1.0
-                fr.hunks_applied += 1
-                fr.decisions.append(decision)
-                continue
+        fr.hunks_applied = applied
+        fr.decisions.extend(decisions)
 
-            cand = find_candidates(lines, hv.before_lines, threshold=session.threshold)
-            if len(cand) == 1:
-                pos, score = cand[0]
-                if not session.dry_run:
-                    lines = apply_hunk_at_position(lines, hv, pos)
-                decision.strategy = "fuzzy"
-                decision.selected_pos = pos
-                decision.similarity = score
-                fr.hunks_applied += 1
-                fr.decisions.append(decision)
-                continue
-            elif len(cand) > 1:
-                decision.strategy = "manual"
-                decision.candidates = cand
-                file_text = "".join(lines)
-                dlg = CandidateDialog(self, file_text, cand, hv)
-                if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
-                    pos = dlg.selected_pos
-                    if not session.dry_run:
-                        lines = apply_hunk_at_position(lines, hv, pos)
-                    decision.selected_pos = pos
-                    chosen_score = next((s for p, s in cand if p == pos), None)
-                    decision.similarity = chosen_score
-                    fr.hunks_applied += 1
-                else:
-                    decision.strategy = "failed"
-                    decision.message = "Scelta annullata dall'utente"
-                fr.decisions.append(decision)
-                continue
-
-            before_ctx = [l for l in hv.before_lines if not l.startswith(("+", "-"))]
-            cand = find_candidates(lines, before_ctx, threshold=session.threshold)
-            if cand:
-                decision.strategy = "manual"
-                decision.candidates = cand
-                file_text = "".join(lines)
-                dlg = CandidateDialog(self, file_text, cand, hv)
-                if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
-                    pos = dlg.selected_pos
-                    if not session.dry_run:
-                        lines = apply_hunk_at_position(lines, hv, pos)
-                    decision.selected_pos = pos
-                    chosen_score = next((s for p, s in cand if p == pos), None)
-                    decision.similarity = chosen_score
-                    fr.hunks_applied += 1
-                else:
-                    decision.strategy = "failed"
-                    decision.message = "Scelta annullata (solo contesto)"
-                fr.decisions.append(decision)
-                continue
-
-            decision.strategy = "failed"
-            decision.message = "Nessun candidato trovato sopra la soglia"
-            fr.decisions.append(decision)
-
-        if not session.dry_run:
+        if not session.dry_run and applied:
             new_text = "".join(lines)
             new_text = new_text.replace("\n", orig_eol)
             write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 
-    def ensure_backup_dir(self) -> Path:
-        base = self.project_root / BACKUP_DIR
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        full = base / stamp
-        full.mkdir(parents=True, exist_ok=True)
-        return full
-
-    def backup_file(self, path: Path, backup_root: Path) -> None:
-        rel = path.relative_to(self.project_root)
-        dst = backup_root / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dst)
-
-    def write_report(self, session: ApplySession) -> None:
-        (session.backup_dir / REPORT_JSON).write_text(
-            json.dumps(session.to_json(), ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        (session.backup_dir / REPORT_TXT).write_text(session.to_txt(), encoding="utf-8")
+    def _dialog_hunk_choice(self, hv, lines, candidates, decision, reason):
+        file_text = "".join(lines)
+        dlg = CandidateDialog(self, file_text, candidates, hv)
+        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
+            return dlg.selected_pos
+        decision.strategy = "failed"
+        if reason == "context":
+            decision.message = "Scelta annullata (solo contesto)"
+        else:
+            decision.message = "Scelta annullata dall'utente"
+        return None
 
     def restore_from_backup(self):
         if not self.project_root:
@@ -926,18 +793,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
         QtWidgets.QMessageBox.information(self, "Ripristino completato", f"Backup {item} ripristinato.")
-
-    def find_files_in_project(self, rel_path: str) -> List[Path]:
-        assert self.project_root
-        rel_path = rel_path.strip()
-        if rel_path.startswith("a/") or rel_path.startswith("b/"):
-            rel_path = rel_path[2:]
-        exact = self.project_root / rel_path
-        if exact.exists():
-            return [exact]
-        name = Path(rel_path).name
-        matches = [p for p in self.project_root.rglob(name) if p.is_file()]
-        return matches
 
 def main():
     configure_logging()
