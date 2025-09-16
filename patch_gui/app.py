@@ -17,6 +17,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
 
 from .i18n import install_translators
+from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .patcher import (
     ApplySession,
     FileResult,
@@ -408,6 +409,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
 
+        icon_pixmap = create_logo_pixmap(256)
+        self._window_icon = QtGui.QIcon(icon_pixmap)
+        self.setWindowIcon(self._window_icon)
+
         self.project_root: Optional[Path] = None
         self.settings = QtCore.QSettings("Work", "PatchDiffApplier")
         self.diff_text: str = ""
@@ -420,6 +425,21 @@ class MainWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
+
+        banner = QtWidgets.QHBoxLayout()
+        banner.setContentsMargins(0, 0, 0, 0)
+        banner.setSpacing(12)
+        layout.addLayout(banner)
+
+        self.logo_widget = LogoWidget()
+        banner.addWidget(self.logo_widget)
+        banner.addSpacing(12)
+
+        self.wordmark_widget = WordmarkWidget()
+        banner.addWidget(self.wordmark_widget)
+        banner.addStretch(1)
+
+        layout.addSpacing(6)
 
         top = QtWidgets.QHBoxLayout()
         layout.addLayout(top)
