@@ -141,6 +141,7 @@ class ApplySession:
 BEGIN_PATCH_RE = re.compile(r"^\*\*\* Begin Patch", re.MULTILINE)
 END_PATCH_RE = re.compile(r"^\*\*\* End Patch", re.MULTILINE)
 UPDATE_FILE_RE = re.compile(r"^\*\*\* Update File: (.+)$", re.MULTILINE)
+HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@.*$")
 
 
 def normalize_newlines(text: str) -> str:
@@ -186,12 +187,45 @@ def preprocess_patch_text(raw_text: str) -> str:
             # Ensure hunks start with @@ lines; we synthesize headers
             header = f"--- a/{filename}\n+++ b/{filename}\n"
             # Keep only hunk lines ('@@', ' ', '+', '-', '\\')
-            filtered_lines = []
+            raw_lines = []
             for line in hunks.splitlines():
                 if line.startswith("@@") or line.startswith(("+", "-", " ", "\\")):
-                    filtered_lines.append(line)
-            if filtered_lines:
-                parts.append(header + "\n".join(filtered_lines) + "\n")
+                    raw_lines.append(line)
+            if not raw_lines:
+                continue
+
+            def finalize_hunk(lines: List[str]) -> List[str]:
+                if not lines:
+                    return []
+                header_line = lines[0]
+                body = lines[1:]
+                if not HUNK_HEADER_RE.match(header_line):
+                    suffix = lines[0][2:].strip()
+                    removed = sum(1 for l in body if l.startswith((" ", "-")))
+                    added = sum(1 for l in body if l.startswith((" ", "+")))
+                    old_start = 1 if removed > 0 else 0
+                    new_start = 1 if added > 0 else 0
+                    header_line = f"@@ -{old_start},{removed} +{new_start},{added} @@"
+                    if suffix:
+                        header_line += f" {suffix}"
+                return [header_line, *body]
+
+            normalized_lines: List[str] = []
+            current_hunk: List[str] = []
+            for line in raw_lines:
+                if line.startswith("@@"):
+                    if current_hunk:
+                        normalized_lines.extend(finalize_hunk(current_hunk))
+                    current_hunk = [line]
+                else:
+                    if not current_hunk:
+                        continue
+                    current_hunk.append(line)
+            if current_hunk:
+                normalized_lines.extend(finalize_hunk(current_hunk))
+
+            if normalized_lines:
+                parts.append(header + "\n".join(normalized_lines) + "\n")
 
     return "".join(parts)
 
