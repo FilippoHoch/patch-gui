@@ -30,8 +30,10 @@ from .utils import (
     BACKUP_DIR,
     REPORT_JSON,
     REPORT_TXT,
+    decode_bytes,
     normalize_newlines,
     preprocess_patch_text,
+    write_text_preserving_encoding,
 )
 
 
@@ -285,7 +287,7 @@ class PatchApplyWorker(QtCore.QThread):
             fr.skipped_reason = f"Impossibile leggere file: {e}"
             return fr
 
-        content_str = raw.decode("utf-8", errors="replace")
+        content_str, file_encoding = decode_bytes(raw)
         orig_eol = "\r\n" if "\r\n" in content_str else "\n"
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
@@ -362,7 +364,7 @@ class PatchApplyWorker(QtCore.QThread):
         if not self.session.dry_run:
             new_text = "".join(lines)
             new_text = new_text.replace("\n", orig_eol)
-            path.write_text(new_text, encoding="utf-8")
+            write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 
@@ -753,7 +755,7 @@ class MainWindow(QtWidgets.QMainWindow):
             fr.skipped_reason = f"Impossibile leggere file: {e}"
             return fr
 
-        content_str = raw.decode("utf-8", errors="replace")
+        content_str, file_encoding = decode_bytes(raw)
         orig_eol = "\r\n" if "\r\n" in content_str else "\n"
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
@@ -834,7 +836,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not session.dry_run:
             new_text = "".join(lines)
             new_text = new_text.replace("\n", orig_eol)
-            path.write_text(new_text, encoding="utf-8")
+            write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 
