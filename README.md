@@ -10,6 +10,7 @@ Caratteristiche principali:
 * Matching **esatto → fuzzy** con soglia configurabile
 * Risoluzione **interattiva** delle ambiguità
 * **Backup** automatici e **report** dettagliati
+* Modalità **CLI** (`patch-gui apply`) con opzioni `--dry-run`, `--threshold`, `--backup`
 
 ---
 
@@ -84,6 +85,23 @@ patch-gui
 # oppure
 python -m patch_gui
 ```
+
+### Modalità CLI (senza GUI)
+
+```bash
+patch-gui apply --root /percorso/al/progetto diff.patch
+# oppure
+python -m patch_gui apply --root /percorso/al/progetto diff.patch
+
+# Esempi di opzioni
+patch-gui apply --root . --dry-run --threshold 0.90 diff.patch
+git diff | patch-gui apply --root . --backup ~/diff_backups -
+```
+
+* `--dry-run` esegue solo l'analisi lasciando i file invariati.
+* `--threshold` imposta la soglia fuzzy (default 0.85).
+* `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
 
 ---
 
