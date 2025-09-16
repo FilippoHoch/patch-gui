@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -19,11 +20,12 @@ from .patcher import (
     backup_file,
     find_file_candidates,
     prepare_backup_dir,
-    write_reports,
 )
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
     decode_bytes,
     normalize_newlines,
     preprocess_patch_text,
@@ -94,6 +96,27 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         ),
     )
     parser.add_argument(
+        "--report-json",
+        metavar="PERCORSO",
+        help=(
+            "Percorso del report JSON (relativo alla cartella di backup se non assoluto). "
+            "Default: '<backup>/%s'." % REPORT_JSON
+        ),
+    )
+    parser.add_argument(
+        "--report-txt",
+        metavar="PERCORSO",
+        help=(
+            "Percorso del report testuale (relativo alla cartella di backup se non assoluto). "
+            "Default: '<backup>/%s'." % REPORT_TXT
+        ),
+    )
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Disabilita la generazione dei report JSON e testuali.",
+    )
+    parser.add_argument(
         "--non-interactive",
         action="store_true",
         help=(
@@ -152,6 +175,9 @@ def apply_patchset(
     threshold: float,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
+    report_json: str | Path | None = None,
+    report_txt: str | Path | None = None,
+    generate_reports: bool = True,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
 
@@ -173,8 +199,12 @@ def apply_patchset(
         fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
-    if not dry_run:
-        write_reports(session)
+    if not dry_run and generate_reports:
+        _write_reports(
+            session,
+            report_json=report_json,
+            report_txt=report_txt,
+        )
 
     return session
 
@@ -194,6 +224,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     )
 
     try:
+        if args.no_report and (args.report_json or args.report_txt):
+            parser.error("--no-report non può essere combinato con --report-json/--report-txt.")
+
         patch = load_patch(args.patch)
         backup_base = Path(args.backup).expanduser() if args.backup else None
         session = apply_patchset(
@@ -203,6 +236,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             threshold=args.threshold,
             backup_base=backup_base,
             interactive=not args.non_interactive,
+            report_json=args.report_json,
+            report_txt=args.report_txt,
+            generate_reports=not args.no_report,
         )
     except CLIError as exc:
         parser.exit(1, f"Errore: {exc}\n")
@@ -211,9 +247,53 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     if args.dry_run:
         print("\nModalità dry-run: nessun file è stato modificato e non sono stati creati backup.")
     else:
-        print(f"\nBackup e report salvati in: {session.backup_dir}")
+        if args.no_report:
+            print(f"\nBackup salvati in: {session.backup_dir}")
+        else:
+            json_path = _resolve_report_path(session.backup_dir, args.report_json, REPORT_JSON)
+            txt_path = _resolve_report_path(session.backup_dir, args.report_txt, REPORT_TXT)
+            print(f"\nBackup salvati in: {session.backup_dir}")
+            print(f"Report JSON: {json_path}")
+            print(f"Report testo: {txt_path}")
 
     return 0 if _session_completed(session) else 1
+
+
+def _resolve_report_path(
+    backup_dir: Path,
+    override: str | Path | None,
+    default_name: str,
+) -> Path:
+    """Return the destination path for a report, resolving relative overrides."""
+    if override is None:
+        return backup_dir / default_name
+
+    path = Path(override).expanduser()
+    if not path.is_absolute():
+        path = backup_dir / path
+    return path
+
+
+def _write_reports(
+    session: ApplySession,
+    *,
+    report_json: str | Path | None,
+    report_txt: str | Path | None,
+) -> None:
+    """Persist session reports honoring custom destinations."""
+    session.backup_dir.mkdir(parents=True, exist_ok=True)
+
+    json_path = _resolve_report_path(session.backup_dir, report_json, REPORT_JSON)
+    txt_path = _resolve_report_path(session.backup_dir, report_txt, REPORT_TXT)
+
+    json_payload = json.dumps(session.to_json(), ensure_ascii=False, indent=2)
+    txt_payload = session.to_txt()
+
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json_payload, encoding="utf-8")
+
+    txt_path.parent.mkdir(parents=True, exist_ok=True)
+    txt_path.write_text(txt_payload, encoding="utf-8")
 
 
 def _threshold_value(value: str) -> float:

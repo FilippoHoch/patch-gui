@@ -111,6 +111,8 @@ patch-gui apply --root . --non-interactive diff.patch
 * `--dry-run` esegue solo l'analisi lasciando i file invariati.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* `--report-json` / `--report-txt` personalizzano i percorsi dei report (relativi alla cartella di backup se non assoluti).
+* `--no-report` disabilita la generazione dei report e mantiene solo i backup.
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
 * `--log-level` imposta la verbosità del logger su stdout (`debug`, `info`, `warning`, `error`, `critical`; default `warning`).
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
@@ -154,6 +156,10 @@ pytest
 
    * `apply-report.json` (strutturato),
    * `apply-report.txt` (leggibile).
+
+   Con la CLI puoi personalizzare le destinazioni tramite `--report-json` / `--report-txt`
+   (relativi alla cartella di backup se non assoluti) oppure disabilitare del tutto i
+   report con `--no-report`.
 7. **Ripristino**: pulsante **Ripristina da backup…** → seleziona il timestamp → i file vengono ripristinati.
 Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
 
@@ -272,6 +278,11 @@ Aggiungi l’italiano e alcune parole tecniche:
     apply-report.json
     apply-report.txt
 ```
+
+Le posizioni di default dei report sono relative alla cartella di backup. Con la CLI
+puoi usare `--report-json` e `--report-txt` per scegliere percorsi personalizzati (se
+l'argomento non è assoluto viene risolto rispetto alla cartella di backup) oppure
+disabilitare la generazione dei file con `--no-report`.
 
 ---
 

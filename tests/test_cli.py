@@ -97,6 +97,51 @@ def test_apply_patchset_real_run_creates_backup(tmp_path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
+def test_apply_patchset_respects_report_overrides(tmp_path) -> None:
+    project = _create_project(tmp_path)
+    absolute_txt = tmp_path / "custom-reports" / "report.txt"
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+        report_json=Path("reports") / "custom.json",
+        report_txt=absolute_txt,
+    )
+
+    json_path = session.backup_dir / "reports" / "custom.json"
+    assert json_path.exists()
+    assert not (session.backup_dir / REPORT_JSON).exists()
+
+    assert absolute_txt.exists()
+    assert not (session.backup_dir / REPORT_TXT).exists()
+
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert data["files"][0]["hunks_applied"] == 1
+
+    report_text = absolute_txt.read_text(encoding="utf-8")
+    assert "Hunks: 1/1" in report_text
+
+
+def test_apply_patchset_skips_reports_when_disabled(tmp_path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+        generate_reports=False,
+    )
+
+    assert not (session.backup_dir / REPORT_JSON).exists()
+    assert not (session.backup_dir / REPORT_TXT).exists()
+
+    backup_copy = session.backup_dir / "sample.txt"
+    assert backup_copy.exists()
+
+
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -270,6 +315,31 @@ def test_run_cli_requires_root_argument(monkeypatch, tmp_path) -> None:
     message = str(excinfo.value)
     assert "--root" in message
     assert "error" in message.lower()
+
+
+def test_run_cli_rejects_conflicting_report_options(monkeypatch, tmp_path) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def fake_exit(self, status=0, message=None):
+        raise cli.CLIError(message.strip() if message else "parser exited")
+
+    monkeypatch.setattr(argparse.ArgumentParser, "exit", fake_exit, raising=False)
+
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--no-report",
+                "--report-json",
+                "custom.json",
+                str(patch_path),
+            ]
+        )
+
+    assert "--no-report" in str(excinfo.value)
 
 
 def test_apply_patchset_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
