@@ -256,7 +256,7 @@ def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:
 
     message = str(excinfo.value)
     assert "Diff non valido" in message
-    assert "@@ -1 +1 @@" in message
+    assert "@@ -1,0 +1,0 @@" in message
 
 
 def test_run_cli_requires_root_argument(

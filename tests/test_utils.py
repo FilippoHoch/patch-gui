@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from unidiff import PatchSet
+from unidiff.errors import UnidiffParseError
 
 from patch_gui.utils import decode_bytes, preprocess_patch_text
 
@@ -59,3 +61,27 @@ def test_preprocess_patch_text_extracts_begin_patch_blocks() -> None:
         "+bar\n"
     )
     assert preprocess_patch_text(raw) == expected
+
+
+def test_preprocess_patch_text_repairs_incorrect_hunk_lengths() -> None:
+    raw = (
+        "--- a/sample.js\n"
+        "+++ b/sample.js\n"
+        "@@ -1,1 +1,1 @@\n"
+        "-old\n"
+        "-old2\n"
+        "+new\n"
+        "+new2\n"
+    )
+
+    with pytest.raises(UnidiffParseError):
+        PatchSet(raw)
+
+    processed = preprocess_patch_text(raw)
+    patch = PatchSet(processed)
+
+    header_line = processed.splitlines()[2]
+    assert header_line == "@@ -1,2 +1,2 @@"
+    hunk = patch[0][0]
+    assert hunk.source_length == 2
+    assert hunk.target_length == 2
