@@ -54,10 +54,13 @@ Nella root del progetto:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install .
+pip install .  # solo CLI
+# oppure (per includere la GUI PySide6)
+pip install .[gui]
 ```
 
-> Il comando `pip install .` usa il `pyproject.toml` del progetto per installare automaticamente dipendenze e entry point CLI.
+> Il comando `pip install .` installa la sola CLI (dipendenze minime).
+> Usa `pip install .[gui]` per aggiungere PySide6 e l'interfaccia grafica.
 
 ### VS Code – selezione interprete (WSL)
 
@@ -82,10 +85,12 @@ pip install .
 
 ```bash
 source .venv/bin/activate
-patch-gui
+patch-gui  # richiede l'extra 'gui'
 # oppure
 python -m patch_gui
 ```
+
+> Se hai installato solo la CLI (`pip install .`), usa direttamente `patch-gui apply ...`.
 
 ### Modalità CLI (senza GUI)
 
@@ -266,7 +271,7 @@ Aggiungi l’italiano e alcune parole tecniche:
 
 Le versioni correnti verificate per l'applicazione sono:
 
-* `PySide6==6.7.3` (Qt for Python 6.7 LTS, compatibile con Python 3.10–3.12 e con fix di stabilità per i dialoghi su Linux)
+* `PySide6==6.7.3` (extra opzionale `gui`: Qt for Python 6.7 LTS, compatibile con Python 3.10–3.12 e con fix di stabilità per i dialoghi su Linux)
 * `unidiff==0.7.5`
 
 ### Procedura per aggiornare PySide6 / unidiff

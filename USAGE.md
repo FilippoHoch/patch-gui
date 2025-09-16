@@ -15,6 +15,8 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    python -m patch_gui
    ```
 
+   > La GUI richiede l'installazione con l'extra `gui` (`pip install .[gui]` oppure `pip install patch-gui[gui]`).
+
 ## Workflow dettagliato
 
 1. **Seleziona la root del progetto**
