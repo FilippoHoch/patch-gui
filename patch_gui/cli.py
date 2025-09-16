@@ -218,9 +218,7 @@ def _apply_file_patch(project_root: Path, pf, rel_path: str, session: ApplySessi
         fr.skipped_reason = "File non trovato nella root del progetto"
         return fr
     if len(candidates) > 1:
-        fr.skipped_reason = (
-            "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente."
-        )
+        fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
         return fr
 
     path = candidates[0]
@@ -342,6 +340,24 @@ def _locate_candidates(project_root: Path, rel_path: str) -> Iterable[Path]:
     if len(suffix_matches) == 1:
         return suffix_matches
     return sorted(matches)
+
+
+def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> str:
+    max_display = 5
+    shown: List[str] = []
+    for path in candidates[:max_display]:
+        try:
+            shown.append(str(path.relative_to(project_root)))
+        except ValueError:
+            shown.append(str(path))
+    remaining = len(candidates) - max_display
+    if remaining > 0:
+        shown.append(f"… (+{remaining} altri)")
+    joined = ", ".join(shown)
+    return (
+        "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente. "
+        f"Candidati: {joined}"
+    )
 
 
 def _backup_file(project_root: Path, path: Path, backup_root: Path) -> None:
