@@ -446,6 +446,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1200, 800)
 
         self.project_root: Optional[Path] = None
+        self.settings = QtCore.QSettings("Work", "PatchDiffApplier")
         self.diff_text: str = ""
         self.patch: Optional[PatchSet] = None
 
@@ -543,12 +544,36 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.statusBar().showMessage("Pronto")
 
+        self.restore_last_project_root()
+
+    def set_project_root(self, path: Path, persist: bool = True) -> bool:
+        resolved = Path(path).expanduser().resolve()
+        if not resolved.exists() or not resolved.is_dir():
+            QtWidgets.QMessageBox.warning(self, "Root non valida", "La cartella selezionata non esiste.")
+            return False
+        self.project_root = resolved
+        self.root_edit.setText(str(resolved))
+        if persist:
+            self.settings.setValue("last_project_root", str(resolved))
+            self.settings.sync()
+        return True
+
+    def restore_last_project_root(self) -> None:
+        last_root = self.settings.value("last_project_root", type=str)
+        if not last_root:
+            return
+        path = Path(last_root).expanduser()
+        if path.exists() and path.is_dir():
+            self.set_project_root(path, persist=False)
+        else:
+            self.settings.remove("last_project_root")
+            self.settings.sync()
+
     # --------- UI actions ---------
     def choose_root(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(self, "Seleziona root del progetto")
         if d:
-            self.project_root = Path(d)
-            self.root_edit.setText(str(self.project_root))
+            self.set_project_root(Path(d))
 
     def load_diff_file(self):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Apri file .diff", filter="Diff files (*.diff *.patch *.txt);;Tutti (*.*)")
