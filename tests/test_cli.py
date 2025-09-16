@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
+import pytest
 from unidiff import PatchSet
 
 from patch_gui import cli
@@ -169,3 +171,14 @@ def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+@pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
+def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None:
+    assert cli._threshold_value(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["0", "1.1", "-0.2", "abc"])
+def test_threshold_value_rejects_invalid_inputs(raw: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError):
+        cli._threshold_value(raw)
