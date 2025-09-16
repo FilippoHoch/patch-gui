@@ -10,6 +10,7 @@ import pytest
 from unidiff import PatchSet
 
 from patch_gui import cli
+import patch_gui.utils as utils
 from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
 
 SAMPLE_DIFF = """--- a/sample.txt
@@ -203,6 +204,48 @@ def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_load_patch_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
+    patch_path = tmp_path / "fallback.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    real_decode = utils.decode_bytes
+
+    def fake_decode(data: bytes) -> tuple[str, str, bool]:
+        text, encoding, _ = real_decode(data)
+        return text, encoding, True
+
+    monkeypatch.setattr(cli, "decode_bytes", fake_decode)
+
+    with caplog.at_level(logging.WARNING):
+        patch = cli.load_patch(str(patch_path))
+
+    assert isinstance(patch, PatchSet)
+    assert any("fallback" in record.message.lower() for record in caplog.records)
+
+
+def test_apply_patchset_logs_warning_on_fallback(monkeypatch, tmp_path, caplog) -> None:
+    project = _create_project(tmp_path)
+
+    real_decode = utils.decode_bytes
+
+    def fake_decode(data: bytes) -> tuple[str, str, bool]:
+        text, encoding, _ = real_decode(data)
+        return text, encoding, True
+
+    monkeypatch.setattr(cli, "decode_bytes", fake_decode)
+
+    with caplog.at_level(logging.WARNING):
+        session = cli.apply_patchset(
+            PatchSet(SAMPLE_DIFF),
+            project,
+            dry_run=True,
+            threshold=0.85,
+        )
+
+    assert session.results
+    assert any("fallback" in record.message.lower() for record in caplog.records)
 
 
 def test_run_cli_configures_requested_log_level(tmp_path) -> None:

@@ -1,6 +1,28 @@
 from __future__ import annotations
 
-from patch_gui.utils import preprocess_patch_text
+from patch_gui.utils import decode_bytes, preprocess_patch_text
+
+
+def test_decode_bytes_reports_encoding_without_fallback() -> None:
+    data = "ciao".encode("utf-16")
+    text, encoding, used_fallback = decode_bytes(data)
+    assert text == "ciao"
+    normalized = encoding.lower().replace("_", "-")
+    assert normalized == "utf-16"
+    assert used_fallback is False
+
+
+def test_decode_bytes_uses_replace_when_fallback(monkeypatch) -> None:
+    def fake_detect(data: bytes) -> tuple[str, bool]:
+        return "utf-8", True
+
+    monkeypatch.setattr("patch_gui.utils.detect_encoding", fake_detect)
+
+    data = b"caf\xe9"
+    text, encoding, used_fallback = decode_bytes(data)
+    assert text == "caf\ufffd"
+    assert encoding == "utf-8"
+    assert used_fallback is True
 
 
 def test_preprocess_patch_text_normalizes_newlines_without_wrapper() -> None:

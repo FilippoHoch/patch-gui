@@ -46,6 +46,9 @@ __all__ = [
 ]
 
 
+logger = logging.getLogger(__name__)
+
+
 class CLIError(Exception):
     """Raised for recoverable CLI usage errors."""
 
@@ -125,7 +128,14 @@ def load_patch(source: str) -> PatchSet:
             raise CLIError(f"File diff non trovato: {path}")
         try:
             raw = path.read_bytes()
-            text, _ = decode_bytes(raw)
+            text, encoding, used_fallback = decode_bytes(raw)
+            if used_fallback:
+                logger.warning(
+                    "Decodifica del diff %s eseguita con fallback UTF-8 (encoding %s); "
+                    "il contenuto potrebbe contenere caratteri sostituiti.",
+                    path,
+                    encoding,
+                )
         except Exception as exc:  # pragma: no cover - extremely rare I/O error types
             raise CLIError(f"Impossibile leggere {path}: {exc}") from exc
 
@@ -277,7 +287,14 @@ def _apply_file_patch(
         fr.skipped_reason = f"Impossibile leggere il file: {exc}"
         return fr
 
-    content, file_encoding = decode_bytes(raw)
+    content, file_encoding, used_fallback = decode_bytes(raw)
+    if used_fallback:
+        logger.warning(
+            "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
+            "alcuni caratteri potrebbero essere sostituiti.",
+            path,
+            file_encoding,
+        )
     orig_eol = "\r\n" if "\r\n" in content else "\n"
     lines = normalize_newlines(content).splitlines(keepends=True)
 
