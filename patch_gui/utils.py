@@ -32,6 +32,10 @@ BEGIN_PATCH_RE = re.compile(r"^\*\*\* Begin Patch", re.MULTILINE)
 END_PATCH_RE = re.compile(r"^\*\*\* End Patch", re.MULTILINE)
 UPDATE_FILE_RE = re.compile(r"^\*\*\* Update File: (.+)$", re.MULTILINE)
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@.*$")
+HUNK_HEADER_DETAIL_RE = re.compile(
+    r"^@@ -(?P<old_start>\d+)(?:,(?P<old_count>\d+))? "
+    r"\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))? @@(?P<suffix>.*)$"
+)
 
 
 _BOM_PREFIXES = [
@@ -92,13 +96,77 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _normalize_hunk_line_counts(text: str) -> str:
+    """Ensure hunk headers declare counts matching their body length."""
+
+    lines = text.splitlines()
+    if not lines:
+        return text
+
+    trailing_newline = text.endswith("\n")
+    normalized: List[str] = []
+    index = 0
+    total = len(lines)
+
+    while index < total:
+        line = lines[index]
+        match = HUNK_HEADER_DETAIL_RE.match(line)
+        if not match:
+            normalized.append(line)
+            index += 1
+            continue
+
+        body_start = index + 1
+        body_index = body_start
+        old_count = 0
+        new_count = 0
+
+        while body_index < total:
+            body_line = lines[body_index]
+            if body_line.startswith("@@"):
+                break
+            if body_line.startswith("+++ ") or body_line.startswith("--- "):
+                break
+            if not body_line:
+                break
+
+            prefix = body_line[0]
+            if prefix not in {" ", "+", "-", "\\"}:
+                break
+            if prefix in {" ", "-"}:
+                old_count += 1
+            if prefix in {" ", "+"}:
+                new_count += 1
+
+            body_index += 1
+
+        expected_old = int(match.group("old_count")) if match.group("old_count") is not None else 1
+        expected_new = int(match.group("new_count")) if match.group("new_count") is not None else 1
+        suffix = match.group("suffix") or ""
+
+        if old_count == expected_old and new_count == expected_new:
+            normalized.append(line)
+        else:
+            normalized.append(
+                f"@@ -{match.group('old_start')},{old_count} +{match.group('new_start')},{new_count} @@{suffix}"
+            )
+
+        normalized.extend(lines[body_start:body_index])
+        index = body_index
+
+    result = "\n".join(normalized)
+    if trailing_newline:
+        result += "\n"
+    return result
+
+
 def preprocess_patch_text(raw_text: str) -> str:
     """Accept either unified diff or "*** Begin Patch" formats and return diff text."""
 
     text = normalize_newlines(raw_text)
 
     if not BEGIN_PATCH_RE.search(text):
-        return text
+        return _normalize_hunk_line_counts(text)
 
     parts = []
     pos = 0
@@ -163,7 +231,7 @@ def preprocess_patch_text(raw_text: str) -> str:
             if normalized_lines:
                 parts.append(header + "\n".join(normalized_lines) + "\n")
 
-    return "".join(parts)
+    return _normalize_hunk_line_counts("".join(parts))
 
 
 __all__ = [
