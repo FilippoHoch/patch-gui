@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -220,6 +221,184 @@ class FileChoiceDialog(QtWidgets.QDialog):
         super().accept()
 
 
+class PatchApplyWorker(QtCore.QThread):
+    progress = QtCore.Signal(str)
+    finished = QtCore.Signal(object)
+    error = QtCore.Signal(str)
+    request_file_choice = QtCore.Signal(str, object)
+    request_hunk_choice = QtCore.Signal(str, object, object)
+
+    def __init__(self, patch: PatchSet, session: ApplySession):
+        super().__init__()
+        self.patch = patch
+        self.session = session
+        self._file_choice_event = threading.Event()
+        self._file_choice_result: Optional[Path] = None
+        self._hunk_choice_event = threading.Event()
+        self._hunk_choice_result: Optional[int] = None
+
+    def provide_file_choice(self, choice: Optional[Path]) -> None:
+        self._file_choice_result = choice
+        self._file_choice_event.set()
+
+    def provide_hunk_choice(self, choice: Optional[int]) -> None:
+        self._hunk_choice_result = choice
+        self._hunk_choice_event.set()
+
+    def run(self) -> None:  # pragma: no cover - thread orchestration
+        try:
+            for pf in self.patch:
+                rel = pf.path or pf.target_file or pf.source_file or ""
+                self.progress.emit(f"Applicazione file: {rel}")
+                file_result = self.apply_file_patch(pf, rel)
+                self.session.results.append(file_result)
+            self.progress.emit("Applicazione diff completata.")
+            self.finished.emit(self.session)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.exception("Errore durante l'applicazione della patch: %s", exc)
+            self.error.emit(str(exc))
+
+    def apply_file_patch(self, pf, rel_path: str) -> FileResult:
+        fr = FileResult(file_path=Path(), relative_to_root=rel_path)
+
+        candidates = self.find_files_in_project(rel_path)
+        if not candidates:
+            fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
+            logger.warning("SKIP: %s non trovato.", rel_path)
+            return fr
+        if len(candidates) > 1:
+            selected = self._wait_for_file_choice(rel_path, candidates)
+            if selected is None:
+                fr.skipped_reason = "Ambiguità sul file, operazione annullata dall'utente"
+                return fr
+            path = selected
+        else:
+            path = candidates[0]
+
+        fr.file_path = path
+        fr.relative_to_root = str(path.relative_to(self.session.project_root))
+        fr.hunks_total = len(pf)
+
+        try:
+            raw = path.read_bytes()
+        except Exception as e:
+            fr.skipped_reason = f"Impossibile leggere file: {e}"
+            return fr
+
+        content_str = raw.decode("utf-8", errors="replace")
+        orig_eol = "\r\n" if "\r\n" in content_str else "\n"
+        lines = normalize_newlines(content_str).splitlines(keepends=True)
+
+        if not self.session.dry_run:
+            self.backup_file(path)
+
+        for h in pf:
+            hv = build_hunk_view(h)
+            decision = HunkDecision(hunk_header=hv.header, strategy="")
+
+            cand = find_candidates(lines, hv.before_lines, threshold=1.0)
+            if cand:
+                pos = cand[0][0]
+                if not self.session.dry_run:
+                    lines = apply_hunk_at_position(lines, hv, pos)
+                decision.strategy = "exact"
+                decision.selected_pos = pos
+                decision.similarity = 1.0
+                fr.hunks_applied += 1
+                fr.decisions.append(decision)
+                continue
+
+            cand = find_candidates(lines, hv.before_lines, threshold=self.session.threshold)
+            if len(cand) == 1:
+                pos, score = cand[0]
+                if not self.session.dry_run:
+                    lines = apply_hunk_at_position(lines, hv, pos)
+                decision.strategy = "fuzzy"
+                decision.selected_pos = pos
+                decision.similarity = score
+                fr.hunks_applied += 1
+                fr.decisions.append(decision)
+                continue
+            elif len(cand) > 1:
+                decision.strategy = "manual"
+                decision.candidates = cand
+                pos = self._wait_for_hunk_choice(hv, lines, cand)
+                if pos is not None:
+                    if not self.session.dry_run:
+                        lines = apply_hunk_at_position(lines, hv, pos)
+                    decision.selected_pos = pos
+                    chosen_score = next((s for p, s in cand if p == pos), None)
+                    decision.similarity = chosen_score
+                    fr.hunks_applied += 1
+                else:
+                    decision.strategy = "failed"
+                    decision.message = "Scelta annullata dall'utente"
+                fr.decisions.append(decision)
+                continue
+
+            before_ctx = [l for l in hv.before_lines if not l.startswith(("+", "-"))]
+            cand = find_candidates(lines, before_ctx, threshold=self.session.threshold)
+            if cand:
+                decision.strategy = "manual"
+                decision.candidates = cand
+                pos = self._wait_for_hunk_choice(hv, lines, cand)
+                if pos is not None:
+                    if not self.session.dry_run:
+                        lines = apply_hunk_at_position(lines, hv, pos)
+                    decision.selected_pos = pos
+                    chosen_score = next((s for p, s in cand if p == pos), None)
+                    decision.similarity = chosen_score
+                    fr.hunks_applied += 1
+                else:
+                    decision.strategy = "failed"
+                    decision.message = "Scelta annullata (solo contesto)"
+                fr.decisions.append(decision)
+                continue
+
+            decision.strategy = "failed"
+            decision.message = "Nessun candidato trovato sopra la soglia"
+            fr.decisions.append(decision)
+
+        if not self.session.dry_run:
+            new_text = "".join(lines)
+            new_text = new_text.replace("\n", orig_eol)
+            path.write_text(new_text, encoding="utf-8")
+
+        return fr
+
+    def _wait_for_file_choice(self, rel_path: str, candidates: List[Path]) -> Optional[Path]:
+        self._file_choice_result = None
+        self._file_choice_event.clear()
+        self.request_file_choice.emit(rel_path, candidates)
+        self._file_choice_event.wait()
+        return self._file_choice_result
+
+    def _wait_for_hunk_choice(
+        self, hv: HunkView, lines: List[str], candidates: List[Tuple[int, float]]
+    ) -> Optional[int]:
+        self._hunk_choice_result = None
+        self._hunk_choice_event.clear()
+        file_text = "".join(lines)
+        self.request_hunk_choice.emit(file_text, candidates, hv)
+        self._hunk_choice_event.wait()
+        return self._hunk_choice_result
+
+    def find_files_in_project(self, rel_path: str) -> List[Path]:
+        rel_path = rel_path.strip()
+        if rel_path.startswith("a/") or rel_path.startswith("b/"):
+            rel_path = rel_path[2:]
+        exact = self.session.project_root / rel_path
+        if exact.exists():
+            return [exact]
+        name = Path(rel_path).name
+        return [p for p in self.session.project_root.rglob(name) if p.is_file()]
+
+    def backup_file(self, path: Path) -> None:
+        rel = path.relative_to(self.session.project_root)
+        dst = self.session.backup_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dst)
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -233,6 +412,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.threshold = 0.85
         self._qt_log_handler: Optional[GuiLogHandler] = None
+        self._current_worker: Optional[PatchApplyWorker] = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -243,27 +423,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.root_edit = QtWidgets.QLineEdit()
         self.root_edit.setPlaceholderText("Root del progetto (seleziona cartella)")
-        btn_root = QtWidgets.QPushButton("Scegli root…")
-        btn_root.clicked.connect(self.choose_root)
+        self.btn_root = QtWidgets.QPushButton("Scegli root…")
+        self.btn_root.clicked.connect(self.choose_root)
 
-        btn_load_file = QtWidgets.QPushButton("Apri .diff…")
-        btn_load_file.clicked.connect(self.load_diff_file)
+        self.btn_load_file = QtWidgets.QPushButton("Apri .diff…")
+        self.btn_load_file.clicked.connect(self.load_diff_file)
 
-        btn_from_clip = QtWidgets.QPushButton("Incolla da appunti")
-        btn_from_clip.clicked.connect(self.load_from_clipboard)
+        self.btn_from_clip = QtWidgets.QPushButton("Incolla da appunti")
+        self.btn_from_clip.clicked.connect(self.load_from_clipboard)
 
-        btn_from_text = QtWidgets.QPushButton("Analizza testo diff")
-        btn_from_text.clicked.connect(self.parse_from_textarea)
+        self.btn_from_text = QtWidgets.QPushButton("Analizza testo diff")
+        self.btn_from_text.clicked.connect(self.parse_from_textarea)
 
         self.btn_analyze = QtWidgets.QPushButton("Analizza diff")
         self.btn_analyze.clicked.connect(self.analyze_diff)
 
         top.addWidget(self.root_edit, 1)
-        top.addWidget(btn_root)
+        top.addWidget(self.btn_root)
         top.addSpacing(20)
-        top.addWidget(btn_load_file)
-        top.addWidget(btn_from_clip)
-        top.addWidget(btn_from_text)
+        top.addWidget(self.btn_load_file)
+        top.addWidget(self.btn_from_clip)
+        top.addWidget(self.btn_from_text)
         top.addWidget(self.btn_analyze)
 
         second = QtWidgets.QHBoxLayout()
@@ -293,15 +473,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tree.setHeaderLabels(["File / Hunk", "Stato"])
         left_layout.addWidget(self.tree, 1)
 
-        btn_apply = QtWidgets.QPushButton("Applica patch")
-        btn_apply.clicked.connect(self.apply_patch)
+        self.btn_apply = QtWidgets.QPushButton("Applica patch")
+        self.btn_apply.clicked.connect(self.apply_patch)
 
-        btn_restore = QtWidgets.QPushButton("Ripristina da backup…")
-        btn_restore.clicked.connect(self.restore_from_backup)
+        self.btn_restore = QtWidgets.QPushButton("Ripristina da backup…")
+        self.btn_restore.clicked.connect(self.restore_from_backup)
 
         left_btns = QtWidgets.QHBoxLayout()
-        left_btns.addWidget(btn_apply)
-        left_btns.addWidget(btn_restore)
+        left_btns.addWidget(self.btn_apply)
+        left_btns.addWidget(self.btn_restore)
         left_layout.addLayout(left_btns)
 
         right = QtWidgets.QWidget()
@@ -434,12 +614,43 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tree.expandAll()
         logger.info("Analisi completata. File nel diff: %s", len(self.patch))
 
+    def _set_busy(self, busy: bool) -> None:
+        controls = [
+            self.btn_root,
+            self.btn_load_file,
+            self.btn_from_clip,
+            self.btn_from_text,
+            self.btn_analyze,
+            self.btn_apply,
+            self.btn_restore,
+        ]
+        for widget in controls:
+            widget.setEnabled(not busy)
+        self.chk_dry.setEnabled(not busy)
+        self.spin_thresh.setEnabled(not busy)
+        self.text_diff.setReadOnly(busy)
+
     def apply_patch(self):
+        if self._current_worker is not None and self._current_worker.isRunning():
+            QtWidgets.QMessageBox.information(
+                self,
+                "Operazione in corso",
+                "È già in corso un'applicazione di patch. Attendi il completamento.",
+            )
+            return
         if not self.patch:
-            QtWidgets.QMessageBox.warning(self, "Analizza prima", "Esegui 'Analizza diff' prima di applicare.")
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Analizza prima",
+                "Esegui 'Analizza diff' prima di applicare.",
+            )
             return
         if not self.project_root:
-            QtWidgets.QMessageBox.warning(self, "Root mancante", "Seleziona la root del progetto.")
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Root mancante",
+                "Seleziona la root del progetto.",
+            )
             return
         dry = self.chk_dry.isChecked()
         thr = float(self.spin_thresh.value())
@@ -450,18 +661,70 @@ class MainWindow(QtWidgets.QMainWindow):
             threshold=thr,
             started_at=time.time(),
         )
+        worker = PatchApplyWorker(self.patch, session)
+        worker.progress.connect(self._on_worker_progress)
+        worker.request_file_choice.connect(self._on_worker_request_file_choice)
+        worker.request_hunk_choice.connect(self._on_worker_request_hunk_choice)
+        worker.finished.connect(self._on_worker_finished)
+        worker.error.connect(self._on_worker_error)
+        worker.finished.connect(worker.deleteLater)
+        worker.error.connect(worker.deleteLater)
+        self._current_worker = worker
+        self._set_busy(True)
+        self.statusBar().showMessage("Applicazione diff in corso…")
+        worker.start()
 
-        for pf in self.patch:
-            rel = pf.path or pf.target_file or pf.source_file or ""
-            file_result = self.apply_file_patch(pf, rel, session)
-            session.results.append(file_result)
+    @QtCore.Slot(str)
+    def _on_worker_progress(self, message: str) -> None:  # pragma: no cover - UI feedback
+        if not message:
+            return
+        self.log.appendPlainText(message)
+        self.statusBar().showMessage(message[:100])
 
+    @QtCore.Slot(object)
+    def _on_worker_finished(self, session: ApplySession) -> None:  # pragma: no cover - UI feedback
+        self._current_worker = None
         self.write_report(session)
-
         logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
+        self._set_busy(False)
         QtWidgets.QMessageBox.information(
-            self, "Completato", "Operazione terminata. Vedi log e report nella cartella di backup."
+            self,
+            "Completato",
+            "Operazione terminata. Vedi log e report nella cartella di backup.",
         )
+        self.statusBar().showMessage("Operazione completata")
+
+    @QtCore.Slot(str)
+    def _on_worker_error(self, message: str) -> None:  # pragma: no cover - UI feedback
+        logger.error("Errore durante l'applicazione della patch: %s", message)
+        self._set_busy(False)
+        self._current_worker = None
+        QtWidgets.QMessageBox.critical(self, "Errore", message)
+        self.statusBar().showMessage("Errore durante l'applicazione della patch")
+
+    @QtCore.Slot(str, object)
+    def _on_worker_request_file_choice(self, rel_path: str, candidates: List[Path]) -> None:  # pragma: no cover - UI feedback
+        worker = self._current_worker
+        if worker is None:
+            return
+        dlg = FileChoiceDialog(self, f"Seleziona file per {rel_path}", candidates)
+        choice: Optional[Path] = None
+        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.chosen:
+            choice = dlg.chosen
+        worker.provide_file_choice(choice)
+
+    @QtCore.Slot(str, object, object)
+    def _on_worker_request_hunk_choice(
+        self, file_text: str, candidates: List[Tuple[int, float]], hv: HunkView
+    ) -> None:  # pragma: no cover - UI feedback
+        worker = self._current_worker
+        if worker is None:
+            return
+        dlg = CandidateDialog(self, file_text, candidates, hv)
+        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
+            worker.provide_hunk_choice(dlg.selected_pos)
+        else:
+            worker.provide_hunk_choice(None)
 
     def apply_file_patch(self, pf, rel_path: str, session: ApplySession) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
@@ -648,4 +911,4 @@ def main():
     sys.exit(app.exec())
 
 
-__all__ = ["CandidateDialog", "FileChoiceDialog", "GuiLogHandler", "MainWindow", "configure_logging", "main"]
+__all__ = ["CandidateDialog", "FileChoiceDialog", "GuiLogHandler", "MainWindow", "PatchApplyWorker", "configure_logging", "main"]
