@@ -1,6 +1,7 @@
 """GUI application logic for the Patch GUI diff applier."""
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ from typing import Callable, List, Optional, Tuple
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
 
+from ._assets import LOGO_PNG_BASE64
 from .patcher import (
     ApplySession,
     FileResult,
@@ -117,6 +119,24 @@ class GuiLogHandler(logging.Handler):
 
 
 logger = logging.getLogger(__name__)
+
+_LOGO_PIXMAP: Optional[QtGui.QPixmap] = None
+
+
+def get_app_logo_pixmap() -> QtGui.QPixmap:
+    """Return the application logo as a ``QPixmap`` instance."""
+
+    global _LOGO_PIXMAP
+    if _LOGO_PIXMAP is None:
+        pixmap = QtGui.QPixmap()
+        try:
+            data = base64.b64decode(LOGO_PNG_BASE64)
+        except Exception:  # pragma: no cover - defensive guard for invalid asset data
+            data = b""
+        if data:
+            pixmap.loadFromData(data, "PNG")
+        _LOGO_PIXMAP = pixmap
+    return _LOGO_PIXMAP
 
 
 class CandidateDialog(QtWidgets.QDialog):
@@ -419,6 +439,43 @@ class MainWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
+
+        header = QtWidgets.QHBoxLayout()
+        header.setSpacing(12)
+        layout.addLayout(header)
+
+        logo_pixmap = get_app_logo_pixmap()
+        if not logo_pixmap.isNull():
+            app_icon = QtGui.QIcon(logo_pixmap)
+            self.setWindowIcon(app_icon)
+            app = QtWidgets.QApplication.instance()
+            if app is not None:
+                app.setWindowIcon(app_icon)
+            logo_label = QtWidgets.QLabel()
+            logo_label.setObjectName("appLogo")
+            logo_label.setPixmap(
+                logo_pixmap.scaled(
+                    64,
+                    64,
+                    QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                    QtCore.Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+            logo_label.setAlignment(
+                QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
+            )
+            header.addWidget(logo_label)
+
+        title_label = QtWidgets.QLabel(APP_NAME)
+        title_font = title_label.font()
+        if title_font.pointSize() > 0:
+            title_font.setPointSize(title_font.pointSize() + 4)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        header.addWidget(title_label, 0, QtCore.Qt.AlignmentFlag.AlignVCenter)
+        header.addStretch(1)
+
+        layout.addSpacing(8)
 
         top = QtWidgets.QHBoxLayout()
         layout.addLayout(top)
