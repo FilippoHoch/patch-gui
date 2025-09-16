@@ -53,15 +53,19 @@ def detect_encoding(data: bytes) -> Tuple[str, bool]:
     return "utf-8", True
 
 
-def decode_bytes(data: bytes) -> Tuple[str, str]:
-    """Decode ``data`` using the detected encoding with UTF-8 fallback."""
+def decode_bytes(data: bytes) -> Tuple[str, str, bool]:
+    """Decode ``data`` using the detected encoding with UTF-8 fallback.
+
+    Returns the decoded text, the encoding used and a boolean indicating
+    whether the fallback behaviour (``errors="replace"``) was required.
+    """
 
     encoding, used_fallback = detect_encoding(data)
     if used_fallback:
         text = data.decode(encoding, errors="replace")
     else:
         text = data.decode(encoding)
-    return text, encoding
+    return text, encoding, used_fallback
 
 
 def write_text_preserving_encoding(path: Path, text: str, encoding: str) -> None:

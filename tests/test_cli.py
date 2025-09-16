@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -201,6 +202,54 @@ def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_load_patch_logs_fallback(monkeypatch, tmp_path, caplog) -> None:
+    patch_path = tmp_path / "fallback.diff"
+    patch_path.write_bytes(b"dummy")
+
+    def fake_decode_bytes(data: bytes) -> tuple[str, str, bool]:
+        return SAMPLE_DIFF, "utf-8", True
+
+    monkeypatch.setattr(cli, "decode_bytes", fake_decode_bytes)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="patch_gui.cli"):
+        patch = cli.load_patch(str(patch_path))
+
+    assert isinstance(patch, PatchSet)
+    assert any("fallback" in message for message in caplog.messages)
+    assert str(patch_path) in caplog.text
+
+
+def test_apply_patchset_logs_fallback(monkeypatch, tmp_path, caplog) -> None:
+    project = _create_project(tmp_path)
+    target = project / "sample.txt"
+    original_bytes = target.read_bytes()
+
+    original_decode = cli.decode_bytes
+
+    def fake_decode_bytes(data: bytes) -> tuple[str, str, bool]:
+        text, encoding, used_fallback = original_decode(data)
+        if data == original_bytes:
+            return text, encoding, True
+        return text, encoding, used_fallback
+
+    monkeypatch.setattr(cli, "decode_bytes", fake_decode_bytes)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="patch_gui.cli"):
+        session = cli.apply_patchset(
+            PatchSet(SAMPLE_DIFF),
+            project,
+            dry_run=True,
+            threshold=0.85,
+        )
+
+    assert any("fallback" in message for message in caplog.messages)
+    assert "sample.txt" in caplog.text
+    assert session.results
+    assert session.results[0].skipped_reason is None
 
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

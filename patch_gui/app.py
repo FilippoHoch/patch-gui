@@ -289,7 +289,13 @@ class PatchApplyWorker(QtCore.QThread):
             fr.skipped_reason = f"Impossibile leggere file: {e}"
             return fr
 
-        content_str, file_encoding = decode_bytes(raw)
+        content_str, file_encoding, used_fallback = decode_bytes(raw)
+        if used_fallback:
+            logger.warning(
+                "Decodifica con fallback per %s (encoding %s); caratteri non validi sono stati sostituiti.",
+                path,
+                file_encoding,
+            )
         orig_eol = "\r\n" if "\r\n" in content_str else "\n"
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
@@ -776,7 +782,13 @@ class MainWindow(QtWidgets.QMainWindow):
             fr.skipped_reason = f"Impossibile leggere file: {e}"
             return fr
 
-        content_str, file_encoding = decode_bytes(raw)
+        content_str, file_encoding, used_fallback = decode_bytes(raw)
+        if used_fallback:
+            logger.warning(
+                "Decodifica con fallback per %s (encoding %s); caratteri non validi sono stati sostituiti.",
+                path,
+                file_encoding,
+            )
         orig_eol = "\r\n" if "\r\n" in content_str else "\n"
         lines = normalize_newlines(content_str).splitlines(keepends=True)
 
