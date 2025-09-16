@@ -8,9 +8,11 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    ```bash
    source .venv/bin/activate
    ```
-2. Avvia la GUI:
+2. Avvia la GUI (tramite entry point installato):
    ```bash
-   python diff_applier_gui.py
+   patch-gui
+   # oppure
+   python -m patch_gui
    ```
 
 ## Workflow dettagliato
