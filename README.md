@@ -51,21 +51,10 @@ Nella root del progetto:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install .
 ```
 
-Se non usi `requirements.txt`, installa direttamente:
-
-```bash
-pip install PySide6 unidiff
-```
-
-Crea/aggiorna `requirements.txt` (opzionale):
-
-```txt
-PySide6
-unidiff
-```
+> Il comando `pip install .` usa il `pyproject.toml` del progetto per installare automaticamente dipendenze e entry point CLI.
 
 ### VS Code – selezione interprete (WSL)
 
@@ -90,7 +79,9 @@ unidiff
 
 ```bash
 source .venv/bin/activate
-python diff_applier_gui.py
+patch-gui
+# oppure
+python -m patch_gui
 ```
 
 ---

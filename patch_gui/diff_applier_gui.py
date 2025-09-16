@@ -17,7 +17,9 @@ Dipendenze:
 - unidiff
 
 Esecuzione:
-  python diff_applier_gui.py
+  patch-gui
+  # oppure
+  python -m patch_gui
 
 Nota: testato su Linux/WSL. Su Windows via WSLg dovrebbe aprire la GUI.
 """

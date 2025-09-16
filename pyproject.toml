@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patch-gui"
+version = "0.1.0"
+description = "PySide6 desktop application for applying unified diffs interactively."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "PySide6",
+    "unidiff",
+]
+
+[project.scripts]
+patch-gui = "patch_gui.__main__:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["patch_gui*"]
