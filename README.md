@@ -29,6 +29,7 @@ Caratteristiche principali:
 
 * **WSL Ubuntu** (consigliato; funziona anche su Linux nativo/macOS)
 * **Python 3.10+**
+* Dipendenze Python testate: **PySide6 6.7.3**, **unidiff 0.7.5** (vedi [Manutenzione dipendenze](#manutenzione-dipendenze))
 * **WSLg** abilitato (per mostrare la GUI Qt su Windows 11/10 21H2+)
 
 Pacchetti di sistema utili su Ubuntu/WSL:
@@ -195,6 +196,41 @@ Aggiungi l’italiano e alcune parole tecniche:
     apply-report.json
     apply-report.txt
 ```
+
+---
+
+## Manutenzione dipendenze
+
+Le versioni correnti verificate per l'applicazione sono:
+
+* `PySide6==6.7.3` (Qt for Python 6.7 LTS, compatibile con Python 3.10–3.12 e con fix di stabilità per i dialoghi su Linux)
+* `unidiff==0.7.5`
+
+### Procedura per aggiornare PySide6 / unidiff
+
+1. **Studia la compatibilità**
+   * Consulta le note di rilascio di Qt for Python per verificare il supporto delle nuove versioni rispetto alla baseline del progetto (`Python 3.10+`).
+   * Controlla il changelog di `unidiff` (GitHub/PyPI) per breaking changes e versioni di Python supportate.
+2. **Prepara un ambiente pulito**
+   ```bash
+   python3 -m venv .venv-upgrade
+   source .venv-upgrade/bin/activate
+   python -m pip install --upgrade pip
+   ```
+3. **Installa le versioni candidate** (sostituisci `<versione>` con la release da testare)
+   ```bash
+   pip install PySide6==<versione> unidiff==<versione>
+   ```
+4. **Esegui gli smoke test**
+   * Compila i moduli del progetto per intercettare errori di import: `python -m compileall patch_gui`.
+   * Avvia l'app (`python -m patch_gui`) e verifica con un diff di esempio: caricamento, dry-run, applicazione reale, ripristino da backup.
+5. **Aggiorna i file di progetto**
+   * Aggiorna le versioni in `requirements.txt` (e nel `pyproject.toml` se inserisci vincoli più stretti).
+   * Esegui `pip freeze` o aggiorna la documentazione se necessario.
+6. **Documenta il cambiamento**
+   * Aggiorna questa sezione del README con le nuove versioni supportate e i test eseguiti.
+
+Quando hai finito, chiudi la sessione di prova con `deactivate` e rimuovi la virtualenv temporanea.
 
 ---
 
