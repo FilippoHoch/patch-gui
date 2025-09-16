@@ -1,8 +1,19 @@
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
-from patch_gui.patcher import HunkView, apply_hunk_at_position, find_candidates
+import pytest
+from unidiff import PatchSet
+
+from patch_gui.patcher import (
+    HunkView,
+    apply_hunk_at_position,
+    apply_hunks,
+    backup_file,
+    find_candidates,
+    find_file_candidates,
+    prepare_backup_dir,
+)
 
 
 def test_find_candidates_returns_exact_match_first() -> None:
@@ -34,3 +45,69 @@ def test_apply_hunk_at_position_raises_when_window_exceeds_length() -> None:
     hv = HunkView(header="@@ -2,2 +2,2 @@", before_lines=["b\n", "c\n"], after_lines=["B\n"])
     with pytest.raises(IndexError):
         apply_hunk_at_position(file_lines, hv, pos=1)
+
+
+def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
+    diff = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,2 +1,2 @@
+-bb
+-cc
++BB
++CC
+"""
+    patch = PatchSet(diff)
+    pf = patch[0]
+    file_lines = ["bx\n", "cc\n", "bb\n", "cx\n"]
+
+    calls = []
+
+    def resolver(hv, lines, candidates, decision, reason):
+        calls.append((hv, list(lines), list(candidates), reason))
+        decision.strategy = "manual"
+        decision.message = "user cancel"
+        return None
+
+    new_lines, decisions, applied = apply_hunks(file_lines, pf, threshold=0.5, manual_resolver=resolver)
+
+    assert new_lines == file_lines
+    assert applied == 0
+    assert decisions[0].message == "user cancel"
+    assert calls and calls[0][3] == "fuzzy"
+    assert len(calls[0][2]) > 1
+
+
+def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:
+    project_root = tmp_path
+    target = project_root / "src" / "pkg"
+    target.mkdir(parents=True)
+    (target / "module.py").write_text("print('hi')\n", encoding="utf-8")
+    other = project_root / "tests" / "pkg"
+    other.mkdir(parents=True)
+    (other / "module.py").write_text("print('test')\n", encoding="utf-8")
+
+    result = find_file_candidates(project_root, "a/src/pkg/module.py")
+    assert result == [target / "module.py"]
+
+
+def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
+    project_root = tmp_path
+    dry_dir = prepare_backup_dir(project_root, dry_run=True)
+    assert not dry_dir.exists()
+
+    real_dir = prepare_backup_dir(project_root, dry_run=False)
+    assert real_dir.exists()
+
+
+def test_backup_file_copies_content(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    file_path = project_root / "data.txt"
+    file_path.write_text("hello", encoding="utf-8")
+    backup_root = tmp_path / "backup"
+
+    backup_file(project_root, file_path, backup_root)
+
+    copied = backup_root / "data.txt"
+    assert copied.exists()
+    assert copied.read_text(encoding="utf-8") == "hello"

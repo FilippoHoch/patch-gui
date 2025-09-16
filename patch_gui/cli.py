@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import shutil
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Optional, Sequence
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
@@ -18,17 +15,15 @@ from unidiff.errors import UnidiffParseError
 from .patcher import (
     ApplySession,
     FileResult,
-    HunkDecision,
-    HunkView,
-    apply_hunk_at_position,
-    build_hunk_view,
-    find_candidates,
+    apply_hunks,
+    backup_file,
+    find_file_candidates,
+    prepare_backup_dir,
+    write_reports,
 )
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
-    REPORT_JSON,
-    REPORT_TXT,
     decode_bytes,
     normalize_newlines,
     preprocess_patch_text,
@@ -164,7 +159,7 @@ def apply_patchset(
     if not root.exists() or not root.is_dir():
         raise CLIError(f"Root del progetto non valida: {project_root}")
 
-    backup_dir = _prepare_backup_dir(root, backup_base, dry_run)
+    backup_dir = prepare_backup_dir(root, dry_run=dry_run, backup_base=backup_base)
     session = ApplySession(
         project_root=root,
         backup_dir=backup_dir,
@@ -179,7 +174,7 @@ def apply_patchset(
         session.results.append(fr)
 
     if not dry_run:
-        _write_reports(session)
+        write_reports(session)
 
     return session
 
@@ -260,7 +255,7 @@ def _apply_file_patch(
         fr.skipped_reason = "Patch binaria non supportata in modalità CLI"
         return fr
 
-    candidates = list(_locate_candidates(project_root, rel_path))
+    candidates = find_file_candidates(project_root, rel_path)
     if not candidates:
         fr.skipped_reason = "File non trovato nella root del progetto"
         return fr
@@ -299,111 +294,27 @@ def _apply_file_patch(
     lines = normalize_newlines(content).splitlines(keepends=True)
 
     if not session.dry_run:
-        _backup_file(project_root, path, session.backup_dir)
+        backup_file(project_root, path, session.backup_dir)
 
-    modified = False
+    lines, decisions, applied = apply_hunks(
+        lines,
+        pf,
+        threshold=session.threshold,
+        manual_resolver=_cli_manual_resolver,
+    )
 
-    for hunk in pf:
-        hv = build_hunk_view(hunk)
-        decision = HunkDecision(hunk_header=hv.header, strategy="")
+    fr.hunks_applied = applied
+    fr.decisions.extend(decisions)
 
-        applied = _try_apply_hunk(lines, hv, decision, session, exact_threshold=1.0)
-        if applied is not None:
-            lines, success = applied
-            if success:
-                fr.hunks_applied += 1
-                modified = True
-            fr.decisions.append(decision)
-            continue
-
-        applied = _try_apply_hunk(lines, hv, decision, session, exact_threshold=session.threshold)
-        if applied is not None:
-            lines, success = applied
-            if success:
-                fr.hunks_applied += 1
-                modified = True
-            fr.decisions.append(decision)
-            continue
-
-        context_lines = [ln for ln in hv.before_lines if not ln.startswith(("+", "-"))]
-        cand = find_candidates(lines, context_lines, threshold=session.threshold)
-        if cand:
-            decision.strategy = "ambiguous"
-            decision.candidates = cand
-            decision.message = (
-                "Solo il contesto coincide. Usa la GUI o regola la soglia per applicare questo hunk."
-            )
-            fr.decisions.append(decision)
-            continue
-
-        decision.strategy = "failed"
-        decision.message = "Nessun candidato compatibile trovato sopra la soglia impostata."
-        fr.decisions.append(decision)
-
-    if not session.dry_run and modified:
+    if not session.dry_run and applied:
         new_text = "".join(lines).replace("\n", orig_eol)
         write_text_preserving_encoding(path, new_text, file_encoding)
 
     return fr
 
 
-def _try_apply_hunk(
-    lines: List[str],
-    hv: HunkView,
-    decision: HunkDecision,
-    session: ApplySession,
-    *,
-    exact_threshold: float,
-) -> Optional[Tuple[List[str], bool]]:
-    candidates = find_candidates(lines, hv.before_lines, threshold=exact_threshold)
-    if not candidates:
-        return None
-    if len(candidates) > 1 and exact_threshold < 1.0:
-        decision.strategy = "ambiguous"
-        decision.candidates = candidates
-        decision.message = (
-            "Più posizioni trovate sopra la soglia. La CLI non può scegliere automaticamente."
-        )
-        return (lines, False)
-
-    pos, score = candidates[0]
-    try:
-        new_lines = apply_hunk_at_position(lines, hv, pos)
-    except Exception as exc:  # pragma: no cover - safeguard against unexpected errors
-        decision.strategy = "failed"
-        decision.message = f"Errore durante l'applicazione del hunk: {exc}"
-        return (lines, False)
-
-    decision.strategy = "exact" if exact_threshold == 1.0 else "fuzzy"
-    decision.selected_pos = pos
-    decision.similarity = score
-    return (new_lines, True)
-
-
-def _locate_candidates(project_root: Path, rel_path: str) -> Iterable[Path]:
-    rel = rel_path.strip()
-    if rel.startswith("a/") or rel.startswith("b/"):
-        rel = rel[2:]
-    if not rel:
-        return []
-
-    exact = project_root / rel
-    if exact.exists():
-        return [exact]
-
-    name = Path(rel).name
-    matches = [p for p in project_root.rglob(name) if p.is_file()]
-    if not matches:
-        return []
-
-    suffix_matches = [p for p in matches if str(p.relative_to(project_root)).endswith(rel)]
-    if len(suffix_matches) == 1:
-        return suffix_matches
-    return sorted(matches)
-
-
 def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
-    display_paths: List[str] = []
+    display_paths: list[str] = []
     for path in candidates:
         try:
             display_paths.append(str(path.relative_to(project_root)))
@@ -444,7 +355,7 @@ def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) 
 
 def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> str:
     max_display = 5
-    shown: List[str] = []
+    shown: list[str] = []
     for path in candidates[:max_display]:
         try:
             shown.append(str(path.relative_to(project_root)))
@@ -460,20 +371,19 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     )
 
 
-def _backup_file(project_root: Path, path: Path, backup_root: Path) -> None:
-    rel = path.relative_to(project_root)
-    dest = backup_root / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(path, dest)
-
-
-def _write_reports(session: ApplySession) -> None:
-    session.backup_dir.mkdir(parents=True, exist_ok=True)
-    (session.backup_dir / REPORT_JSON).write_text(
-        json.dumps(session.to_json(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    (session.backup_dir / REPORT_TXT).write_text(session.to_txt(), encoding="utf-8")
+def _cli_manual_resolver(hv, lines, candidates, decision, reason):
+    del hv, lines  # unused in CLI resolver
+    decision.candidates = candidates
+    decision.strategy = "ambiguous"
+    if reason == "fuzzy":
+        decision.message = (
+            "Più posizioni trovate sopra la soglia. La CLI non può scegliere automaticamente."
+        )
+    else:
+        decision.message = (
+            "Solo il contesto coincide. Usa la GUI o regola la soglia per applicare questo hunk."
+        )
+    return None
 
 
 def _session_completed(session: ApplySession) -> bool:
