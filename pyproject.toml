@@ -20,3 +20,6 @@ patch-gui = "patch_gui.__main__:run"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["patch_gui*"]
+
+[tool.setuptools.package-data]
+"patch_gui" = ["translations/*.ts"]

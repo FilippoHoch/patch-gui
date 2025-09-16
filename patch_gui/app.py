@@ -16,6 +16,7 @@ from typing import Callable, List, Optional, Tuple
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
 
+from .i18n import install_translators
 from .patcher import (
     ApplySession,
     FileResult,
@@ -908,6 +909,7 @@ def main():
     configure_logging()
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app._installed_translators = install_translators(app)
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
