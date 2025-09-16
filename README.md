@@ -86,6 +86,16 @@ python -m patch_gui
 
 ---
 
+## Test
+
+Per eseguire la suite automatizzata del progetto:
+
+```bash
+pytest
+```
+
+---
+
 ## Guida all'uso
 
 1. **Root progetto** → seleziona la cartella base: i percorsi nei diff saranno risolti relativamente a questa root.
