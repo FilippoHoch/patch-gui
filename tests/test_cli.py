@@ -122,6 +122,32 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path) -> None:
     assert "tests/app/sample.txt" in report
 
 
+def test_apply_patchset_skipped_reason_lists_candidates(tmp_path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    first_dir = project / "docs"
+    second_dir = project / "legacy"
+    first_dir.mkdir()
+    second_dir.mkdir()
+
+    for directory in (first_dir, second_dir):
+        (directory / "sample.txt").write_text("old line\nline2\n", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is not None
+    assert "docs/sample.txt" in file_result.skipped_reason
+    assert "legacy/sample.txt" in file_result.skipped_reason
+
+
 def test_load_patch_applies_non_utf8_diff(tmp_path) -> None:
     project = _create_project(tmp_path)
     patch_path = tmp_path / "non-utf8.diff"
