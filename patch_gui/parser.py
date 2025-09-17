@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from typing import List, Optional, Sequence
 
+from ._version import __version__
 from .localization import gettext as _
 from .patcher import DEFAULT_EXCLUDE_DIRS
 from .utils import (
@@ -53,6 +54,12 @@ def build_parser(
     else:
         parser.description = description
         parser.formatter_class = _HelpFormatter
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
+        help=_("Show the version number and exit."),
+    )
     parser.add_argument(
         "patch",
         help=_("Path to the diff file to apply ('-' reads from STDIN)."),
