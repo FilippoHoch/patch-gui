@@ -29,6 +29,9 @@ include = ["patch_gui*"]
 "patch_gui" = ["translations/*.ts", "translations/*.qm"]
 
 [tool.setuptools.cmdclass]
+# NOTE: setuptools>=75 validates that cmdclass targets are python-qualified
+# identifiers (``module.Class``). Keep these dotted to avoid install-time
+# failures when ``validate-pyproject`` checks the configuration.
 build_py = "build_translations.BuildPy"
 sdist = "build_translations.SDist"
 
