@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 import logging
 import os
 import re
@@ -21,6 +22,7 @@ from unidiff import PatchSet
 
 from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
+from .highlighter import DiffHighlighter
 from .i18n import install_translators
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
@@ -857,12 +859,21 @@ class MainWindow(_QMainWindowBase):
 
         right = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.addWidget(QtWidgets.QLabel("Incolla/edita diff (opzionale):"))
+        self.diff_tabs = QtWidgets.QTabWidget()
+
         self.text_diff = QtWidgets.QPlainTextEdit()
         self.text_diff.setPlaceholderText(
             "Incolla qui il diff se non stai aprendo un file…"
         )
-        right_layout.addWidget(self.text_diff, 1)
+        self._diff_highlighter = DiffHighlighter(self.text_diff.document())
+        self.diff_tabs.addTab(self.text_diff, _("Editor diff"))
+
+        self.preview_view = QtWidgets.QPlainTextEdit()
+        self.preview_view.setReadOnly(True)
+        self._preview_highlighter = DiffHighlighter(self.preview_view.document())
+        self.diff_tabs.addTab(self.preview_view, _("Anteprima"))
+
+        right_layout.addWidget(self.diff_tabs, 1)
 
         right_layout.addWidget(QtWidgets.QLabel("Log:"))
         self.log = QtWidgets.QPlainTextEdit()
@@ -872,6 +883,8 @@ class MainWindow(_QMainWindowBase):
         splitter.addWidget(left)
         splitter.addWidget(right)
         splitter.setSizes([400, 800])
+
+        self.tree.itemSelectionChanged.connect(self._update_preview_from_selection)
 
         self._apply_config_to_widgets()
         self._setup_gui_logging()
@@ -1054,17 +1067,88 @@ class MainWindow(_QMainWindowBase):
         self.patch = patch
 
         self.tree.clear()
+        self.preview_view.clear()
         for pf in patch:
             rel = pf.path or pf.target_file or pf.source_file or "<sconosciuto>"
             node = QtWidgets.QTreeWidgetItem([rel, ""])
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole, rel)
+            node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, [])
             self.tree.addTopLevelItem(node)
             for h in pf:
                 hv = patcher_build_hunk_view(h)
                 child = QtWidgets.QTreeWidgetItem([hv.header, ""])
+                child.setData(0, QtCore.Qt.ItemDataRole.UserRole, hv)
                 node.addChild(child)
+                file_hunks = list(
+                    node.data(0, QtCore.Qt.ItemDataRole.UserRole + 1) or []
+                )
+                file_hunks.append(hv)
+                node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, file_hunks)
         self.tree.expandAll()
+        self._update_preview_from_selection()
         logger.info("Analisi completata. File nel diff: %s", len(self.patch))
+
+    @_qt_slot()
+    def _update_preview_from_selection(self) -> None:
+        selected = self.tree.selectedItems()
+        if not selected:
+            self.preview_view.clear()
+            self.statusBar().showMessage(_("Nessuna selezione per l'anteprima"), 5000)
+            return
+
+        preview_parts: list[str] = []
+        labels: list[str] = []
+
+        for item in selected:
+            label, text = self._compose_preview_for_item(item)
+            if text:
+                preview_parts.append(text)
+                labels.append(label)
+
+        if not preview_parts:
+            self.preview_view.clear()
+            self.statusBar().showMessage(
+                _("Nessuna anteprima disponibile per la selezione corrente"), 5000
+            )
+            return
+
+        combined = "\n\n".join(part.rstrip() for part in preview_parts)
+        self.preview_view.setPlainText(combined)
+        summary = ", ".join(labels)
+        logger.info("Anteprima aggiornata: %s", summary)
+        self.statusBar().showMessage(
+            _("Anteprima aggiornata: {summary}").format(summary=summary), 5000
+        )
+
+    def _compose_preview_for_item(
+        self, item: QtWidgets.QTreeWidgetItem
+    ) -> tuple[str, str]:
+        data = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        if isinstance(data, HunkView):
+            return item.text(0), self._format_hunk_for_preview(data)
+
+        hunks = item.data(0, QtCore.Qt.ItemDataRole.UserRole + 1)
+        if isinstance(hunks, list) and hunks:
+            formatted = [
+                self._format_hunk_for_preview(hv)
+                for hv in hunks
+                if isinstance(hv, HunkView)
+            ]
+            if formatted:
+                header = _("File: {name}").format(name=item.text(0))
+                return item.text(0), f"{header}\n\n" + "\n\n".join(formatted)
+        return item.text(0), ""
+
+    def _format_hunk_for_preview(self, hv: HunkView) -> str:
+        diff_lines = []
+        for line in difflib.ndiff(hv.before_lines, hv.after_lines):
+            if line.startswith("?"):
+                continue
+            diff_lines.append(line)
+        if not diff_lines:
+            return hv.header
+        header = f"{hv.header}\n"
+        return header + "".join(diff_lines)
 
     def _set_busy(self, busy: bool) -> None:
         controls = [
