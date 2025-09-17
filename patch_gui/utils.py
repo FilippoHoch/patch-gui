@@ -42,7 +42,10 @@ def display_path(path: Path) -> str:
 
     path_str = str(Path(path))
     if "\\" in path_str:
-        return path_str.replace("\\", "/")
+        normalized = path_str.replace("\\", "/")
+        while len(normalized) > 3 and normalized[1:3] == ":/" and normalized[3] == "/":
+            normalized = normalized[:3] + normalized[4:]
+        return normalized
     return path_str
 
 
