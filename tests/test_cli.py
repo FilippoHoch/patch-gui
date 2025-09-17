@@ -105,8 +105,8 @@ def test_session_report_highlights_missing_changes(tmp_path: Path) -> None:
 
     report = session.to_txt()
 
-    assert "Riepilogo:" in report
-    assert "Nessuna modifica è stata applicata ai file." in report
+    assert "Summary:" in report
+    assert "No changes were applied to the files." in report
 
 
 def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
