@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import pytest
 from unidiff import PatchSet
@@ -18,6 +19,14 @@ from patch_gui.patcher import (
     prepare_backup_dir,
     write_reports,
 )
+import patch_gui.executor as executor
+
+REMOVED_DIFF = """--- a/sample.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line
+-line2
+"""
 from patch_gui.utils import format_session_timestamp
 
 
@@ -196,6 +205,44 @@ def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None
     custom = find_file_candidates(project_root, "module.py", exclude_dirs=())
 
     assert custom == [file_path]
+
+
+def test_apply_file_patch_removes_file(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "sample.txt"
+    original = "old line\nline2\n"
+    target.write_text(original, encoding="utf-8")
+
+    started_at = time.time()
+    backup_dir = prepare_backup_dir(
+        project_root, dry_run=False, started_at=started_at
+    )
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=False,
+        threshold=0.85,
+        started_at=started_at,
+    )
+
+    pf = PatchSet(REMOVED_DIFF)[0]
+    rel_path = executor._relative_path_from_patch(pf)
+    fr = executor._apply_file_patch(
+        project_root,
+        pf,
+        rel_path,
+        session,
+        interactive=False,
+    )
+
+    assert fr.skipped_reason is None
+    assert fr.hunks_applied == fr.hunks_total == 1
+    assert not target.exists()
+
+    backup_copy = backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
 
 
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:

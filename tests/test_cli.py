@@ -57,6 +57,13 @@ ADDED_DIFF = """--- /dev/null
 +second line
 """
 
+REMOVED_DIFF = """--- a/sample.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line
+-line2
+"""
+
 OUTSIDE_DIFF = """--- /dev/null
 +++ b/../outside.txt
 @@ -0,0 +1,2 @@
@@ -194,6 +201,29 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
+
+
+def test_apply_patchset_real_run_removes_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    target = project / "sample.txt"
+    original = target.read_text(encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(REMOVED_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert not target.exists()
+    assert session.backup_dir.exists()
+    backup_copy = session.backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
 def test_apply_patchset_dry_run_adds_new_file(tmp_path: Path) -> None:
