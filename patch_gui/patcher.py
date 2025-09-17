@@ -528,10 +528,27 @@ def find_file_candidates(
         logger.debug("Percorso relativo vuoto, nessun candidato")
         return []
 
-    exact = project_root / rel
-    if exact.exists():
-        logger.debug("Corrispondenza esatta trovata per %s", rel)
-        return [exact]
+    root_resolved = project_root.resolve()
+
+    exact_candidate = project_root / rel
+    if exact_candidate.exists():
+        try:
+            resolved = exact_candidate.resolve()
+        except FileNotFoundError:  # pragma: no cover - race condition on deletion
+            resolved = exact_candidate.resolve(strict=False)
+
+        if not resolved.is_file():
+            logger.debug("Il percorso %s non è un file, ignorato", resolved)
+        else:
+            try:
+                resolved.relative_to(root_resolved)
+            except ValueError:
+                logger.warning(
+                    "Percorso fuori dalla radice del progetto ignorato: %s", resolved
+                )
+            else:
+                logger.debug("Corrispondenza esatta trovata per %s", rel)
+                return [resolved]
 
     name = Path(rel).name
 
