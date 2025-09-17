@@ -8,34 +8,36 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Optional, Protocol, cast
 
+
+class _BuildCommandProtocol(Protocol):  # pragma: no cover - typing helper
+    announce: Callable[[str, int], None]
+
+    def run(self) -> None: ...
+
+
+class _SDistCommandProtocol(Protocol):  # pragma: no cover - typing helper
+    announce: Callable[[str, int], None]
+
+    def run(self) -> None: ...
+
+
+_SetuptoolsBuildPy: type[_BuildCommandProtocol] | None
 try:  # Used when setuptools is available (build/install)
-    from setuptools.command.build_py import build_py as _setuptools_build_py
+    from setuptools.command.build_py import build_py as _ImportedBuildPy
 except ModuleNotFoundError:  # pragma: no cover - CLI usage without setuptools installed
-    _setuptools_build_py = None
+    _SetuptoolsBuildPy = None
+else:  # pragma: no cover - import only needed when setuptools is present
+    _SetuptoolsBuildPy = cast("type[_BuildCommandProtocol]", _ImportedBuildPy)
 
+_SetuptoolsSDist: type[_SDistCommandProtocol] | None
 try:
-    from setuptools.command.sdist import sdist as _setuptools_sdist
+    from setuptools.command.sdist import sdist as _ImportedSDist
 except ModuleNotFoundError:  # pragma: no cover - CLI usage without setuptools installed
-    _setuptools_sdist = None
-
-if TYPE_CHECKING:  # pragma: no cover - typing helper
-    from setuptools.command.build_py import build_py as _BuildPyParent
-    from setuptools.command.sdist import sdist as _SDistParent
-else:
-
-    class _BuildPyParent:  # pragma: no cover - runtime placeholder
-        pass
-
-    class _SDistParent:  # pragma: no cover - runtime placeholder
-        pass
-
-
-_BuildPyBase = (
-    _setuptools_build_py if _setuptools_build_py is not None else _BuildPyParent
-)
-_SDistBase = _setuptools_sdist if _setuptools_sdist is not None else _SDistParent
+    _SetuptoolsSDist = None
+else:  # pragma: no cover - import only needed when setuptools is present
+    _SetuptoolsSDist = cast("type[_SDistCommandProtocol]", _ImportedSDist)
 
 TRANSLATIONS_DIR = Path(__file__).resolve().parent / "patch_gui" / "translations"
 LRELEASE_CANDIDATES: tuple[str, ...] = ("pyside6-lrelease", "lrelease-qt6", "lrelease")
@@ -138,41 +140,69 @@ def _compile_single(
     return qm_path
 
 
-if _setuptools_build_py is not None:
+if TYPE_CHECKING:
 
-    class BuildPy(_setuptools_build_py):
+    class BuildPy(_BuildCommandProtocol):  # pragma: no cover - typing helper
+        def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+        def run(self) -> None: ...
+
+elif _SetuptoolsBuildPy is not None:
+
+    class BuildPy(_SetuptoolsBuildPy):
         """Custom build command that ensures Qt translations are generated."""
 
-        def run(self) -> None:  # type: ignore[override]
+        def run(self) -> None:
             compile_translations(announcer=self.announce)
             super().run()
 
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
-    class BuildPy(_BuildPyBase):  # type: ignore[no-redef]
+    class BuildPy:  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
+
+        announce: Callable[[str, int], None]
 
         def __init__(self, *args: object, **kwargs: object) -> None:
             raise RuntimeError(
                 "setuptools is required to use the custom build command."
             )
 
+        def run(self) -> None:
+            raise RuntimeError(
+                "setuptools is required to use the custom build command."
+            )
 
-if _setuptools_sdist is not None:
 
-    class SDist(_setuptools_sdist):
+if TYPE_CHECKING:
+
+    class SDist(_SDistCommandProtocol):  # pragma: no cover - typing helper
+        def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+        def run(self) -> None: ...
+
+elif _SetuptoolsSDist is not None:
+
+    class SDist(_SetuptoolsSDist):
         """Custom sdist command that ensures Qt translations are generated."""
 
-        def run(self) -> None:  # type: ignore[override]
+        def run(self) -> None:
             compile_translations(announcer=self.announce)
             super().run()
 
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
-    class SDist(_SDistBase):  # type: ignore[no-redef]
+    class SDist:  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
 
+        announce: Callable[[str, int], None]
+
         def __init__(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError(
+                "setuptools is required to use the custom sdist command."
+            )
+
+        def run(self) -> None:
             raise RuntimeError(
                 "setuptools is required to use the custom sdist command."
             )

@@ -26,7 +26,8 @@ def _tr(text: str) -> str:
     """Translate ``text`` using the ``diff_applier_gui`` context."""
 
     if QtCore is not None:
-        translated = QtCore.QCoreApplication.translate("diff_applier_gui", text)
+        translated_obj = QtCore.QCoreApplication.translate("diff_applier_gui", text)
+        translated = str(translated_obj)
         if translated != text:
             return translated
     return _(text)

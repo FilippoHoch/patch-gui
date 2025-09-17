@@ -63,7 +63,9 @@ def test_preprocess_patch_text_rewrites_triple_asterisk_headers() -> None:
     assert patch[0].path == "js/eventReview.js"
 
 
-def test_preprocess_patch_text_rewrites_triple_asterisk_headers_without_prefixes() -> None:
+def test_preprocess_patch_text_rewrites_triple_asterisk_headers_without_prefixes() -> (
+    None
+):
     raw = (
         "*** js/eventReview.js\n"
         "--- js/eventReview.js\n"

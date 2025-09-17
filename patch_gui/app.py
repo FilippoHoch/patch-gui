@@ -47,19 +47,7 @@ from .utils import (
 
 
 if TYPE_CHECKING:
-    from PySide6 import QtCore as _QtCoreModule
-    from PySide6 import QtWidgets as _QtWidgetsModule
     from unidiff.patch import PatchedFile
-
-    _QObjectBase = _QtCoreModule.QObject
-    _QThreadBase = _QtCoreModule.QThread
-    _QDialogBase = _QtWidgetsModule.QDialog
-    _QMainWindowBase = _QtWidgetsModule.QMainWindow
-else:
-    _QObjectBase = QtCore.QObject
-    _QThreadBase = QtCore.QThread
-    _QDialogBase = QtWidgets.QDialog
-    _QMainWindowBase = QtWidgets.QMainWindow
 
 _F = TypeVar("_F", bound=Callable[..., object])
 
@@ -69,7 +57,15 @@ def _qt_slot(
 ) -> Callable[[_F], _F]:
     """Typed wrapper around :func:`QtCore.Slot` to appease the type checker."""
 
-    return cast("Callable[[_F], _F]", QtCore.Slot(*types, name=name, result=result))
+    if name is None and result is None:
+        slot = QtCore.Slot(*types)
+    elif result is None:
+        slot = QtCore.Slot(*types, name=name)
+    elif name is None:
+        slot = QtCore.Slot(*types, result=result)
+    else:
+        slot = QtCore.Slot(*types, name=name, result=result)
+    return cast("Callable[[_F], _F]", slot)
 
 
 LOG_FILE_ENV_VAR: str = "PATCH_GUI_LOG_FILE"
@@ -184,7 +180,7 @@ def configure_logging(
     return file_path
 
 
-class _QtLogEmitter(_QObjectBase):
+class _QtLogEmitter(QtCore.QObject):
     """Helper ``QObject`` used to forward log messages to the GUI thread."""
 
     message = QtCore.Signal(str, int)
@@ -241,7 +237,7 @@ def _apply_platform_workarounds() -> None:
             )
 
 
-class CandidateDialog(_QDialogBase):
+class CandidateDialog(QtWidgets.QDialog):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -328,7 +324,7 @@ class CandidateDialog(_QDialogBase):
         super().accept()
 
 
-class FileChoiceDialog(_QDialogBase):
+class FileChoiceDialog(QtWidgets.QDialog):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -380,7 +376,7 @@ class FileChoiceDialog(_QDialogBase):
         super().accept()
 
 
-class PatchApplyWorker(_QThreadBase):
+class PatchApplyWorker(QtCore.QThread):
     progress = QtCore.Signal(str, int)
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
@@ -563,7 +559,7 @@ class PatchApplyWorker(_QThreadBase):
         return pos
 
 
-class MainWindow(_QMainWindowBase):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
