@@ -15,7 +15,13 @@ LOCALE_DIR = Path(__file__).resolve().parent / "locale"
 
 _CACHE: Dict[Tuple[str, ...], _gettext.NullTranslations] = {}
 
-__all__ = ["get_translator", "gettext", "ngettext", "clear_translation_cache"]
+__all__ = [
+    "get_translator",
+    "gettext",
+    "ngettext",
+    "clear_translation_cache",
+    "LANG_ENV_VAR",
+]
 
 
 def _system_language() -> str | None:
@@ -59,11 +65,15 @@ def _candidate_languages(preferred: str | None) -> List[str]:
     seen: set[str] = set()
 
     _append_candidate(preferred, seen, candidates)
-    _append_candidate(os.getenv(LANG_ENV_VAR), seen, candidates)
-    _append_candidate(_system_language(), seen, candidates)
 
-    if "en" not in seen:
-        candidates.append("en")
+    env_language = os.getenv(LANG_ENV_VAR)
+    _append_candidate(env_language, seen, candidates)
+
+    # English is the default language for the CLI; prefer it when no explicit
+    # locale was requested via ``locale_code`` or the environment variable.
+    _append_candidate("en", seen, candidates)
+
+    _append_candidate(_system_language(), seen, candidates)
 
     return candidates
 
