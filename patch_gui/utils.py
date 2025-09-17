@@ -221,8 +221,7 @@ def _normalize_nonstandard_file_headers(text: str) -> str:
     ``---`` for the target file instead of the standard ``---``/``+++`` pair.
     The ``unidiff`` parser treats such patches as invalid and therefore returns
     an empty ``PatchSet``. To keep compatibility with these diffs we rewrite the
-    header pair whenever both lines start with the expected ``a/`` or ``b/``
-    prefixes.
+    header pair and synthesize ``a/`` or ``b/`` prefixes when they are missing.
     """
 
     lines = text.splitlines()
@@ -237,15 +236,23 @@ def _normalize_nonstandard_file_headers(text: str) -> str:
             continue
         if " Begin Patch" in line or " End Patch" in line:
             continue
-        source = line[4:]
-        if not source.startswith(("a/", "b/")):
-            continue
+
+        source_raw = line[4:].strip()
         target_line = lines[idx + 1]
         if not target_line.startswith("--- "):
             continue
-        target = target_line[4:]
-        if not target.startswith(("a/", "b/")):
-            continue
+
+        target_raw = target_line[4:].strip()
+
+        def _ensure_prefix(path: str, prefix: str) -> str:
+            if path in {"/dev/null", "dev/null"}:
+                return path
+            if path.startswith(("a/", "b/")):
+                return path
+            return f"{prefix}{path}"
+
+        source = _ensure_prefix(source_raw, "a/")
+        target = _ensure_prefix(target_raw, "b/")
 
         lines[idx] = f"--- {source}"
         lines[idx + 1] = f"+++ {target}"
