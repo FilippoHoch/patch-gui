@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from functools import lru_cache
 from typing import Any, Optional, Sequence, cast
 
 try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
@@ -18,8 +19,16 @@ from .utils import APP_NAME
 
 __all__ = ["main"]
 
-CLI_FLAGS: set[str] = {"--dry-run", "--threshold", "--backup", "--root"}
-CLI_PREFIXES: tuple[str, ...] = ("--threshold=", "--backup=")
+
+
+@lru_cache(maxsize=1)
+def _cli_option_strings() -> set[str]:
+    parser = cli.build_parser()
+    return {
+        option
+        for option in parser._option_string_actions
+        if option.startswith("--") and option not in {"--help"}
+    }
 
 
 def _tr(text: str) -> str:
@@ -66,10 +75,12 @@ def _looks_like_cli(args: Sequence[str]) -> bool:
     first = args[0]
     if not first.startswith("-"):
         return True
+    option_strings = _cli_option_strings()
     for opt in args:
-        if opt in CLI_FLAGS:
-            return True
-        if opt.startswith(CLI_PREFIXES):
+        if not opt.startswith("-"):
+            continue
+        normalized = opt.split("=", 1)[0]
+        if normalized in option_strings:
             return True
     return False
 

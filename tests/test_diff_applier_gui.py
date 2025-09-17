@@ -22,6 +22,57 @@ CLI_RESULT = 17
             [("cli", ["--root", ".", "patch.diff"])],
             CLI_RESULT,
         ),
+        (
+            ["--non-interactive", "--root", ".", "patch.diff"],
+            [("cli", ["--non-interactive", "--root", ".", "patch.diff"])],
+            CLI_RESULT,
+        ),
+        (
+            ["--no-report", "--root", ".", "patch.diff"],
+            [("cli", ["--no-report", "--root", ".", "patch.diff"])],
+            CLI_RESULT,
+        ),
+        (
+            ["--report-json", "report.json", "--root", ".", "patch.diff"],
+            [
+                (
+                    "cli",
+                    ["--report-json", "report.json", "--root", ".", "patch.diff"],
+                )
+            ],
+            CLI_RESULT,
+        ),
+        (
+            ["--report-txt=report.txt", "--root", ".", "patch.diff"],
+            [
+                (
+                    "cli",
+                    ["--report-txt=report.txt", "--root", ".", "patch.diff"],
+                )
+            ],
+            CLI_RESULT,
+        ),
+        (
+            ["--encoding=utf-8", "--root", ".", "patch.diff"],
+            [
+                ("cli", ["--encoding=utf-8", "--root", ".", "patch.diff"]),
+            ],
+            CLI_RESULT,
+        ),
+        (
+            ["--log-level", "debug", "--root", ".", "patch.diff"],
+            [
+                ("cli", ["--log-level", "debug", "--root", ".", "patch.diff"]),
+            ],
+            CLI_RESULT,
+        ),
+        (
+            ["--exclude-dir=build", "--root", ".", "patch.diff"],
+            [
+                ("cli", ["--exclude-dir=build", "--root", ".", "patch.diff"]),
+            ],
+            CLI_RESULT,
+        ),
     ],
 )
 def test_main_dispatches_between_gui_and_cli(
