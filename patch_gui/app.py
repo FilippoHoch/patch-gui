@@ -17,6 +17,7 @@ from logging.handlers import RotatingFileHandler
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
 
+from .filetypes import inspect_file_type
 from .i18n import install_translators
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_under_wsl
@@ -433,6 +434,12 @@ class PatchApplyWorker(QtCore.QThread):
 
     def apply_file_patch(self, pf: "PatchedFile", rel_path: str) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
+        file_type_info = inspect_file_type(pf)
+        fr.file_type = file_type_info.name
+
+        if file_type_info.name == "binary":
+            fr.skipped_reason = "Patch binaria non supportata nella GUI"
+            return fr
 
         candidates = find_file_candidates(
             self.session.project_root,

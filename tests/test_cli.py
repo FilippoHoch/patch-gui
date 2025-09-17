@@ -74,6 +74,7 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
 
 
 def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
@@ -107,9 +108,11 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
 
     data = json.loads(json_report.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
+    assert data["files"][0]["file_type"] == "text"
 
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
 
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
@@ -137,6 +140,7 @@ def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
 
     data = json.loads(json_dest.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
+    assert data["files"][0]["file_type"] == "text"
 
 
 def test_apply_patchset_no_report(tmp_path: Path) -> None:
@@ -182,6 +186,7 @@ def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
     assert file_result.skipped_reason is not None
     assert "src/app/sample.txt" in file_result.skipped_reason
     assert "tests/app/sample.txt" in file_result.skipped_reason
+    assert file_result.file_type == "text"
 
     report = session.to_txt()
     assert "src/app/sample.txt" in report
@@ -216,6 +221,7 @@ def test_apply_patchset_interactive_candidate_selection(
     assert file_result.skipped_reason is None
     assert file_result.relative_to_root == "tests/app/sample.txt"
     assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
 
 
 def test_apply_patchset_skipped_reason_lists_candidates(tmp_path: Path) -> None:

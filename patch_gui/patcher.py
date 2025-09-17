@@ -82,6 +82,7 @@ class FileResult:
 
     file_path: Path
     relative_to_root: str
+    file_type: str = "text"
     hunks_applied: int = 0
     hunks_total: int = 0
     decisions: List[HunkDecision] = field(default_factory=list)
@@ -125,6 +126,7 @@ class ApplySession:
                 {
                     "file": fr.relative_to_root,
                     "abs_path": str(fr.file_path),
+                    "file_type": fr.file_type,
                     "hunks_applied": fr.hunks_applied,
                     "hunks_total": fr.hunks_total,
                     "skipped_reason": fr.skipped_reason,
@@ -159,6 +161,7 @@ class ApplySession:
             lines.append(f"File: {fr.relative_to_root}")
             if fr.skipped_reason:
                 lines.append(f"  SKIPPED: {fr.skipped_reason}")
+            lines.append(f"  Tipo file: {fr.file_type}")
             lines.append(f"  Hunks: {fr.hunks_applied}/{fr.hunks_total}")
             for d in fr.decisions:
                 lines.append(f"    Hunk {d.hunk_header} -> {d.strategy}")
