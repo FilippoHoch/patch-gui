@@ -199,6 +199,123 @@ msgid ""
 "The --report-json/--report-txt options are incompatible with --no-report."
 msgstr ""
 
+#: patch_gui/patcher.py:156
+#, python-brace-format
+msgid "Report – {app_name}"
+msgstr ""
+
+#: patch_gui/patcher.py:159
+#, python-brace-format
+msgid "Started: {timestamp}"
+msgstr ""
+
+#: patch_gui/patcher.py:163
+#, python-brace-format
+msgid "Project root: {project_root}"
+msgstr ""
+
+#: patch_gui/patcher.py:165
+#, python-brace-format
+msgid "Backup directory: {backup_dir}"
+msgstr ""
+
+#: patch_gui/patcher.py:167
+#, python-brace-format
+msgid "Dry-run: {dry_run}"
+msgstr ""
+
+#: patch_gui/patcher.py:169
+#, python-brace-format
+msgid "Fuzzy threshold: {threshold}"
+msgstr ""
+
+#: patch_gui/patcher.py:171
+msgid "(none)"
+msgstr ""
+
+#: patch_gui/patcher.py:173
+#, python-brace-format
+msgid "Excluded directories: {directories}"
+msgstr ""
+
+#: patch_gui/patcher.py:180
+msgid "Summary:"
+msgstr ""
+
+#: patch_gui/patcher.py:182
+#, python-brace-format
+msgid "  Files processed: {count}"
+msgstr ""
+
+#: patch_gui/patcher.py:185
+#, python-brace-format
+msgid "  Files with changes: {count}"
+msgstr ""
+
+#: patch_gui/patcher.py:189
+#, python-brace-format
+msgid "  Files skipped: {count}"
+msgstr ""
+
+#: patch_gui/patcher.py:192
+#, python-brace-format
+msgid "  Hunks applied: {applied}/{total}"
+msgstr ""
+
+#: patch_gui/patcher.py:197
+msgid "  No changes were applied to the files."
+msgstr ""
+
+#: patch_gui/patcher.py:200
+#, python-brace-format
+msgid "File: {path}"
+msgstr ""
+
+#: patch_gui/patcher.py:203
+#, python-brace-format
+msgid "  SKIPPED: {reason}"
+msgstr ""
+
+#: patch_gui/patcher.py:205
+#, python-brace-format
+msgid "  File type: {file_type}"
+msgstr ""
+
+#: patch_gui/patcher.py:207
+#, python-brace-format
+msgid "  Hunks: {applied}/{total}"
+msgstr ""
+
+#: patch_gui/patcher.py:213
+#, python-brace-format
+msgid "    Hunk {header} -> {strategy}"
+msgstr ""
+
+#: patch_gui/patcher.py:219
+#, python-brace-format
+msgid "      Position: {position}"
+msgstr ""
+
+#: patch_gui/patcher.py:225
+#, python-brace-format
+msgid "      Similarity: {similarity:.3f}"
+msgstr ""
+
+#: patch_gui/patcher.py:232
+#, python-brace-format
+msgid "(position {position}, similarity {similarity:.3f})"
+msgstr ""
+
+#: patch_gui/patcher.py:239
+#, python-brace-format
+msgid "      Candidates: {candidates}"
+msgstr ""
+
+#: patch_gui/patcher.py:245
+#, python-brace-format
+msgid "      Notes: {notes}"
+msgstr ""
+
 #: patch_gui/cli.py:69
 #, python-brace-format
 msgid "Error: {message}\n"

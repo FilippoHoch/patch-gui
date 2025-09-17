@@ -20,6 +20,7 @@ from typing import (
     Tuple,
 )
 
+from .localization import gettext as _
 from .utils import (
     APP_NAME,
     REPORT_JSON,
@@ -153,47 +154,96 @@ class ApplySession:
 
     def to_txt(self) -> str:
         lines = []
-        lines.append(f"Report – {APP_NAME}")
-        lines.append(f"Avviato: {datetime.fromtimestamp(self.started_at)}")
-        lines.append(f"Root progetto: {self.project_root}")
-        lines.append(f"Backup: {self.backup_dir}")
-        lines.append(f"Dry-run: {self.dry_run}")
-        lines.append(f"Soglia fuzzy: {self.threshold}")
-        excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else "(nessuna)"
-        lines.append(f"Directory escluse: {excludes}")
+        lines.append(_("Report – {app_name}").format(app_name=APP_NAME))
+        lines.append(
+            _("Started: {timestamp}").format(
+                timestamp=datetime.fromtimestamp(self.started_at)
+            )
+        )
+        lines.append(_("Project root: {project_root}").format(project_root=self.project_root))
+        lines.append(
+            _("Backup directory: {backup_dir}").format(backup_dir=self.backup_dir)
+        )
+        lines.append(_("Dry-run: {dry_run}").format(dry_run=self.dry_run))
+        lines.append(
+            _("Fuzzy threshold: {threshold}").format(threshold=self.threshold)
+        )
+        excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else _("(none)")
+        lines.append(
+            _("Excluded directories: {directories}").format(directories=excludes)
+        )
         total_files = len(self.results)
         total_hunks = sum(fr.hunks_total for fr in self.results)
         applied_hunks = sum(fr.hunks_applied for fr in self.results)
         changed_files = sum(1 for fr in self.results if fr.hunks_applied > 0)
         skipped_files = sum(1 for fr in self.results if fr.skipped_reason)
-        lines.append("Riepilogo:")
-        lines.append(f"  File analizzati: {total_files}")
-        lines.append(f"  File con modifiche: {changed_files}")
+        lines.append(_("Summary:"))
+        lines.append(
+            _("  Files processed: {count}").format(count=total_files)
+        )
+        lines.append(
+            _("  Files with changes: {count}").format(count=changed_files)
+        )
         if skipped_files:
-            lines.append(f"  File saltati: {skipped_files}")
-        lines.append(f"  Hunks applicati: {applied_hunks}/{total_hunks}")
+            lines.append(
+                _("  Files skipped: {count}").format(count=skipped_files)
+            )
+        lines.append(
+            _("  Hunks applied: {applied}/{total}").format(
+                applied=applied_hunks, total=total_hunks
+            )
+        )
         if not total_hunks or not applied_hunks:
-            lines.append("  Nessuna modifica è stata applicata ai file.")
+            lines.append(_("  No changes were applied to the files."))
         lines.append("")
         for fr in self.results:
-            lines.append(f"File: {fr.relative_to_root}")
+            lines.append(_("File: {path}").format(path=fr.relative_to_root))
             if fr.skipped_reason:
-                lines.append(f"  SKIPPED: {fr.skipped_reason}")
-            lines.append(f"  Tipo file: {fr.file_type}")
-            lines.append(f"  Hunks: {fr.hunks_applied}/{fr.hunks_total}")
+                lines.append(
+                    _("  SKIPPED: {reason}").format(reason=fr.skipped_reason)
+                )
+            lines.append(_("  File type: {file_type}").format(file_type=fr.file_type))
+            lines.append(
+                _("  Hunks: {applied}/{total}").format(
+                    applied=fr.hunks_applied, total=fr.hunks_total
+                )
+            )
             for d in fr.decisions:
-                lines.append(f"    Hunk {d.hunk_header} -> {d.strategy}")
+                lines.append(
+                    _("    Hunk {header} -> {strategy}").format(
+                        header=d.hunk_header, strategy=d.strategy
+                    )
+                )
                 if d.selected_pos is not None:
-                    lines.append(f"      Pos: {d.selected_pos}")
+                    lines.append(
+                        _("      Position: {position}").format(
+                            position=d.selected_pos
+                        )
+                    )
                 if d.similarity is not None:
-                    lines.append(f"      Similarità: {d.similarity:.3f}")
+                    lines.append(
+                        _("      Similarity: {similarity:.3f}").format(
+                            similarity=d.similarity
+                        )
+                    )
                 if d.candidates:
                     cand_str = ", ".join(
-                        [f"(pos {p}, sim {s:.3f})" for p, s in d.candidates]
+                        [
+                            _("(position {position}, similarity {similarity:.3f})").format(
+                                position=p, similarity=s
+                            )
+                            for p, s in d.candidates
+                        ]
                     )
-                    lines.append(f"      Candidati: {cand_str}")
+                    lines.append(
+                        _("      Candidates: {candidates}").format(
+                            candidates=cand_str
+                        )
+                    )
                 if d.message:
-                    lines.append(f"      Note: {d.message}")
+                    lines.append(
+                        _("      Notes: {notes}").format(notes=d.message)
+                    )
             lines.append("")
         return "\n".join(lines)
 
