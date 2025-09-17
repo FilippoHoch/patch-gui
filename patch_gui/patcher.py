@@ -484,6 +484,30 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
+        if not hv.before_lines and not context_candidates:
+            logger.debug(
+                "Hunk %s senza linee 'before', utilizzo i metadati per la posizione",
+                hv.header,
+            )
+            raw_positions = (
+                getattr(hunk, "target_start", None),
+                getattr(hunk, "source_start", None),
+            )
+            metadata_pos: Optional[int] = None
+            for start in raw_positions:
+                if isinstance(start, int):
+                    zero_based = start - 1 if start and start > 0 else 0
+                    metadata_pos = max(0, min(len(current_lines), zero_based))
+                    break
+            if metadata_pos is not None:
+                current_lines, success = _apply(
+                    current_lines, hv, decision, metadata_pos, None, "metadata"
+                )
+                if success:
+                    applied_count += 1
+                decisions.append(decision)
+                continue
+
         decision.strategy = "failed"
         if not decision.message:
             decision.message = (
