@@ -8,11 +8,17 @@ from PySide6 import QtGui
 
 if TYPE_CHECKING:
     # ``PySide6`` exposes ``QSyntaxHighlighter`` as ``Any`` to type checkers.
-    # Providing a concrete subclass in the ``TYPE_CHECKING`` branch gives mypy
-    # a stable type to work with while keeping the runtime behaviour intact.
+    # Providing a lightweight stub in the ``TYPE_CHECKING`` branch gives mypy a
+    # stable type to work with while keeping the runtime behaviour intact.
 
-    class _QSyntaxHighlighter(QtGui.QSyntaxHighlighter):
-        """Concrete ``QSyntaxHighlighter`` subclass for static analysis."""
+    class _QSyntaxHighlighter(object):
+        """Stub ``QSyntaxHighlighter`` for static analysis."""
+
+        def __init__(self, document: QtGui.QTextDocument) -> None: ...
+
+        def setFormat(
+            self, start: int, count: int, format: QtGui.QTextCharFormat
+        ) -> None: ...
 
 else:
     _QSyntaxHighlighter = QtGui.QSyntaxHighlighter
