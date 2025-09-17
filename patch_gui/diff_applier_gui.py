@@ -58,6 +58,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args[0] == "apply":
         return cli.run_cli(args[1:])
 
+    if args[0] == "config":
+        return cli.run_config(args[1:])
+
     if any(opt in {"-h", "--help"} for opt in args):
         _print_help()
         return 0
@@ -120,12 +123,14 @@ def _print_help() -> None:
     parser.add_argument(
         "command",
         nargs="?",
-        choices=["gui", "apply"],
+        choices=["gui", "apply", "config"],
         help=_tr("Command to execute (default: gui)."),
     )
     parser.print_help()
     print(_tr("\nCLI options:"), file=sys.stdout)
     cli.build_parser().print_help()
+    print(_tr("\nConfiguration commands:"), file=sys.stdout)
+    cli.build_config_parser().print_help()
 
 
 def _ensure_translator() -> None:

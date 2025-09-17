@@ -2,26 +2,45 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import logging
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import IO, Sequence
 
-from .config import load_config
+from .config import AppConfig, load_config, save_config
 from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
-from .parser import build_parser, parse_exclude_dirs
+from .parser import (
+    _LOG_LEVEL_CHOICES,
+    build_parser,
+    parse_exclude_dirs,
+    threshold_value,
+)
 
 __all__ = [
     "CLIError",
     "apply_patchset",
     "build_parser",
+    "build_config_parser",
     "load_patch",
     "run_cli",
+    "run_config",
+    "config_show",
+    "config_set",
+    "config_reset",
 ]
 
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigCommandError(Exception):
+    """Raised when a configuration sub-command cannot be completed."""
+
+
+_CONFIG_KEYS = ("threshold", "exclude_dirs", "backup_base", "log_level")
 
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
@@ -91,3 +110,204 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             print(_("Reports disabled (--no-report)"))
 
     return 0 if session_completed(session) else 1
+
+
+def run_config(argv: Sequence[str] | None = None) -> int:
+    """Entry-point for ``patch-gui config`` sub-commands."""
+
+    parser = build_config_parser()
+    try:
+        args = parser.parse_args(list(argv) if argv is not None else None)
+        return args.func(args)
+    except ConfigCommandError as exc:
+        parser.exit(1, _("Error: {message}\n").format(message=str(exc)))
+
+
+def build_config_parser() -> argparse.ArgumentParser:
+    """Return an ``ArgumentParser`` configured for the ``config`` commands."""
+
+    parser = argparse.ArgumentParser(
+        prog="patch-gui config",
+        description=_("Inspect or modify the persistent configuration."),
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    show_parser = subparsers.add_parser(
+        "show",
+        help=_("Display the current configuration values."),
+    )
+    show_parser.add_argument(
+        "--config-path",
+        type=Path,
+        default=None,
+        help=_(
+            "Override the configuration file path (default: use the standard location)."
+        ),
+    )
+    show_parser.set_defaults(func=_run_config_show)
+
+    set_parser = subparsers.add_parser(
+        "set",
+        help=_("Update a configuration key."),
+    )
+    set_parser.add_argument("key", choices=_CONFIG_KEYS)
+    set_parser.add_argument(
+        "values",
+        nargs="+",
+        help=_("New value for the key. Provide multiple values for exclude_dirs."),
+    )
+    set_parser.add_argument(
+        "--config-path",
+        type=Path,
+        default=None,
+        help=_(
+            "Override the configuration file path (default: use the standard location)."
+        ),
+    )
+    set_parser.set_defaults(func=_run_config_set)
+
+    reset_parser = subparsers.add_parser(
+        "reset",
+        help=_("Reset one key or the entire configuration to the defaults."),
+    )
+    reset_parser.add_argument("key", choices=_CONFIG_KEYS, nargs="?")
+    reset_parser.add_argument(
+        "--config-path",
+        type=Path,
+        default=None,
+        help=_(
+            "Override the configuration file path (default: use the standard location)."
+        ),
+    )
+    reset_parser.set_defaults(func=_run_config_reset)
+
+    return parser
+
+
+def config_show(
+    *,
+    path: Path | None = None,
+    stream: IO[str] | None = None,
+) -> int:
+    """Print the current configuration in JSON format."""
+
+    config = load_config(path)
+    mapping = config.to_mapping()
+    output = stream or sys.stdout
+    json.dump(mapping, output, indent=2, sort_keys=True)
+    output.write("\n")
+    return 0
+
+
+def config_set(
+    key: str,
+    values: Sequence[str],
+    *,
+    path: Path | None = None,
+    stream: IO[str] | None = None,
+) -> int:
+    """Update ``key`` with ``values`` and persist the configuration."""
+
+    config = load_config(path)
+
+    try:
+        _apply_config_value(config, key, values)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        raise ConfigCommandError(str(exc)) from exc
+
+    save_config(config, path)
+    output = stream or sys.stdout
+    output.write(_("{key} updated.\n").format(key=key))
+    return 0
+
+
+def config_reset(
+    key: str | None = None,
+    *,
+    path: Path | None = None,
+    stream: IO[str] | None = None,
+) -> int:
+    """Reset ``key`` (or the entire configuration) to the default values."""
+
+    if key is None:
+        config = AppConfig()
+        save_config(config, path)
+        message = _("Configuration reset to defaults.")
+    else:
+        config = load_config(path)
+        defaults = AppConfig()
+        if key not in _CONFIG_KEYS:
+            raise ConfigCommandError(
+                _("Unknown configuration key: {key}").format(key=key)
+            )
+        if key == "threshold":
+            config.threshold = defaults.threshold
+        elif key == "log_level":
+            config.log_level = defaults.log_level
+        elif key == "backup_base":
+            config.backup_base = defaults.backup_base
+        elif key == "exclude_dirs":
+            config.exclude_dirs = defaults.exclude_dirs
+        save_config(config, path)
+        message = _("{key} reset to default.").format(key=key)
+
+    output = stream or sys.stdout
+    output.write(f"{message}\n")
+    return 0
+
+
+def _run_config_show(namespace: argparse.Namespace) -> int:
+    return config_show(path=namespace.config_path)
+
+
+def _run_config_set(namespace: argparse.Namespace) -> int:
+    return config_set(namespace.key, namespace.values, path=namespace.config_path)
+
+
+def _run_config_reset(namespace: argparse.Namespace) -> int:
+    return config_reset(namespace.key, path=namespace.config_path)
+
+
+def _apply_config_value(
+    config: AppConfig,
+    key: str,
+    values: Sequence[str],
+) -> None:
+    if key not in _CONFIG_KEYS:
+        raise ValueError(_("Unknown configuration key: {key}").format(key=key))
+
+    if key == "threshold":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The threshold key expects exactly one value."),
+            )
+        config.threshold = threshold_value(values[0])
+        return
+
+    if key == "log_level":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The log_level key expects exactly one value."),
+            )
+        choice = values[0].lower()
+        if choice not in _LOG_LEVEL_CHOICES:
+            raise ConfigCommandError(
+                _("Unsupported log level: {value}.").format(value=values[0])
+            )
+        config.log_level = choice
+        return
+
+    if key == "backup_base":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The backup_base key expects exactly one value."),
+            )
+        config.backup_base = Path(values[0]).expanduser()
+        return
+
+    if key == "exclude_dirs":
+        parsed = parse_exclude_dirs(values, ignore_default=True)
+        config.exclude_dirs = parsed
+        return
+
+    raise ValueError(_("Unknown configuration key: {key}").format(key=key))

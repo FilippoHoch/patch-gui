@@ -10,6 +10,7 @@ from tests._pytest_typing import typed_parametrize
 
 GUI_RESULT = 42
 CLI_RESULT = 17
+CONFIG_RESULT = 7
 
 
 @typed_parametrize(
@@ -17,6 +18,7 @@ CLI_RESULT = 17
     [
         ([], [("gui", ())], GUI_RESULT),
         (["apply", "patch.diff"], [("cli", ["patch.diff"])], CLI_RESULT),
+        (["config", "show"], [("config", ["show"])], CONFIG_RESULT),
         (
             ["--root", ".", "patch.diff"],
             [("cli", ["--root", ".", "patch.diff"])],
@@ -87,12 +89,17 @@ def test_main_dispatches_between_gui_and_cli(
         calls.append(("cli", args))
         return CLI_RESULT
 
+    def fake_run_config(args: list[str]) -> int:
+        calls.append(("config", args))
+        return CONFIG_RESULT
+
     def fake_launch_gui() -> int:
         calls.append(("gui", ()))
         return GUI_RESULT
 
     module_cli = cast(Any, diff_applier_gui).cli
     monkeypatch.setattr(module_cli, "run_cli", fake_run_cli)
+    monkeypatch.setattr(module_cli, "run_config", fake_run_config)
     monkeypatch.setattr(diff_applier_gui, "_launch_gui", fake_launch_gui)
 
     result = diff_applier_gui.main(argv)
