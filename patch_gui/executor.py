@@ -321,6 +321,9 @@ def _apply_file_patch(
         elif is_removed_file:
             try:
                 path.unlink()
+            except FileNotFoundError:
+                # Another process may have already deleted the file; treat as success.
+                pass
             except Exception as exc:
                 message = _("Failed to delete the file: {error}").format(error=exc)
                 fr.skipped_reason = message
