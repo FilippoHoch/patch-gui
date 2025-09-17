@@ -41,7 +41,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    - Scegli manualmente il posizionamento corretto.
 7. **Consulta backup e report**
    - Ogni esecuzione reale crea una cartella `./.diff_backups/<timestamp>/` con copie dei file originali.
-   - Nella stessa cartella vengono generati anche `apply-report.json` e `apply-report.txt` con i dettagli dell'operazione.
+   - Nella sottocartella `reports/` vengono generati anche `apply-report.json` e `apply-report.txt` con i dettagli dell'operazione.
 8. **Ripristina da backup**
    - Usa il pulsante **Ripristina da backup…** e seleziona il timestamp desiderato per ripristinare i file originali.
 

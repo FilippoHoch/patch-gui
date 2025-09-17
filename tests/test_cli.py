@@ -11,7 +11,7 @@ from unidiff import PatchSet
 
 from patch_gui import cli
 import patch_gui.utils as utils
-from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_SUBDIR, REPORT_TXT
 
 SAMPLE_DIFF = """--- a/sample.txt
 +++ b/sample.txt
@@ -85,8 +85,9 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     assert backup_copy.exists()
     assert backup_copy.read_text(encoding="utf-8") == original
 
-    json_report = session.backup_dir / REPORT_JSON
-    text_report = session.backup_dir / REPORT_TXT
+    report_dir = session.backup_dir / REPORT_SUBDIR
+    json_report = report_dir / REPORT_JSON
+    text_report = report_dir / REPORT_TXT
     assert json_report.exists()
     assert text_report.exists()
     assert session.report_json_path == json_report
@@ -118,8 +119,9 @@ def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     assert session.report_txt_path == txt_dest
     assert json_dest.exists()
     assert txt_dest.exists()
-    assert not (session.backup_dir / REPORT_JSON).exists()
-    assert not (session.backup_dir / REPORT_TXT).exists()
+    report_dir = session.backup_dir / REPORT_SUBDIR
+    assert not (report_dir / REPORT_JSON).exists()
+    assert not (report_dir / REPORT_TXT).exists()
 
     data = json.loads(json_dest.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
@@ -138,8 +140,9 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
 
     assert session.report_json_path is None
     assert session.report_txt_path is None
-    assert not (session.backup_dir / REPORT_JSON).exists()
-    assert not (session.backup_dir / REPORT_TXT).exists()
+    report_dir = session.backup_dir / REPORT_SUBDIR
+    assert not (report_dir / REPORT_JSON).exists()
+    assert not (report_dir / REPORT_TXT).exists()
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:

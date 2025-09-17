@@ -27,6 +27,7 @@ from .utils import (
     APP_NAME,
     BACKUP_DIR,
     REPORT_JSON,
+    REPORT_SUBDIR,
     REPORT_TXT,
     decode_bytes,
     normalize_newlines,
@@ -100,15 +101,15 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
     parser.add_argument(
         "--report-json",
         help=(
-            "Percorso del report JSON generato; di default '<backup>/%s'."
-            % REPORT_JSON
+            "Percorso del report JSON generato; di default '<backup>/%s/%s'."
+            % (REPORT_SUBDIR, REPORT_JSON)
         ),
     )
     parser.add_argument(
         "--report-txt",
         help=(
-            "Percorso del report testuale generato; di default '<backup>/%s'."
-            % REPORT_TXT
+            "Percorso del report testuale generato; di default '<backup>/%s/%s'."
+            % (REPORT_SUBDIR, REPORT_TXT)
         ),
     )
     parser.add_argument(

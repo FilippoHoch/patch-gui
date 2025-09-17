@@ -25,6 +25,7 @@ else:
 
 APP_NAME = "Patch GUI – Diff Applier"
 BACKUP_DIR = ".diff_backups"
+REPORT_SUBDIR = "reports"
 REPORT_JSON = "apply-report.json"
 REPORT_TXT = "apply-report.txt"
 

@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
-from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_SUBDIR, REPORT_TXT
 
 
 class _HunkLine(Protocol):
@@ -387,7 +387,9 @@ def write_reports(
     txt_target: Optional[Path] = None
 
     if write_json:
-        json_target = _resolve_path(json_path, session.backup_dir / REPORT_JSON)
+        json_target = _resolve_path(
+            json_path, session.backup_dir / REPORT_SUBDIR / REPORT_JSON
+        )
         json_target.parent.mkdir(parents=True, exist_ok=True)
         json_target.write_text(
             json.dumps(session.to_json(), ensure_ascii=False, indent=2),
@@ -395,7 +397,9 @@ def write_reports(
         )
 
     if write_txt:
-        txt_target = _resolve_path(txt_path, session.backup_dir / REPORT_TXT)
+        txt_target = _resolve_path(
+            txt_path, session.backup_dir / REPORT_SUBDIR / REPORT_TXT
+        )
         txt_target.parent.mkdir(parents=True, exist_ok=True)
         txt_target.write_text(session.to_txt(), encoding="utf-8")
 
