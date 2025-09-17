@@ -10,7 +10,9 @@ import pytest
 from unidiff import PatchSet
 
 from patch_gui import cli
+import patch_gui.executor as executor
 import patch_gui.utils as utils
+import patch_gui.parser as parser
 from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
 
 SAMPLE_DIFF = """--- a/sample.txt
@@ -272,7 +274,7 @@ def test_load_patch_logs_warning_on_fallback(
         text, encoding, _ = real_decode(data)
         return text, encoding, True
 
-    monkeypatch.setattr(cli, "decode_bytes", fake_decode)
+    monkeypatch.setattr(executor, "decode_bytes", fake_decode)
 
     with caplog.at_level(logging.WARNING):
         patch = cli.load_patch(str(patch_path))
@@ -371,7 +373,7 @@ def test_apply_patchset_logs_warning_on_fallback(
         text, encoding, _ = real_decode(data)
         return text, encoding, True
 
-    monkeypatch.setattr(cli, "decode_bytes", fake_decode)
+    monkeypatch.setattr(executor, "decode_bytes", fake_decode)
 
     with caplog.at_level(logging.WARNING):
         session = cli.apply_patchset(
@@ -424,7 +426,7 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
 def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None:
-    assert cli._threshold_value(raw) == expected
+    assert parser.threshold_value(raw) == expected
 
 
 @pytest.mark.parametrize(
@@ -438,6 +440,6 @@ def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None
 )
 def test_threshold_value_rejects_invalid_inputs(raw: str, expected_message: str) -> None:
     with pytest.raises(argparse.ArgumentTypeError) as excinfo:
-        cli._threshold_value(raw)
+        parser.threshold_value(raw)
 
     assert str(excinfo.value) == expected_message
