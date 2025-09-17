@@ -53,20 +53,29 @@ if TYPE_CHECKING:
 
 _F = TypeVar("_F", bound=Callable[..., object])
 
-class _QObjectBase(QObject):
-    """Concrete ``QObject`` subclass with a stable static type for mypy."""
+if TYPE_CHECKING:
+    # ``PySide6`` exposes these Qt base classes as ``Any`` which prevents mypy
+    # from allowing subclassing. Providing explicit subclasses in the
+    # ``TYPE_CHECKING`` branch gives the type checker concrete types while the
+    # assignments below preserve the runtime behaviour.
 
+    class _QObjectBase(QObject):
+        """Concrete ``QObject`` subclass with a stable static type for mypy."""
 
-class _QDialogBase(QDialog):
-    """Concrete ``QDialog`` subclass with a stable static type for mypy."""
+    class _QDialogBase(QDialog):
+        """Concrete ``QDialog`` subclass with a stable static type for mypy."""
 
+    class _QThreadBase(QThread):
+        """Concrete ``QThread`` subclass with a stable static type for mypy."""
 
-class _QThreadBase(QThread):
-    """Concrete ``QThread`` subclass with a stable static type for mypy."""
+    class _QMainWindowBase(QMainWindow):
+        """Concrete ``QMainWindow`` subclass with a stable static type for mypy."""
 
-
-class _QMainWindowBase(QMainWindow):
-    """Concrete ``QMainWindow`` subclass with a stable static type for mypy."""
+else:
+    _QObjectBase = QObject
+    _QDialogBase = QDialog
+    _QThreadBase = QThread
+    _QMainWindowBase = QMainWindow
 
 
 def _qt_slot(
