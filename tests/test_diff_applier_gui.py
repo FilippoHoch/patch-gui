@@ -15,11 +15,18 @@ CLI_RESULT = 17
     [
         ([], [("gui", ())], GUI_RESULT),
         (["apply", "patch.diff"], [("cli", ["patch.diff"])], CLI_RESULT),
-        (["--root", ".", "patch.diff"], [("cli", ["--root", ".", "patch.diff"])], CLI_RESULT),
+        (
+            ["--root", ".", "patch.diff"],
+            [("cli", ["--root", ".", "patch.diff"])],
+            CLI_RESULT,
+        ),
     ],
 )
 def test_main_dispatches_between_gui_and_cli(
-    argv: list[str], expected_calls: list[tuple[str, object]], expected_result: int, monkeypatch: pytest.MonkeyPatch
+    argv: list[str],
+    expected_calls: list[tuple[str, object]],
+    expected_result: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, object]] = []
 

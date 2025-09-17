@@ -19,7 +19,9 @@ __all__ = [
 ]
 
 
-def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.ArgumentParser:
+def build_parser(
+    parser: Optional[argparse.ArgumentParser] = None,
+) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
     description = _(
@@ -89,7 +91,9 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         "--log-level",
         default="warning",
         choices=_LOG_LEVEL_CHOICES,
-        help=_("Logging level to emit on stdout (debug, info, warning, error, critical)."),
+        help=_(
+            "Logging level to emit on stdout (debug, info, warning, error, critical)."
+        ),
     )
     parser.add_argument(
         "--exclude-dir",
@@ -108,8 +112,12 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
 def threshold_value(value: str) -> float:
     try:
         parsed = float(value)
-    except ValueError as exc:  # pragma: no cover - argparse already handles typical errors
-        raise argparse.ArgumentTypeError(_("Threshold must be a decimal number.")) from exc
+    except (
+        ValueError
+    ) as exc:  # pragma: no cover - argparse already handles typical errors
+        raise argparse.ArgumentTypeError(
+            _("Threshold must be a decimal number.")
+        ) from exc
     if not 0 < parsed <= 1:
         raise argparse.ArgumentTypeError(
             _("Threshold must be between 0 (exclusive) and 1 (inclusive).")

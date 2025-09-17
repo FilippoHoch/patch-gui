@@ -1,4 +1,5 @@
 """GUI application logic for the Patch GUI diff applier."""
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from logging.handlers import RotatingFileHandler
 
@@ -98,7 +99,9 @@ def _coerce_non_negative_int(value: int | str | None) -> int | None:
     return numeric if numeric >= 0 else None
 
 
-def _resolve_rotation_setting(value: int | str | None, *, env_var: str, default: int) -> int:
+def _resolve_rotation_setting(
+    value: int | str | None, *, env_var: str, default: int
+) -> int:
     direct_value = _coerce_non_negative_int(value)
     if direct_value is not None:
         return direct_value
@@ -120,7 +123,9 @@ def configure_logging(
     """Configure the global logging setup with a rotating file handler."""
 
     resolved_level = _resolve_log_level(level)
-    file_path = Path(os.getenv(LOG_FILE_ENV_VAR, log_file or DEFAULT_LOG_FILE)).expanduser()
+    file_path = Path(
+        os.getenv(LOG_FILE_ENV_VAR, log_file or DEFAULT_LOG_FILE)
+    ).expanduser()
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     resolved_max_bytes = _resolve_rotation_setting(
@@ -192,7 +197,11 @@ def _apply_platform_workarounds() -> None:
 
     attribute = getattr(QtCore.Qt, "AA_UseHighDpiPixmaps", None)
     if attribute is None:
-        attribute = getattr(getattr(QtCore.Qt, "ApplicationAttribute", object), "AA_UseHighDpiPixmaps", None)
+        attribute = getattr(
+            getattr(QtCore.Qt, "ApplicationAttribute", object),
+            "AA_UseHighDpiPixmaps",
+            None,
+        )
     if attribute is not None:
         QtCore.QCoreApplication.setAttribute(attribute)
 
@@ -200,9 +209,13 @@ def _apply_platform_workarounds() -> None:
         policy_enum = getattr(QtCore.Qt, "HighDpiScaleFactorRoundingPolicy", None)
         try:
             if policy_enum is not None:
-                QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(policy_enum.PassThrough)
+                QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+                    policy_enum.PassThrough
+                )
         except AttributeError:
-            logger.debug("Qt non supporta la configurazione del rounding High DPI; workaround ignorato.")
+            logger.debug(
+                "Qt non supporta la configurazione del rounding High DPI; workaround ignorato."
+            )
 
 
 class CandidateDialog(QtWidgets.QDialog):
@@ -246,7 +259,9 @@ class CandidateDialog(QtWidgets.QDialog):
         right = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right)
         right_layout.addWidget(QtWidgets.QLabel("Hunk – contenuto atteso (prima):"))
-        self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit("".join(hv.before_lines))
+        self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
+            "".join(hv.before_lines)
+        )
         self.preview_right.setReadOnly(True)
         right_layout.addWidget(self.preview_right, 1)
 
@@ -255,7 +270,8 @@ class CandidateDialog(QtWidgets.QDialog):
         layout.addWidget(splitter, 1)
 
         btns = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
         )
         layout.addWidget(btns)
         btns.accepted.connect(self.accept)
@@ -278,7 +294,9 @@ class CandidateDialog(QtWidgets.QDialog):
     def accept(self) -> None:
         row = self.list.currentRow()
         if row < 0:
-            QtWidgets.QMessageBox.warning(self, "Selezione obbligatoria", "Seleziona una posizione dalla lista.")
+            QtWidgets.QMessageBox.warning(
+                self, "Selezione obbligatoria", "Seleziona una posizione dalla lista."
+            )
             return
         text = self.list.currentItem().text()
         m = re.search(r"Linea (\d+)", text)
@@ -301,7 +319,11 @@ class FileChoiceDialog(QtWidgets.QDialog):
         self.resize(700, 400)
         self.chosen: Optional[Path] = None
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(QtWidgets.QLabel("Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"))
+        layout.addWidget(
+            QtWidgets.QLabel(
+                "Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"
+            )
+        )
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
         for path in choices:
             if base is not None:
@@ -315,7 +337,8 @@ class FileChoiceDialog(QtWidgets.QDialog):
             self.list.setCurrentRow(0)
         layout.addWidget(self.list, 1)
         btns = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
         )
         layout.addWidget(btns)
         btns.accepted.connect(self.accept)
@@ -417,13 +440,17 @@ class PatchApplyWorker(QtCore.QThread):
             exclude_dirs=self.session.exclude_dirs,
         )
         if not candidates:
-            fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
+            fr.skipped_reason = (
+                "File non trovato nella root – salto per preferenza utente"
+            )
             logger.warning("SKIP: %s non trovato.", rel_path)
             return fr
         if len(candidates) > 1:
             selected = self._wait_for_file_choice(rel_path, candidates)
             if selected is None:
-                fr.skipped_reason = "Ambiguità sul file, operazione annullata dall'utente"
+                fr.skipped_reason = (
+                    "Ambiguità sul file, operazione annullata dall'utente"
+                )
                 return fr
             path = selected
         else:
@@ -470,7 +497,9 @@ class PatchApplyWorker(QtCore.QThread):
 
         return fr
 
-    def _wait_for_file_choice(self, rel_path: str, candidates: List[Path]) -> Optional[Path]:
+    def _wait_for_file_choice(
+        self, rel_path: str, candidates: List[Path]
+    ) -> Optional[Path]:
         self._file_choice_result = None
         self._file_choice_event.clear()
         self.request_file_choice.emit(rel_path, candidates)
@@ -503,6 +532,7 @@ class PatchApplyWorker(QtCore.QThread):
             else:
                 decision.message = "Scelta annullata dall'utente"
         return pos
+
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
@@ -622,7 +652,9 @@ class MainWindow(QtWidgets.QMainWindow):
         right_layout = QtWidgets.QVBoxLayout(right)
         right_layout.addWidget(QtWidgets.QLabel("Incolla/edita diff (opzionale):"))
         self.text_diff = QtWidgets.QPlainTextEdit()
-        self.text_diff.setPlaceholderText("Incolla qui il diff se non stai aprendo un file…")
+        self.text_diff.setPlaceholderText(
+            "Incolla qui il diff se non stai aprendo un file…"
+        )
         right_layout.addWidget(self.text_diff, 1)
 
         right_layout.addWidget(QtWidgets.QLabel("Log:"))
@@ -656,7 +688,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._qt_log_handler = handler
 
     @QtCore.Slot(str, int)
-    def _handle_log_message(self, message: str, level: int) -> None:  # pragma: no cover - UI feedback
+    def _handle_log_message(
+        self, message: str, level: int
+    ) -> None:  # pragma: no cover - UI feedback
         self.log.appendPlainText(message)
         lines = [line for line in message.strip().splitlines() if line]
         if lines:
@@ -672,7 +706,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_project_root(self, path: Path, persist: bool = True) -> bool:
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists() or not resolved.is_dir():
-            QtWidgets.QMessageBox.warning(self, "Root non valida", "La cartella selezionata non esiste.")
+            QtWidgets.QMessageBox.warning(
+                self, "Root non valida", "La cartella selezionata non esiste."
+            )
             return False
         self.project_root = resolved
         self.root_edit.setText(str(resolved))
@@ -710,13 +746,17 @@ class MainWindow(QtWidgets.QMainWindow):
         return tuple(unique)
 
     def choose_root(self) -> None:
-        d = QtWidgets.QFileDialog.getExistingDirectory(self, "Seleziona root del progetto")
+        d = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Seleziona root del progetto"
+        )
         if d:
             self.set_project_root(Path(d))
 
     def load_diff_file(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Apri file .diff", filter="Diff files (*.diff *.patch *.txt);;Tutti (*.*)"
+            self,
+            "Apri file .diff",
+            filter="Diff files (*.diff *.patch *.txt);;Tutti (*.*)",
         )
         if not path:
             return
@@ -729,7 +769,9 @@ class MainWindow(QtWidgets.QMainWindow):
         cb = QtGui.QGuiApplication.clipboard()
         text = cb.text()
         if not text:
-            QtWidgets.QMessageBox.information(self, "Appunti vuoti", "La clipboard non contiene testo.")
+            QtWidgets.QMessageBox.information(
+                self, "Appunti vuoti", "La clipboard non contiene testo."
+            )
             return
         self.diff_text = text
         self.text_diff.setPlainText(self.diff_text)
@@ -738,17 +780,23 @@ class MainWindow(QtWidgets.QMainWindow):
     def parse_from_textarea(self) -> None:
         self.diff_text = self.text_diff.toPlainText()
         if not self.diff_text.strip():
-            QtWidgets.QMessageBox.warning(self, "Nessun testo", "Inserisci del testo diff nella textarea.")
+            QtWidgets.QMessageBox.warning(
+                self, "Nessun testo", "Inserisci del testo diff nella textarea."
+            )
             return
         logger.info("Testo diff pronto per analisi.")
 
     def analyze_diff(self) -> None:
         if not self.project_root:
-            QtWidgets.QMessageBox.warning(self, "Root mancante", "Seleziona la root del progetto.")
+            QtWidgets.QMessageBox.warning(
+                self, "Root mancante", "Seleziona la root del progetto."
+            )
             return
         self.diff_text = self.text_diff.toPlainText() or self.diff_text
         if not self.diff_text.strip():
-            QtWidgets.QMessageBox.warning(self, "Diff mancante", "Carica o incolla un diff prima di analizzare.")
+            QtWidgets.QMessageBox.warning(
+                self, "Diff mancante", "Carica o incolla un diff prima di analizzare."
+            )
             return
         self.threshold = float(self.spin_thresh.value())
 
@@ -841,7 +889,9 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.start()
 
     @QtCore.Slot(str, int)
-    def _on_worker_progress(self, message: str, percent: int) -> None:  # pragma: no cover - UI feedback
+    def _on_worker_progress(
+        self, message: str, percent: int
+    ) -> None:  # pragma: no cover - UI feedback
         if not message:
             return
         self.log.appendPlainText(message)
@@ -852,7 +902,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar.setToolTip(message)
 
     @QtCore.Slot(object)
-    def _on_worker_finished(self, session: ApplySession) -> None:  # pragma: no cover - UI feedback
+    def _on_worker_finished(
+        self, session: ApplySession
+    ) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
         write_reports(session)
         logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
@@ -878,7 +930,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Errore durante l'applicazione della patch")
 
     @QtCore.Slot(str, object)
-    def _on_worker_request_file_choice(self, rel_path: str, candidates: List[Path]) -> None:  # pragma: no cover - UI feedback
+    def _on_worker_request_file_choice(
+        self, rel_path: str, candidates: List[Path]
+    ) -> None:  # pragma: no cover - UI feedback
         worker = self._current_worker
         if worker is None:
             return
@@ -901,12 +955,17 @@ class MainWindow(QtWidgets.QMainWindow):
         if worker is None:
             return
         dlg = CandidateDialog(self, file_text, candidates, hv)
-        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
+        if (
+            dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
+            and dlg.selected_pos is not None
+        ):
             worker.provide_hunk_choice(dlg.selected_pos)
         else:
             worker.provide_hunk_choice(None)
 
-    def apply_file_patch(self, pf: "PatchedFile", rel_path: str, session: ApplySession) -> FileResult:
+    def apply_file_patch(
+        self, pf: "PatchedFile", rel_path: str, session: ApplySession
+    ) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
         assert self.project_root is not None
@@ -916,7 +975,9 @@ class MainWindow(QtWidgets.QMainWindow):
             exclude_dirs=session.exclude_dirs,
         )
         if not candidates:
-            fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
+            fr.skipped_reason = (
+                "File non trovato nella root – salto per preferenza utente"
+            )
             logger.warning("SKIP: %s non trovato.", rel_path)
             return fr
         if len(candidates) > 1:
@@ -927,7 +988,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 base=self.project_root,
             )
             if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted or not dlg.chosen:
-                fr.skipped_reason = "Ambiguità sul file, operazione annullata dall'utente"
+                fr.skipped_reason = (
+                    "Ambiguità sul file, operazione annullata dall'utente"
+                )
                 return fr
             path = dlg.chosen
         else:
@@ -984,7 +1047,10 @@ class MainWindow(QtWidgets.QMainWindow):
     ) -> Optional[int]:
         file_text = "".join(lines)
         dlg = CandidateDialog(self, file_text, candidates, hv)
-        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.selected_pos is not None:
+        if (
+            dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
+            and dlg.selected_pos is not None
+        ):
             return dlg.selected_pos
         decision.strategy = "failed"
         if reason == "context":
@@ -995,18 +1061,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def restore_from_backup(self) -> None:
         if not self.project_root:
-            QtWidgets.QMessageBox.warning(self, "Root mancante", "Seleziona la root del progetto.")
+            QtWidgets.QMessageBox.warning(
+                self, "Root mancante", "Seleziona la root del progetto."
+            )
             return
         base = self.project_root / BACKUP_DIR
         if not base.exists():
-            QtWidgets.QMessageBox.information(self, "Nessun backup", "Cartella backup non trovata.")
+            QtWidgets.QMessageBox.information(
+                self, "Nessun backup", "Cartella backup non trovata."
+            )
             return
         stamps = sorted([p for p in base.iterdir() if p.is_dir()], reverse=True)
         if not stamps:
-            QtWidgets.QMessageBox.information(self, "Nessun backup", "Nessuna sessione di backup trovata.")
+            QtWidgets.QMessageBox.information(
+                self, "Nessun backup", "Nessuna sessione di backup trovata."
+            )
             return
         items = [str(p.name) for p in stamps]
-        item, ok = QtWidgets.QInputDialog.getItem(self, "Seleziona backup", "Sessione:", items, 0, False)
+        item, ok = QtWidgets.QInputDialog.getItem(
+            self, "Seleziona backup", "Sessione:", items, 0, False
+        )
         if not ok or not item:
             return
         chosen = base / item
@@ -1024,7 +1098,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 dest = self.project_root / src.relative_to(chosen)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
-        QtWidgets.QMessageBox.information(self, "Ripristino completato", f"Backup {item} ripristinato.")
+        QtWidgets.QMessageBox.information(
+            self, "Ripristino completato", f"Backup {item} ripristinato."
+        )
+
 
 def main() -> None:
     configure_logging()
@@ -1038,4 +1115,12 @@ def main() -> None:
     sys.exit(app.exec())
 
 
-__all__ = ["CandidateDialog", "FileChoiceDialog", "GuiLogHandler", "MainWindow", "PatchApplyWorker", "configure_logging", "main"]
+__all__ = [
+    "CandidateDialog",
+    "FileChoiceDialog",
+    "GuiLogHandler",
+    "MainWindow",
+    "PatchApplyWorker",
+    "configure_logging",
+    "main",
+]

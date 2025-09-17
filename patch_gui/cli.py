@@ -31,7 +31,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     if args.no_report and (args.report_json or args.report_txt):
         parser.error(
-            _("The --report-json/--report-txt options are incompatible with --no-report.")
+            _(
+                "The --report-json/--report-txt options are incompatible with --no-report."
+            )
         )
 
     level_name = args.log_level.upper()
@@ -46,7 +48,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         patch = load_patch(args.patch)
         raw_backup = args.backup
         backup_base = (
-            Path(raw_backup).expanduser() if isinstance(raw_backup, str) and raw_backup else None
+            Path(raw_backup).expanduser()
+            if isinstance(raw_backup, str) and raw_backup
+            else None
         )
         exclude_dirs = parse_exclude_dirs(args.exclude_dirs)
         session = apply_patchset(
@@ -72,9 +76,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         if session.report_json_path or session.report_txt_path:
             details = []
             if session.report_json_path:
-                details.append(
-                    _("JSON: {path}").format(path=session.report_json_path)
-                )
+                details.append(_("JSON: {path}").format(path=session.report_json_path))
             if session.report_txt_path:
                 details.append(_("Text: {path}").format(path=session.report_txt_path))
             print(_("Reports saved to: {details}").format(details=", ".join(details)))

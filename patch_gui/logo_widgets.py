@@ -4,6 +4,7 @@ This module provides lightweight logo components that can be embedded in the
 GUI without relying on external binary assets. Both widgets use QPainter to
 produce stylised graphics so that the project can ship without raster images.
 """
+
 from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -21,7 +22,9 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
     painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
     radius = min(target.width(), target.height()) * 0.22
-    border_pen = QtGui.QPen(QtGui.QColor("#061533"), max(target.width(), target.height()) * 0.045)
+    border_pen = QtGui.QPen(
+        QtGui.QColor("#061533"), max(target.width(), target.height()) * 0.045
+    )
     border_pen.setJoinStyle(QtCore.Qt.PenJoinStyle.RoundJoin)
     painter.setPen(border_pen)
 
@@ -40,7 +43,9 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
     sheet_gradient = QtGui.QLinearGradient(sheet.topLeft(), sheet.bottomRight())
     sheet_gradient.setColorAt(0.0, QtGui.QColor("#f5fbff"))
     sheet_gradient.setColorAt(1.0, QtGui.QColor("#e3f2fd"))
-    sheet_pen = QtGui.QPen(QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.03)
+    sheet_pen = QtGui.QPen(
+        QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.03
+    )
     sheet_pen.setJoinStyle(QtCore.Qt.PenJoinStyle.RoundJoin)
     painter.setPen(sheet_pen)
     painter.setBrush(QtGui.QBrush(sheet_gradient))
@@ -115,7 +120,9 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
     fold_gradient.setColorAt(0.0, QtGui.QColor("#bbdefb"))
     fold_gradient.setColorAt(1.0, QtGui.QColor("#90caf9"))
     painter.setBrush(QtGui.QBrush(fold_gradient))
-    painter.setPen(QtGui.QPen(QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.02))
+    painter.setPen(
+        QtGui.QPen(QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.02)
+    )
     painter.drawPath(fold_path)
 
     painter.restore()
@@ -151,7 +158,9 @@ class LogoWidget(QtWidgets.QWidget):
     def minimumSizeHint(self) -> QtCore.QSize:  # pragma: no cover - trivial Qt override
         return QtCore.QSize(88, 88)
 
-    def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # pragma: no cover - UI feedback
+    def paintEvent(
+        self, event: QtGui.QPaintEvent
+    ) -> None:  # pragma: no cover - UI feedback
         painter = QtGui.QPainter(self)
         rect = QtCore.QRectF(self.rect()).adjusted(4.0, 4.0, -4.0, -4.0)
         _draw_logo(painter, rect)
@@ -175,7 +184,9 @@ class WordmarkWidget(QtWidgets.QWidget):
     def minimumSizeHint(self) -> QtCore.QSize:  # pragma: no cover - trivial Qt override
         return QtCore.QSize(240, 92)
 
-    def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # pragma: no cover - UI feedback
+    def paintEvent(
+        self, event: QtGui.QPaintEvent
+    ) -> None:  # pragma: no cover - UI feedback
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
@@ -195,7 +206,9 @@ class WordmarkWidget(QtWidgets.QWidget):
             rect.width() * 0.02,
             rect.height() * 0.6,
         )
-        accent_gradient = QtGui.QLinearGradient(accent_rect.topLeft(), accent_rect.bottomRight())
+        accent_gradient = QtGui.QLinearGradient(
+            accent_rect.topLeft(), accent_rect.bottomRight()
+        )
         accent_gradient.setColorAt(0.0, QtGui.QColor("#26c6da"))
         accent_gradient.setColorAt(1.0, QtGui.QColor("#00acc1"))
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
@@ -208,11 +221,15 @@ class WordmarkWidget(QtWidgets.QWidget):
             rect.width() * 0.28,
             rect.height() * 0.11,
         )
-        highlight_gradient = QtGui.QLinearGradient(highlight_rect.topLeft(), highlight_rect.topRight())
+        highlight_gradient = QtGui.QLinearGradient(
+            highlight_rect.topLeft(), highlight_rect.topRight()
+        )
         highlight_gradient.setColorAt(0.0, QtGui.QColor("#26c6da"))
         highlight_gradient.setColorAt(1.0, QtGui.QColor("#1de9b6"))
         painter.setBrush(QtGui.QBrush(highlight_gradient))
-        painter.drawRoundedRect(highlight_rect, highlight_rect.height() / 2, highlight_rect.height() / 2)
+        painter.drawRoundedRect(
+            highlight_rect, highlight_rect.height() / 2, highlight_rect.height() / 2
+        )
 
         title_rect = QtCore.QRectF(
             rect.left() + rect.width() * 0.12,

@@ -8,7 +8,9 @@ from patch_gui import localization
 MODULE_LOCALIZATION = cast(Any, localization)
 
 
-def test_get_translator_uses_english_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_translator_uses_english_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     localization.clear_translation_cache()
 
     captured: dict[str, Any] = {}

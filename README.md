@@ -131,7 +131,7 @@ pytest
 
 ## Pre-commit
 
-Per abilitare i controlli automatici (formattazione, lint, type checking e test rapidi):
+Per abilitare i controlli automatici (formattazione con **Black**, linting con **Ruff**, type checking con **mypy** e test rapidi con **pytest --quiet**):
 
 ```bash
 pip install pre-commit

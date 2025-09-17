@@ -13,13 +13,17 @@ MODULE_PLATFORM = cast(Any, platform)
 
 
 @pytest.mark.parametrize("env_value", ["Ubuntu", "Debian"])
-def test_running_under_wsl_detects_env(monkeypatch: pytest.MonkeyPatch, env_value: str) -> None:
+def test_running_under_wsl_detects_env(
+    monkeypatch: pytest.MonkeyPatch, env_value: str
+) -> None:
     monkeypatch.setenv("WSL_DISTRO_NAME", env_value)
     assert platform.running_under_wsl()
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
 
-def test_running_under_wsl_detects_kernel_release(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_running_under_wsl_detects_kernel_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
     def fake_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
@@ -31,7 +35,9 @@ def test_running_under_wsl_detects_kernel_release(monkeypatch: pytest.MonkeyPatc
     assert platform.running_under_wsl()
 
 
-def test_running_under_wsl_returns_false_when_no_markers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_running_under_wsl_returns_false_when_no_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
     def fake_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
