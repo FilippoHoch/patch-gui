@@ -159,6 +159,8 @@ Esegui la suite automatizzata con:
 pytest
 ```
 
+> La suite viene verificata con Python 3.10+, in linea con il requisito minimo del progetto.
+
 ## 🧹 Pre-commit
 
 Per avere formattazione automatica (**Black**), linting (**Ruff**), type checking (**mypy**) e test rapidi (**pytest --quiet**):
@@ -353,6 +355,12 @@ Versioni verificate:
 6. **Documenta il cambiamento** aggiornando questa sezione con versioni e test.
 
 7. Quando hai finito, `deactivate` e rimuovi la virtualenv temporanea.
+
+---
+
+## 🧾 Release notes
+
+- **0.1.0** – Allineati i requisiti minimi di Python alla versione 3.10 sia nella configurazione del progetto sia nella documentazione.
 
 ---
 
