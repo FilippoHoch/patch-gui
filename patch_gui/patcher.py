@@ -22,7 +22,6 @@ from typing import (
 
 from .utils import (
     APP_NAME,
-    BACKUP_DIR,
     REPORT_JSON,
     REPORT_TXT,
     default_backup_base,
@@ -534,9 +533,7 @@ def prepare_backup_dir(
     """Return a timestamped backup directory for the session."""
 
     base = (
-        backup_base.expanduser()
-        if backup_base is not None
-        else default_backup_base()
+        backup_base.expanduser() if backup_base is not None else default_backup_base()
     )
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_dir = base / timestamp
