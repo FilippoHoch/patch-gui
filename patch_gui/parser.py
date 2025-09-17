@@ -17,7 +17,8 @@ from .utils import (
 )
 
 _LOG_LEVEL_CHOICES = ("critical", "error", "warning", "info", "debug")
-_MINIMUM_HELP_WIDTH = 100
+# Minimum width dedicated to the help text itself (excluding the option column).
+_MINIMUM_HELP_WIDTH = 80
 
 
 class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -25,7 +26,8 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
     def __init__(self, prog: str) -> None:
         super().__init__(prog, max_help_position=36)
-        self._width = max(self._width, _MINIMUM_HELP_WIDTH)
+        minimum_total_width = self._max_help_position + _MINIMUM_HELP_WIDTH
+        self._width = max(self._width, minimum_total_width)
 
 
 __all__ = [
