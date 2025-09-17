@@ -489,17 +489,24 @@ def apply_hunks(
                 "Hunk %s senza linee 'before', utilizzo i metadati per la posizione",
                 hv.header,
             )
-            raw_positions = (
-                getattr(hunk, "target_start", None),
-                getattr(hunk, "source_start", None),
-            )
-            metadata_pos: Optional[int] = None
-            for start in raw_positions:
-                if isinstance(start, int):
-                    zero_based = start - 1 if start and start > 0 else 0
-                    metadata_pos = max(0, min(len(current_lines), zero_based))
-                    break
+
+            def _metadata_position(total_lines: int) -> Optional[int]:
+                for attr in ("target_start", "source_start"):
+                    start = getattr(hunk, attr, None)
+                    if not isinstance(start, int):
+                        continue
+                    if start <= 0:
+                        return 0
+                    return min(total_lines, start - 1)
+                return None
+
+            metadata_pos = _metadata_position(len(current_lines))
             if metadata_pos is not None:
+                logger.debug(
+                    "Metadati disponibili per hunk %s, posizione=%d",
+                    hv.header,
+                    metadata_pos,
+                )
                 current_lines, success = _apply(
                     current_lines, hv, decision, metadata_pos, None, "metadata"
                 )
