@@ -29,6 +29,12 @@ REPORT_JSON = "apply-report.json"
 REPORT_TXT = "apply-report.txt"
 
 
+def default_backup_base() -> Path:
+    """Return the default directory where backups and reports are stored."""
+
+    return Path(__file__).resolve().parent / BACKUP_DIR
+
+
 def display_path(path: Path) -> str:
     """Return ``path`` using forward slashes, regardless of the platform."""
 
@@ -257,6 +263,7 @@ __all__ = [
     "BACKUP_DIR",
     "REPORT_JSON",
     "REPORT_TXT",
+    "default_backup_base",
     "decode_bytes",
     "detect_encoding",
     "display_path",

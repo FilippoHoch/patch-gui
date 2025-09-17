@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
-from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from .utils import APP_NAME, REPORT_JSON, REPORT_TXT, default_backup_base
 
 
 DEFAULT_EXCLUDE_DIRS: tuple[str, ...] = (".git", ".venv", "node_modules")
@@ -417,9 +417,12 @@ def prepare_backup_dir(
 ) -> Path:
     """Return a timestamped backup directory for the session."""
 
-    base = backup_base.expanduser() if backup_base is not None else project_root / BACKUP_DIR
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = backup_base.expanduser() if backup_base is not None else default_backup_base()
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     backup_dir = base / timestamp
+    while backup_dir.exists():
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        backup_dir = base / timestamp
     if not dry_run:
         backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir

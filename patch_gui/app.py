@@ -33,8 +33,8 @@ from .patcher import (
 )
 from .utils import (
     APP_NAME,
-    BACKUP_DIR,
     decode_bytes,
+    default_backup_base,
     display_path,
     display_relative_path,
     normalize_newlines,
@@ -978,7 +978,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.project_root:
             QtWidgets.QMessageBox.warning(self, "Root mancante", "Seleziona la root del progetto.")
             return
-        base = self.project_root / BACKUP_DIR
+        base = default_backup_base()
         if not base.exists():
             QtWidgets.QMessageBox.information(self, "Nessun backup", "Cartella backup non trovata.")
             return

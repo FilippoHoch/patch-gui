@@ -86,6 +86,7 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
 
     assert target.read_text(encoding="utf-8") == "new line\nline2\n"
     assert session.backup_dir.parent.name == BACKUP_DIR
+    assert session.backup_dir.parent == utils.default_backup_base()
     assert session.backup_dir.exists()
 
     backup_copy = session.backup_dir / "sample.txt"

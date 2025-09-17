@@ -111,7 +111,8 @@ patch-gui apply --root . --non-interactive diff.patch
 * `--dry-run` esegue solo l'analisi lasciando i file invariati; i report possono comunque
   essere generati (a meno di `--no-report`) per consultare l'esito della simulazione.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
-* `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
+* `--backup` permette di scegliere la cartella base dei backup (di default `patch_gui/.diff_backups`
+  nella stessa directory dove risiede lo script Python).
 * `--report-json` / `--report-txt` impostano il percorso dei report generati (default `<backup>/apply-report.json` e `<backup>/apply-report.txt`).
 * `--no-report` disattiva entrambi i file di report.
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
@@ -280,6 +281,9 @@ Aggiungi l’italiano e alcune parole tecniche:
 ---
 
 ## Struttura backup/report
+
+Per impostazione predefinita i backup (e quindi i report) vengono creati nella cartella
+`patch_gui/.diff_backups/` accanto allo script Python del tool.
 
 ```
 .diff_backups/

@@ -27,10 +27,11 @@ from .patcher import (
 )
 from .utils import (
     APP_NAME,
-    BACKUP_DIR,
     REPORT_JSON,
     REPORT_TXT,
     decode_bytes,
+    default_backup_base,
+    display_path,
     display_relative_path,
     normalize_newlines,
     preprocess_patch_text,
@@ -91,10 +92,12 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         default=0.85,
         help=_("Matching threshold (0-1) for fuzzy context alignment."),
     )
+    default_backup = display_path(default_backup_base())
     parser.add_argument(
         "--backup",
-        help=_("Base directory for backups and reports; defaults to '<root>/%s'.")
-        % BACKUP_DIR,
+        help=_("Base directory for backups and reports; defaults to '{path}'.").format(
+            path=default_backup
+        ),
     )
     parser.add_argument(
         "--report-json",
