@@ -12,7 +12,7 @@ from unidiff import PatchSet
 
 from tests._pytest_typing import typed_parametrize
 
-from patch_gui import cli
+from patch_gui import cli, localization
 import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
@@ -47,6 +47,19 @@ def _create_project(tmp_path: Path) -> Path:
     project.mkdir()
     (project / "sample.txt").write_text("old line\nline2\n", encoding="utf-8")
     return project
+
+
+def test_parser_help_uses_english_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    localization.clear_translation_cache()
+    monkeypatch.delenv(localization.LANG_ENV_VAR, raising=False)
+
+    parser_obj = parser.build_parser()
+    help_text = parser_obj.format_help()
+
+    assert (
+        "Directory (relative to the root) to ignore while searching for files."
+        in help_text
+    )
 
 
 def test_apply_patchset_dry_run(tmp_path: Path) -> None:

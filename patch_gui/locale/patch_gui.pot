@@ -1,0 +1,248 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-17 10:59+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: patch_gui/parser.py:34
+#, python-brace-format
+msgid ""
+"{app_name}: apply a unified diff patch using the same heuristics as the GUI, "
+"but from the command line."
+msgstr ""
+
+#: patch_gui/parser.py:48
+msgid "Path to the diff file to apply ('-' reads from STDIN)."
+msgstr ""
+
+#: patch_gui/parser.py:53
+msgid "Project root where the patch should be applied."
+msgstr ""
+
+#: patch_gui/parser.py:58
+msgid "Simulate the execution without modifying files or creating backups."
+msgstr ""
+
+#: patch_gui/parser.py:64
+msgid "Matching threshold (0-1) for fuzzy context alignment."
+msgstr ""
+
+#: patch_gui/parser.py:68
+#, python-brace-format
+msgid "Base directory for backups and reports; defaults to \"{path}\"."
+msgstr ""
+
+#: patch_gui/parser.py:74
+#, python-format
+msgid "Path of the generated JSON report; defaults to '<backup>/%s'."
+msgstr ""
+
+#: patch_gui/parser.py:79
+#, python-format
+msgid "Path of the generated text report; defaults to '<backup>/%s'."
+msgstr ""
+
+#: patch_gui/parser.py:85
+msgid "Do not create JSON/TXT report files."
+msgstr ""
+
+#: patch_gui/parser.py:92
+msgid ""
+"Disable interactive prompts on STDIN and keep the historical behaviour when "
+"multiple matches exist."
+msgstr ""
+
+#: patch_gui/parser.py:101
+msgid "Explicit encoding to use when reading the diff (default: auto-detect)."
+msgstr ""
+
+#: patch_gui/parser.py:109
+msgid ""
+"Logging level to emit on stdout (debug, info, warning, error, critical)."
+msgstr ""
+
+#: patch_gui/parser.py:118
+#, python-format
+msgid ""
+"Directory (relative to the root) to ignore while searching for files. "
+"Specify the option multiple times to provide more than one. Defaults: %s."
+msgstr ""
+
+#: patch_gui/parser.py:133
+msgid "Threshold must be a decimal number."
+msgstr ""
+
+#: patch_gui/parser.py:137
+msgid "Threshold must be between 0 (exclusive) and 1 (inclusive)."
+msgstr ""
+
+#: patch_gui/executor.py:66
+#, python-brace-format
+msgid "Cannot decode diff from STDIN using encoding {encoding}: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:74
+#, python-brace-format
+msgid "Diff file not found: {path}"
+msgstr ""
+
+#: patch_gui/executor.py:80
+#, python-brace-format
+msgid "Cannot decode diff using encoding {encoding}: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:88 patch_gui/executor.py:97
+#, python-brace-format
+msgid "Cannot read {path}: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:103
+#, python-format
+msgid ""
+"Decoded diff %s using fallback UTF-8 (original encoding %s); the content may "
+"contain substituted characters."
+msgstr ""
+
+#: patch_gui/executor.py:114
+#, python-brace-format
+msgid "Invalid diff: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:117
+#, python-brace-format
+msgid "Unexpected error while parsing the diff: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:139
+#, python-brace-format
+msgid "Invalid project root: {path}"
+msgstr ""
+
+#: patch_gui/executor.py:199
+msgid "Binary patches are not supported in CLI mode"
+msgstr ""
+
+#: patch_gui/executor.py:208
+msgid "File not found in the project root"
+msgstr ""
+
+#: patch_gui/executor.py:227
+#, python-brace-format
+msgid "Cannot read the file: {error}"
+msgstr ""
+
+#: patch_gui/executor.py:234
+#, python-format
+msgid ""
+"Decoded file %s using fallback UTF-8 (original encoding %s); some characters "
+"may be substituted."
+msgstr ""
+
+#: patch_gui/executor.py:270
+msgid "Multiple files match the patch path:"
+msgstr ""
+
+#: patch_gui/executor.py:274
+#, python-brace-format
+msgid ""
+"Select the number of the file to use (1-{count}). Press Enter or type 's' to "
+"skip: "
+msgstr ""
+
+#: patch_gui/executor.py:292
+msgid "Invalid input. Enter a number or leave empty to cancel."
+msgstr ""
+
+#: patch_gui/executor.py:298
+msgid "Number out of range. Try again."
+msgstr ""
+
+#: patch_gui/executor.py:308
+#, python-brace-format
+msgid "… (+{count} more)"
+msgstr ""
+
+#: patch_gui/executor.py:311
+#, python-brace-format
+msgid ""
+"Multiple files found for the provided path; resolve the ambiguity manually. "
+"Candidates: {candidates}"
+msgstr ""
+
+#: patch_gui/executor.py:328
+msgid ""
+"Multiple candidate positions scored above the threshold. The CLI cannot "
+"choose automatically."
+msgstr ""
+
+#: patch_gui/executor.py:333
+msgid ""
+"Only the context matches. Use the GUI or adjust the threshold to apply this "
+"hunk."
+msgstr ""
+
+#: patch_gui/cli.py:35
+msgid ""
+"The --report-json/--report-txt options are incompatible with --no-report."
+msgstr ""
+
+#: patch_gui/cli.py:69
+#, python-brace-format
+msgid "Error: {message}\n"
+msgstr ""
+
+#: patch_gui/cli.py:73
+msgid ""
+"\n"
+"Dry-run mode: no files were modified and no backups were created."
+msgstr ""
+
+#: patch_gui/cli.py:75
+#, python-brace-format
+msgid ""
+"\n"
+"Backups saved to: {path}"
+msgstr ""
+
+#: patch_gui/cli.py:79
+#, python-brace-format
+msgid "JSON: {path}"
+msgstr ""
+
+#: patch_gui/cli.py:81
+#, python-brace-format
+msgid "Text: {path}"
+msgstr ""
+
+#: patch_gui/cli.py:82
+#, python-brace-format
+msgid "Reports saved to: {details}"
+msgstr ""
+
+#: patch_gui/cli.py:84
+msgid "Reports disabled (--no-report)"
+msgstr ""
+
+#: patch_gui/diff_applier_gui.py:143
+msgid ""
+"PySide6 is not installed. Install the GUI dependencies with 'pip install ."
+"[gui]' or include the 'gui' extra when installing the package."
+msgstr ""
+
+#: patch_gui/diff_applier_gui.py:148
+#, python-brace-format
+msgid "Original details: {error}"
+msgstr ""
