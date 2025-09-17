@@ -26,6 +26,7 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         super().__init__(prog)
         self._width = max(self._width, _MINIMUM_HELP_WIDTH)
 
+
 __all__ = [
     "_LOG_LEVEL_CHOICES",
     "build_parser",

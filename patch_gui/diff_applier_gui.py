@@ -20,7 +20,6 @@ from .utils import APP_NAME
 __all__ = ["main"]
 
 
-
 @lru_cache(maxsize=1)
 def _cli_option_strings() -> set[str]:
     parser = cli.build_parser()

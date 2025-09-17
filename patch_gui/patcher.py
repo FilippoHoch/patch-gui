@@ -160,14 +160,14 @@ class ApplySession:
                 timestamp=datetime.fromtimestamp(self.started_at)
             )
         )
-        lines.append(_("Project root: {project_root}").format(project_root=self.project_root))
+        lines.append(
+            _("Project root: {project_root}").format(project_root=self.project_root)
+        )
         lines.append(
             _("Backup directory: {backup_dir}").format(backup_dir=self.backup_dir)
         )
         lines.append(_("Dry-run: {dry_run}").format(dry_run=self.dry_run))
-        lines.append(
-            _("Fuzzy threshold: {threshold}").format(threshold=self.threshold)
-        )
+        lines.append(_("Fuzzy threshold: {threshold}").format(threshold=self.threshold))
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else _("(none)")
         lines.append(
             _("Excluded directories: {directories}").format(directories=excludes)
@@ -178,16 +178,10 @@ class ApplySession:
         changed_files = sum(1 for fr in self.results if fr.hunks_applied > 0)
         skipped_files = sum(1 for fr in self.results if fr.skipped_reason)
         lines.append(_("Summary:"))
-        lines.append(
-            _("  Files processed: {count}").format(count=total_files)
-        )
-        lines.append(
-            _("  Files with changes: {count}").format(count=changed_files)
-        )
+        lines.append(_("  Files processed: {count}").format(count=total_files))
+        lines.append(_("  Files with changes: {count}").format(count=changed_files))
         if skipped_files:
-            lines.append(
-                _("  Files skipped: {count}").format(count=skipped_files)
-            )
+            lines.append(_("  Files skipped: {count}").format(count=skipped_files))
         lines.append(
             _("  Hunks applied: {applied}/{total}").format(
                 applied=applied_hunks, total=total_hunks
@@ -199,9 +193,7 @@ class ApplySession:
         for fr in self.results:
             lines.append(_("File: {path}").format(path=fr.relative_to_root))
             if fr.skipped_reason:
-                lines.append(
-                    _("  SKIPPED: {reason}").format(reason=fr.skipped_reason)
-                )
+                lines.append(_("  SKIPPED: {reason}").format(reason=fr.skipped_reason))
             lines.append(_("  File type: {file_type}").format(file_type=fr.file_type))
             lines.append(
                 _("  Hunks: {applied}/{total}").format(
@@ -216,9 +208,7 @@ class ApplySession:
                 )
                 if d.selected_pos is not None:
                     lines.append(
-                        _("      Position: {position}").format(
-                            position=d.selected_pos
-                        )
+                        _("      Position: {position}").format(position=d.selected_pos)
                     )
                 if d.similarity is not None:
                     lines.append(
@@ -229,21 +219,17 @@ class ApplySession:
                 if d.candidates:
                     cand_str = ", ".join(
                         [
-                            _("(position {position}, similarity {similarity:.3f})").format(
-                                position=p, similarity=s
-                            )
+                            _(
+                                "(position {position}, similarity {similarity:.3f})"
+                            ).format(position=p, similarity=s)
                             for p, s in d.candidates
                         ]
                     )
                     lines.append(
-                        _("      Candidates: {candidates}").format(
-                            candidates=cand_str
-                        )
+                        _("      Candidates: {candidates}").format(candidates=cand_str)
                     )
                 if d.message:
-                    lines.append(
-                        _("      Notes: {notes}").format(notes=d.message)
-                    )
+                    lines.append(_("      Notes: {notes}").format(notes=d.message))
             lines.append("")
         return "\n".join(lines)
 

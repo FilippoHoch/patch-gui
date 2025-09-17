@@ -35,15 +35,15 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _APP_ROOT = _PACKAGE_ROOT.parent
 REPORTS_SUBDIR = "reports"
 REPORT_RESULTS_SUBDIR = "results"
+
+
 def default_backup_base() -> Path:
     """Return the default directory where diff backups are stored."""
 
     return Path.home() / BACKUP_DIR
 
 
-DEFAULT_REPORTS_DIR = (
-    default_backup_base() / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
-)
+DEFAULT_REPORTS_DIR = default_backup_base() / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
 
 
 def display_path(path: Path) -> str:
@@ -200,10 +200,14 @@ def _normalize_hunk_line_counts(text: str) -> str:
 
             if match:
                 expected_old = (
-                    int(match.group("old_count")) if match.group("old_count") is not None else 1
+                    int(match.group("old_count"))
+                    if match.group("old_count") is not None
+                    else 1
                 )
                 expected_new = (
-                    int(match.group("new_count")) if match.group("new_count") is not None else 1
+                    int(match.group("new_count"))
+                    if match.group("new_count") is not None
+                    else 1
                 )
                 suffix = match.group("suffix") or ""
 
