@@ -16,6 +16,15 @@ from .utils import (
 )
 
 _LOG_LEVEL_CHOICES = ("critical", "error", "warning", "info", "debug")
+_MINIMUM_HELP_WIDTH = 100
+
+
+class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+    """Help formatter that keeps ample width for long descriptions."""
+
+    def __init__(self, prog: str) -> None:
+        super().__init__(prog)
+        self._width = max(self._width, _MINIMUM_HELP_WIDTH)
 
 __all__ = [
     "_LOG_LEVEL_CHOICES",
@@ -38,11 +47,11 @@ def build_parser(
         parser = argparse.ArgumentParser(
             prog="patch-gui apply",
             description=description,
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            formatter_class=_HelpFormatter,
         )
     else:
         parser.description = description
-        parser.formatter_class = argparse.ArgumentDefaultsHelpFormatter
+        parser.formatter_class = _HelpFormatter
     parser.add_argument(
         "patch",
         help=_("Path to the diff file to apply ('-' reads from STDIN)."),
