@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple
 
+from logging.handlers import RotatingFileHandler
+
 from PySide6 import QtCore, QtGui, QtWidgets
 from unidiff import PatchSet
 
@@ -41,7 +43,11 @@ from .utils import (
 
 LOG_FILE_ENV_VAR = "PATCH_GUI_LOG_FILE"
 LOG_LEVEL_ENV_VAR = "PATCH_GUI_LOG_LEVEL"
+LOG_MAX_BYTES_ENV_VAR = "PATCH_GUI_LOG_MAX_BYTES"
+LOG_BACKUP_COUNT_ENV_VAR = "PATCH_GUI_LOG_BACKUP_COUNT"
 DEFAULT_LOG_FILE = Path.home() / ".patch_gui.log"
+DEFAULT_LOG_MAX_BYTES = 0
+DEFAULT_LOG_BACKUP_COUNT = 0
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -67,19 +73,67 @@ def _resolve_log_level(level: str | int | None) -> int:
     return logging.INFO
 
 
-def configure_logging(*, level: str | int | None = None, log_file: str | Path | None = None) -> Path:
-    """Configure the global logging setup with a file handler."""
+def _coerce_non_negative_int(value: int | str | None) -> int | None:
+    if value is None:
+        return None
+
+    if isinstance(value, int):
+        numeric = value
+    else:
+        candidate = str(value).strip()
+        if not candidate:
+            return None
+        try:
+            numeric = int(candidate)
+        except ValueError:
+            return None
+
+    return numeric if numeric >= 0 else None
+
+
+def _resolve_rotation_setting(value: int | str | None, *, env_var: str, default: int) -> int:
+    direct_value = _coerce_non_negative_int(value)
+    if direct_value is not None:
+        return direct_value
+
+    env_value = _coerce_non_negative_int(os.getenv(env_var))
+    if env_value is not None:
+        return env_value
+
+    return default
+
+
+def configure_logging(
+    *,
+    level: str | int | None = None,
+    log_file: str | Path | None = None,
+    max_bytes: int | str | None = None,
+    backup_count: int | str | None = None,
+) -> Path:
+    """Configure the global logging setup with a rotating file handler."""
 
     resolved_level = _resolve_log_level(level)
     file_path = Path(os.getenv(LOG_FILE_ENV_VAR, log_file or DEFAULT_LOG_FILE)).expanduser()
     file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    resolved_max_bytes = _resolve_rotation_setting(
+        max_bytes, env_var=LOG_MAX_BYTES_ENV_VAR, default=DEFAULT_LOG_MAX_BYTES
+    )
+    resolved_backup_count = _resolve_rotation_setting(
+        backup_count, env_var=LOG_BACKUP_COUNT_ENV_VAR, default=DEFAULT_LOG_BACKUP_COUNT
+    )
 
     formatter = logging.Formatter(
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt=LOG_TIMESTAMP_FORMAT,
     )
 
-    file_handler = logging.FileHandler(file_path, encoding="utf-8")
+    file_handler = RotatingFileHandler(
+        file_path,
+        encoding="utf-8",
+        maxBytes=resolved_max_bytes,
+        backupCount=resolved_backup_count,
+    )
     file_handler.setLevel(resolved_level)
     file_handler.setFormatter(formatter)
 
