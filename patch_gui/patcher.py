@@ -622,7 +622,7 @@ def write_reports(
     if not write_json and not write_txt:
         return None, None
 
-    default_report_dir = default_session_report_dir(session.started_at)
+    default_report_dir = default_session_report_dir(session.started_at).expanduser()
 
     def _resolve_path(raw: Path | str | None, default: Path) -> Path:
         if raw is None:

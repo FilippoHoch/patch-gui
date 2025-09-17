@@ -83,6 +83,10 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert session.report_txt_path.exists()
     expected_dir = utils.default_session_report_dir(session.started_at)
     assert expected_dir.parent == utils.DEFAULT_REPORTS_DIR
+    try:
+        utils.DEFAULT_REPORTS_DIR.relative_to(utils.default_backup_base())
+    except ValueError:  # pragma: no cover - defensive branch
+        pytest.fail("DEFAULT_REPORTS_DIR is not located within the backup base")
     assert session.report_json_path.parent == expected_dir
     assert session.report_txt_path.parent == expected_dir
     assert not (session.backup_dir / "sample.txt").exists()
@@ -192,6 +196,44 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
     default_dir = utils.default_session_report_dir(session.started_at)
     assert not (default_dir / REPORT_JSON).exists()
     assert not (default_dir / REPORT_TXT).exists()
+
+
+def test_apply_patchset_ignores_legacy_report_location(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+
+    legacy_dir = (
+        utils._PACKAGE_ROOT / utils.REPORTS_SUBDIR / utils.REPORT_RESULTS_SUBDIR
+    )
+
+    original_mkdir = Path.mkdir
+
+    def guarded_mkdir(
+        self: Path,
+        mode: int = 0o777,
+        parents: bool = False,
+        exist_ok: bool = False,
+    ) -> None:
+        if str(self).startswith(str(legacy_dir)):
+            raise PermissionError("legacy reports directory is not writable")
+        original_mkdir(self, mode=mode, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
+
+    session = cli.apply_patchset(
+        PatchSet(SAMPLE_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    assert session.report_json_path is not None
+    assert session.report_txt_path is not None
+    assert session.report_json_path.parent == utils.default_session_report_dir(
+        session.started_at
+    )
+    assert not legacy_dir.exists()
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
