@@ -40,7 +40,10 @@ DEFAULT_REPORTS_DIR = _PACKAGE_ROOT / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
 def display_path(path: Path) -> str:
     """Return ``path`` using forward slashes, regardless of the platform."""
 
-    return Path(path).as_posix()
+    path_str = str(Path(path))
+    if "\\" in path_str:
+        return path_str.replace("\\", "/")
+    return path_str
 
 
 def display_relative_path(path: Path, root: Path) -> str:
