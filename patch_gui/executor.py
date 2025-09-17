@@ -46,18 +46,51 @@ class CLIError(Exception):
     """Raised for recoverable CLI usage errors."""
 
 
-def load_patch(source: str) -> PatchSet:
+def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     """Load and parse a diff/patch file from ``source`` (path or ``'-'`` for stdin)."""
 
     if source == "-":
-        text = sys.stdin.read()
+        if encoding:
+            stream = getattr(sys.stdin, "buffer", None)
+            data = stream.read() if stream is not None else sys.stdin.read()
+            try:
+                if isinstance(data, bytes):
+                    text = data.decode(encoding)
+                else:
+                    text = str(data)
+            except (LookupError, UnicodeDecodeError) as exc:
+                raise CLIError(
+                    _("Cannot decode diff from STDIN using encoding {encoding}: {error}").format(
+                        encoding=encoding, error=exc
+                    )
+                ) from exc
+        else:
+            text = sys.stdin.read()
     else:
         path = Path(source)
         if not path.exists():
             raise CLIError(_("Diff file not found: {path}").format(path=path))
-        try:
-            raw = path.read_bytes()
-            text, encoding, used_fallback = decode_bytes(raw)
+        if encoding:
+            try:
+                text = path.read_text(encoding=encoding)
+            except (LookupError, UnicodeDecodeError) as exc:
+                raise CLIError(
+                    _("Cannot decode diff using encoding {encoding}: {error}").format(
+                        encoding=encoding, error=exc
+                    )
+                ) from exc
+            except Exception as exc:  # pragma: no cover - extremely rare I/O error types
+                raise CLIError(
+                    _("Cannot read {path}: {error}").format(path=path, error=exc)
+                ) from exc
+        else:
+            try:
+                raw = path.read_bytes()
+            except Exception as exc:  # pragma: no cover - extremely rare I/O error types
+                raise CLIError(
+                    _("Cannot read {path}: {error}").format(path=path, error=exc)
+                ) from exc
+            text, detected_encoding, used_fallback = decode_bytes(raw)
             if used_fallback:
                 logger.warning(
                     _(
@@ -65,12 +98,8 @@ def load_patch(source: str) -> PatchSet:
                         "the content may contain substituted characters."
                     ),
                     path,
-                    encoding,
+                    detected_encoding,
                 )
-        except Exception as exc:  # pragma: no cover - extremely rare I/O error types
-            raise CLIError(
-                _("Cannot read {path}: {error}").format(path=path, error=exc)
-            ) from exc
 
     processed = preprocess_patch_text(text)
     try:

@@ -88,6 +88,11 @@ def build_parser(
         ),
     )
     parser.add_argument(
+        "--encoding",
+        default=None,
+        help=_("Explicit encoding to use when reading the diff (default: auto-detect)."),
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=_LOG_LEVEL_CHOICES,
