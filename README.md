@@ -116,6 +116,7 @@ patch-gui apply --root . --non-interactive diff.patch
 * `--no-report` disattiva entrambi i file di report.
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
 * `--log-level` imposta la verbosità del logger su stdout (`debug`, `info`, `warning`, `error`, `critical`; default `warning`).
+  Puoi ottenere lo stesso risultato impostando la variabile `PATCH_GUI_LOG_LEVEL` prima di avviare la GUI o la CLI.
 * L'uscita riassume i risultati e restituisce codice `0` solo se tutti gli hunk vengono applicati.
 
 ---
