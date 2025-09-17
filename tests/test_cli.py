@@ -41,6 +41,13 @@ NON_UTF8_DIFF = """--- a/sample.txt
  line2
 """
 
+NEW_FILE_DIFF = """--- /dev/null
++++ b/newdir/new.txt
+@@ -0,0 +1,2 @@
++hello
++world
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -119,6 +126,27 @@ def test_session_report_highlights_missing_changes(tmp_path: Path) -> None:
     assert "No changes were applied to the files." in report
 
 
+def test_apply_patchset_dry_run_creates_added_file_result(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(NEW_FILE_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    target = project / "newdir" / "new.txt"
+    assert not target.exists()
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_path == target
+    assert file_result.relative_to_root == "newdir/new.txt"
+
+
 def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     target = project / "sample.txt"
@@ -157,6 +185,33 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
+
+
+def test_apply_patchset_real_run_creates_new_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(NEW_FILE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+        backup_base=tmp_path / "backups",
+    )
+
+    target = project / "newdir" / "new.txt"
+    assert target.exists()
+    assert target.read_text(encoding="utf-8") == "hello\nworld\n"
+    assert (project / "newdir").is_dir()
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_path == target
+    assert file_result.relative_to_root == "newdir/new.txt"
+
+    assert session.backup_dir.exists()
+    assert list(session.backup_dir.iterdir()) == []
 
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
