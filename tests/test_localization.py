@@ -32,9 +32,9 @@ def test_get_translator_uses_english_by_default(
     translator = localization.get_translator()
     assert captured
     assert captured["domain"] == localization.DOMAIN
-    assert captured["fallback"] is True
+    assert captured["fallback"] is False
     languages = cast(list[str], captured["languages"])
-    assert "en" in languages
+    assert languages == ["en"]
     assert translator.gettext("Sample message") == "Sample message"
 
     localization.clear_translation_cache()
