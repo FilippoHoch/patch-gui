@@ -715,6 +715,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.statusBar().showMessage(lines[0][:100])
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        worker = self._current_worker
+        if worker is not None and worker.isRunning():
+            QtWidgets.QMessageBox.information(
+                self,
+                "Operazione in corso",
+                "Attendi il completamento dell'applicazione della patch prima di chiudere.",
+            )
+            event.ignore()
+            return
         if self._qt_log_handler is not None:
             logging.getLogger().removeHandler(self._qt_log_handler)
             self._qt_log_handler.close()
