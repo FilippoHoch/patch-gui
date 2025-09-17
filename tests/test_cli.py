@@ -74,6 +74,9 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     file_result = session.results[0]
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
+    report_txt = session.to_txt()
+    assert "Hunk che verrebbero applicati: 1/1" in report_txt
+    assert "Modalità dry-run" in report_txt
 
 
 def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:

@@ -155,11 +155,23 @@ class ApplySession:
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else "(nessuna)"
         lines.append(f"Directory escluse: {excludes}")
         lines.append("")
+        total_hunks = 0
+        applied_hunks = 0
+        skipped_files = 0
         for fr in self.results:
             lines.append(f"File: {fr.relative_to_root}")
             if fr.skipped_reason:
                 lines.append(f"  SKIPPED: {fr.skipped_reason}")
-            lines.append(f"  Hunks: {fr.hunks_applied}/{fr.hunks_total}")
+                skipped_files += 1
+            lines.append(
+                (
+                    f"  Hunks simulati: {fr.hunks_applied}/{fr.hunks_total}"
+                    if self.dry_run
+                    else f"  Hunks: {fr.hunks_applied}/{fr.hunks_total}"
+                )
+            )
+            applied_hunks += fr.hunks_applied
+            total_hunks += fr.hunks_total
             for d in fr.decisions:
                 lines.append(f"    Hunk {d.hunk_header} -> {d.strategy}")
                 if d.selected_pos is not None:
@@ -174,6 +186,25 @@ class ApplySession:
                 if d.message:
                     lines.append(f"      Note: {d.message}")
             lines.append("")
+        lines.append("=== Riepilogo ===")
+        lines.append(f"File analizzati: {len(self.results)}")
+        if skipped_files:
+            lines.append(f"  Di cui saltati: {skipped_files}")
+        if total_hunks:
+            if self.dry_run:
+                lines.append(
+                    "Hunk che verrebbero applicati: "
+                    f"{applied_hunks}/{total_hunks}"
+                )
+            else:
+                lines.append(f"Hunk applicati: {applied_hunks}/{total_hunks}")
+        else:
+            lines.append("Nessun hunk presente nel diff.")
+        if self.dry_run:
+            lines.append(
+                "Modalità dry-run: nessun file è stato modificato; le cifre riportate "
+                "rappresentano la simulazione."
+            )
         return "\n".join(lines)
 
 
