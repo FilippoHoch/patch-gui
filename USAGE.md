@@ -42,7 +42,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    - Scegli manualmente il posizionamento corretto.
 7. **Consulta backup e report**
    - Ogni esecuzione reale crea una cartella `./.diff_backups/<timestamp>/` con copie dei file originali.
-   - I report `apply-report.json` e `apply-report.txt` vengono salvati in `patch_gui/reports/<timestamp>/`
+   - I report `apply-report.json` e `apply-report.txt` vengono salvati in `patch_gui/reports/results/<timestamp>/`
      accanto all'applicazione (anche in dry‑run, se non disattivati) per documentare l'esito della simulazione.
 8. **Ripristina da backup**
    - Usa il pulsante **Ripristina da backup…** e seleziona il timestamp desiderato per ripristinare i file originali.

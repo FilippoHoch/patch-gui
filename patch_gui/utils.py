@@ -31,7 +31,8 @@ REPORT_TXT = "apply-report.txt"
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 REPORTS_SUBDIR = "reports"
-DEFAULT_REPORTS_DIR = _PACKAGE_ROOT / REPORTS_SUBDIR
+REPORT_RESULTS_SUBDIR = "results"
+DEFAULT_REPORTS_DIR = _PACKAGE_ROOT / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
 
 
 def display_path(path: Path) -> str:
@@ -277,6 +278,7 @@ __all__ = [
     "REPORT_JSON",
     "REPORT_TXT",
     "DEFAULT_REPORTS_DIR",
+    "REPORT_RESULTS_SUBDIR",
     "REPORTS_SUBDIR",
     "default_session_report_dir",
     "format_session_timestamp",
