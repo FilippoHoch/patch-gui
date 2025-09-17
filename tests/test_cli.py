@@ -56,6 +56,13 @@ ADDED_DIFF = """--- /dev/null
 +second line
 """
 
+EMPTY_FILE_DIFF = """--- a/empty.txt
++++ b/empty.txt
+@@ -0,0 +1,2 @@
++alpha
++beta
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -197,6 +204,53 @@ def test_apply_patchset_dry_run_adds_new_file(tmp_path: Path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
 
+
+def test_apply_patchset_dry_run_handles_empty_file_insertion(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    empty = project / "empty.txt"
+    empty.write_text("", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(EMPTY_FILE_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    assert empty.read_text(encoding="utf-8") == ""
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.file_path == empty
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
+
+
+def test_apply_patchset_real_run_handles_empty_file_insertion(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    empty = project / "empty.txt"
+    empty.write_text("", encoding="utf-8")
+    original = empty.read_text(encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(EMPTY_FILE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert empty.read_text(encoding="utf-8") == "alpha\nbeta\n"
+    assert session.backup_dir.exists()
+    backup_copy = session.backup_dir / "empty.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
+
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.file_path == empty
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
