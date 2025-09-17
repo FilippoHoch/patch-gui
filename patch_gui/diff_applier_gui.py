@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - executed when PySide6 is not installed
 
 from . import cli
 from .i18n import install_translators
+from .localization import gettext as _
 from .utils import APP_NAME
 
 __all__ = ["main"]
@@ -24,9 +25,11 @@ CLI_PREFIXES = ("--threshold=", "--backup=")
 def _tr(text: str) -> str:
     """Translate ``text`` using the ``diff_applier_gui`` context."""
 
-    if QtCore is None:
-        return text
-    return QtCore.QCoreApplication.translate("diff_applier_gui", text)
+    if QtCore is not None:
+        translated = QtCore.QCoreApplication.translate("diff_applier_gui", text)
+        if translated != text:
+            return translated
+    return _(text)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -131,13 +134,13 @@ def _ensure_translator() -> None:
 
 
 def _print_missing_gui_dependency(exc: Optional[Exception] = None) -> None:
-    message = (
-        "PySide6 non è installato. Installa le dipendenze della GUI con "
-        "'pip install .[gui]' oppure includi l'extra 'gui' quando installi il pacchetto."
+    message = _(
+        "PySide6 is not installed. Install the GUI dependencies with 'pip install .[gui]' "
+        "or include the 'gui' extra when installing the package."
     )
     print(message, file=sys.stderr)
     if exc is not None:
-        print(f"Dettagli originali: {exc}", file=sys.stderr)
+        print(_("Original details: {error}").format(error=exc), file=sys.stderr)
 
 
 if __name__ == "__main__":

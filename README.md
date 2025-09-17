@@ -164,6 +164,8 @@ Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
 ## Internazionalizzazione
 
 Il progetto utilizza file di traduzione Qt (`.ts`) nella cartella `patch_gui/translations/`.
+Le stringhe della CLI e dell'entry point testuale sono gestite con `gettext`
+(`patch_gui/localization.py`) e hanno l'inglese come lingua predefinita.
 Durante la fase di build (`pip install .`, `python -m build`, ecc.) viene eseguito
 automaticamente lo script `python -m build_translations`, che invoca `lrelease` (o
 `pyside6-lrelease`) per generare i corrispondenti file binari `.qm` nella stessa
@@ -186,11 +188,13 @@ l'interfaccia resta in inglese.
    quando si esegue `python -m build`, `pip install .`, ecc.
 
 Per forzare una lingua specifica senza cambiare il locale di sistema puoi impostare la
-variabile d'ambiente `PATCH_GUI_LANG` prima di lanciare l'applicazione, ad esempio:
+variabile d'ambiente `PATCH_GUI_LANG` prima di lanciare applicazione o CLI, ad esempio:
 
 ```bash
 export PATCH_GUI_LANG=it
 patch-gui
+# oppure
+PATCH_GUI_LANG=it patch-gui apply --root . diff.patch
 ```
 
 ---

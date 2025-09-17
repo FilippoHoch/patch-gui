@@ -280,7 +280,7 @@ def test_load_patch_missing_file_raises_clierror(tmp_path: Path) -> None:
     with pytest.raises(cli.CLIError) as excinfo:
         cli.load_patch(str(missing))
 
-    assert str(excinfo.value) == f"File diff non trovato: {missing}"
+    assert str(excinfo.value) == f"Diff file not found: {missing}"
 
 
 def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:
@@ -298,7 +298,7 @@ def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:
         cli.load_patch(str(invalid))
 
     message = str(excinfo.value)
-    assert "Diff non valido" in message
+    assert "Invalid diff" in message
     assert "@@ -1,0 +1,0 @@" in message
 
 
@@ -423,10 +423,10 @@ def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None
 @pytest.mark.parametrize(
     "raw, expected_message",
     [
-        ("0", "La soglia deve essere compresa tra 0 (escluso) e 1 (incluso)."),
-        ("1.1", "La soglia deve essere compresa tra 0 (escluso) e 1 (incluso)."),
-        ("-0.2", "La soglia deve essere compresa tra 0 (escluso) e 1 (incluso)."),
-        ("abc", "La soglia deve essere un numero decimale."),
+        ("0", "Threshold must be between 0 (exclusive) and 1 (inclusive)."),
+        ("1.1", "Threshold must be between 0 (exclusive) and 1 (inclusive)."),
+        ("-0.2", "Threshold must be between 0 (exclusive) and 1 (inclusive)."),
+        ("abc", "Threshold must be a decimal number."),
     ],
 )
 def test_threshold_value_rejects_invalid_inputs(raw: str, expected_message: str) -> None:
