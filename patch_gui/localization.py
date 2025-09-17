@@ -100,4 +100,3 @@ def clear_translation_cache() -> None:
     """Remove cached gettext translators (useful in tests)."""
 
     _CACHE.clear()
-

@@ -161,7 +161,9 @@ def test_find_lrelease_returns_first_available(monkeypatch: pytest.MonkeyPatch) 
     assert calls == ["pyside6-lrelease", "lrelease-qt6"]
 
 
-def test_find_lrelease_returns_none_when_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_lrelease_returns_none_when_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fake_which(command: str) -> None:
         return None
 

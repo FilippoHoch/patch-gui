@@ -1,9 +1,11 @@
 """Utility helpers for patch processing and shared configuration."""
+
 from __future__ import annotations
 
 import re
 from pathlib import Path
 from typing import Callable, List, Optional, Protocol, Tuple, cast
+
 
 class _CharsetMatch(Protocol):
     encoding: Optional[str]
@@ -45,6 +47,7 @@ def display_relative_path(path: Path, root: Path) -> str:
     except ValueError:
         return display_path(path_obj)
     return relative.as_posix()
+
 
 BEGIN_PATCH_RE = re.compile(r"^\*\*\* Begin Patch", re.MULTILINE)
 END_PATCH_RE = re.compile(r"^\*\*\* End Patch", re.MULTILINE)
@@ -158,8 +161,12 @@ def _normalize_hunk_line_counts(text: str) -> str:
 
             body_index += 1
 
-        expected_old = int(match.group("old_count")) if match.group("old_count") is not None else 1
-        expected_new = int(match.group("new_count")) if match.group("new_count") is not None else 1
+        expected_old = (
+            int(match.group("old_count")) if match.group("old_count") is not None else 1
+        )
+        expected_new = (
+            int(match.group("new_count")) if match.group("new_count") is not None else 1
+        )
         suffix = match.group("suffix") or ""
 
         if old_count == expected_old and new_count == expected_new:
@@ -194,10 +201,10 @@ def preprocess_patch_text(raw_text: str) -> str:
             break
         m_end = END_PATCH_RE.search(text, m_begin.end())
         if not m_end:
-            block = text[m_begin.end():]
+            block = text[m_begin.end() :]
             pos = len(text)
         else:
-            block = text[m_begin.end(): m_end.start()]
+            block = text[m_begin.end() : m_end.start()]
             pos = m_end.end()
 
         files = [m for m in UPDATE_FILE_RE.finditer(block)]
@@ -223,8 +230,8 @@ def preprocess_patch_text(raw_text: str) -> str:
                 body = lines[1:]
                 if not HUNK_HEADER_RE.match(header_line):
                     suffix = lines[0][2:].strip()
-                    removed = sum(1 for l in body if l.startswith((" ", "-")))
-                    added = sum(1 for l in body if l.startswith((" ", "+")))
+                    removed = sum(1 for line in body if line.startswith((" ", "-")))
+                    added = sum(1 for line in body if line.startswith((" ", "+")))
                     old_start = 1 if removed > 0 else 0
                     new_start = 1 if added > 0 else 0
                     header_line = f"@@ -{old_start},{removed} +{new_start},{added} @@"

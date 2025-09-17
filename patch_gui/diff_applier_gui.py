@@ -80,7 +80,9 @@ def _launch_gui() -> int:
 
     try:
         from .app import main as gui_main
-    except ImportError as exc:  # pragma: no cover - defensive guard for partial installs
+    except (
+        ImportError
+    ) as exc:  # pragma: no cover - defensive guard for partial installs
         _print_missing_gui_dependency(exc)
         return 1
 
@@ -96,7 +98,9 @@ def _print_gui_help() -> None:
 
 def _print_help() -> None:
     _ensure_translator()
-    description = _tr("{app_name} – launch the GUI (default) or apply a patch via the CLI.")
+    description = _tr(
+        "{app_name} – launch the GUI (default) or apply a patch via the CLI."
+    )
     parser = argparse.ArgumentParser(
         prog="patch-gui",
         description=description.format(app_name=APP_NAME),

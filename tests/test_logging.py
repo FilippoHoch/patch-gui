@@ -6,7 +6,7 @@ import importlib
 import importlib.util
 import sys
 import types
-from typing import Any, Iterator
+from typing import Iterator
 
 import pytest
 from logging.handlers import RotatingFileHandler
@@ -16,7 +16,9 @@ class _DummyAttr:
     def __call__(self, *args: object, **kwargs: object) -> "_DummyAttr":
         return self
 
-    def __getattr__(self, name: str) -> "_DummyAttr":  # pragma: no cover - fallback helper
+    def __getattr__(
+        self, name: str
+    ) -> "_DummyAttr":  # pragma: no cover - fallback helper
         return self
 
     def connect(self, *args: object, **kwargs: object) -> None:
@@ -51,7 +53,9 @@ class _DummyQtClass(metaclass=_DummyMeta):
     def __init__(self, *args: object, **kwargs: object) -> None:
         return None
 
-    def __getattr__(self, name: str) -> _DummyAttr:  # pragma: no cover - fallback helper
+    def __getattr__(
+        self, name: str
+    ) -> _DummyAttr:  # pragma: no cover - fallback helper
         return _DUMMY_ATTR
 
     def __call__(self, *args: object, **kwargs: object) -> _DummyAttr:
@@ -59,7 +63,9 @@ class _DummyQtClass(metaclass=_DummyMeta):
 
 
 class _DummyQtModule(types.ModuleType):
-    def __getattr__(self, name: str) -> type[_DummyQtClass]:  # pragma: no cover - fallback helper
+    def __getattr__(
+        self, name: str
+    ) -> type[_DummyQtClass]:  # pragma: no cover - fallback helper
         return _DummyQtClass
 
 
@@ -78,7 +84,9 @@ if not _needs_stub:
         importlib.import_module("PySide6.QtCore")
         importlib.import_module("PySide6.QtGui")
         importlib.import_module("PySide6.QtWidgets")
-    except Exception:  # pragma: no cover - fallback when bindings are partially installed
+    except (
+        Exception
+    ):  # pragma: no cover - fallback when bindings are partially installed
         _needs_stub = True
         for name in ["PySide6", "PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets"]:
             sys.modules.pop(name, None)
@@ -128,12 +136,16 @@ def clean_file_handlers() -> Iterator[None]:
         _cleanup_file_handlers()
 
 
-def test_configure_logging_uses_rotating_handler(tmp_path: Path, clean_file_handlers: None) -> None:
+def test_configure_logging_uses_rotating_handler(
+    tmp_path: Path, clean_file_handlers: None
+) -> None:
     log_path = tmp_path / "app.log"
 
     configure_logging(level="INFO", log_file=log_path, max_bytes=1234, backup_count=3)
 
-    handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+    handlers = [
+        h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)
+    ]
     assert len(handlers) == 1
 
     handler = handlers[0]
@@ -154,13 +166,17 @@ def test_configure_logging_reads_environment(
 
     configure_logging(level="DEBUG")
 
-    handler = next(h for h in logging.getLogger().handlers if isinstance(h, RotatingFileHandler))
+    handler = next(
+        h for h in logging.getLogger().handlers if isinstance(h, RotatingFileHandler)
+    )
     assert handler.baseFilename == str(log_path)
     assert handler.maxBytes == 50
     assert handler.backupCount == 2
 
 
-def test_configure_logging_rotates_files(tmp_path: Path, clean_file_handlers: None) -> None:
+def test_configure_logging_rotates_files(
+    tmp_path: Path, clean_file_handlers: None
+) -> None:
     log_path = tmp_path / "rotate.log"
 
     configure_logging(level="INFO", log_file=log_path, max_bytes=150, backup_count=1)

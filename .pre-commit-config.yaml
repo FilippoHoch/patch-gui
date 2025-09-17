@@ -4,19 +4,17 @@ repos:
     hooks:
       - id: black
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.7
+    rev: v0.3.5
     hooks:
       - id: ruff
-        args: ["--fix"]
-      - id: ruff-format
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0
+    rev: v1.10.0
     hooks:
       - id: mypy
-        additional_dependencies:
-          - types-requests
-  - repo: https://github.com/pre-commit/mirrors-pytest
-    rev: v8.1.1
+  - repo: local
     hooks:
       - id: pytest
-        args: ["-q"]
+        name: pytest
+        entry: pytest --quiet
+        language: system
+        pass_filenames: false

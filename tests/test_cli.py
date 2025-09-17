@@ -438,7 +438,9 @@ def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None
         ("abc", "Threshold must be a decimal number."),
     ],
 )
-def test_threshold_value_rejects_invalid_inputs(raw: str, expected_message: str) -> None:
+def test_threshold_value_rejects_invalid_inputs(
+    raw: str, expected_message: str
+) -> None:
     with pytest.raises(argparse.ArgumentTypeError) as excinfo:
         parser.threshold_value(raw)
 

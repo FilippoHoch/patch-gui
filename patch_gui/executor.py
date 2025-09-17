@@ -68,7 +68,9 @@ def load_patch(source: str) -> PatchSet:
                     encoding,
                 )
         except Exception as exc:  # pragma: no cover - extremely rare I/O error types
-            raise CLIError(_("Cannot read {path}: {error}").format(path=path, error=exc)) from exc
+            raise CLIError(
+                _("Cannot read {path}: {error}").format(path=path, error=exc)
+            ) from exc
 
     processed = preprocess_patch_text(text)
     try:
@@ -76,7 +78,9 @@ def load_patch(source: str) -> PatchSet:
     except UnidiffParseError as exc:
         raise CLIError(_("Invalid diff: {error}").format(error=exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard for unexpected errors
-        raise CLIError(_("Unexpected error while parsing the diff: {error}").format(error=exc)) from exc
+        raise CLIError(
+            _("Unexpected error while parsing the diff: {error}").format(error=exc)
+        ) from exc
     return patch
 
 
@@ -100,7 +104,9 @@ def apply_patchset(
         raise CLIError(_("Invalid project root: {path}").format(path=project_root))
 
     backup_dir = prepare_backup_dir(root, dry_run=dry_run, backup_base=backup_base)
-    resolved_excludes = tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
+    resolved_excludes = (
+        tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
+    )
 
     session = ApplySession(
         project_root=root,
@@ -216,7 +222,9 @@ def _apply_file_patch(
     return fr
 
 
-def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
+def _prompt_candidate_selection(
+    project_root: Path, candidates: Sequence[Path]
+) -> Optional[Path]:
     display_paths: List[str] = []
     for path in candidates:
         display_paths.append(display_relative_path(path, project_root))
