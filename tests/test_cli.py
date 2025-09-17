@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import logging
 import sys
@@ -357,6 +358,27 @@ def test_load_patch_missing_file_raises_clierror(tmp_path: Path) -> None:
         cli.load_patch(str(missing))
 
     assert str(excinfo.value) == f"Diff file not found: {missing}"
+
+
+def test_load_patch_supports_home_shortcut(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    patch_path = fake_home / "shortcut.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def fake_expanduser(value: str) -> str:
+        if value.startswith("~"):
+            return str(fake_home) + value[1:]
+        return value
+
+    monkeypatch.setattr(os.path, "expanduser", fake_expanduser)
+
+    patch = cli.load_patch("~/shortcut.diff")
+
+    assert isinstance(patch, PatchSet)
+    assert patch[0].path == "sample.txt"
 
 
 def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:

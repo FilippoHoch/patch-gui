@@ -69,7 +69,7 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
         else:
             text = sys.stdin.read()
     else:
-        path = Path(source)
+        path = Path(source).expanduser()
         if not path.exists():
             raise CLIError(_("Diff file not found: {path}").format(path=path))
         if encoding:
