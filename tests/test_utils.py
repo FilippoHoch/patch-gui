@@ -85,3 +85,52 @@ def test_preprocess_patch_text_repairs_incorrect_hunk_lengths() -> None:
     hunk = patch[0][0]
     assert hunk.source_length == 2
     assert hunk.target_length == 2
+
+
+def test_preprocess_patch_text_handles_no_newline_marker() -> None:
+    raw = (
+        "--- a/file.txt\n"
+        "+++ b/file.txt\n"
+        "@@ -1,1 +1,1 @@\n"
+        "-foo\n"
+        "+bar\n"
+        "\\ No newline at end of file\n"
+        "@@ -10,1 +10,1 @@\n"
+        "-baz\n"
+        "+qux\n"
+    )
+
+    processed = preprocess_patch_text(raw)
+    patch = PatchSet(processed)
+
+    first_hunk, second_hunk = patch[0]
+    assert first_hunk.source_length == 1
+    assert first_hunk.target_length == 1
+    assert second_hunk.source_length == 1
+    assert second_hunk.target_length == 1
+
+
+def test_preprocess_patch_text_updates_missing_counts_for_empty_hunk() -> None:
+    raw = (
+        "--- a/empty.txt\n"
+        "+++ b/empty.txt\n"
+        "@@ -3 +3 @@\n"
+    )
+
+    processed = preprocess_patch_text(raw)
+    header = processed.splitlines()[2]
+    assert header == "@@ -3,0 +3,0 @@"
+
+
+def test_preprocess_patch_text_fixes_counts_without_body_lines() -> None:
+    raw = (
+        "--- a/marker.txt\n"
+        "+++ b/marker.txt\n"
+        "@@ -1,1 +1,1 @@\n"
+        "\\ No newline at end of file\n"
+    )
+
+    processed = preprocess_patch_text(raw)
+    header, marker = processed.splitlines()[2:4]
+    assert header == "@@ -1,0 +1,0 @@"
+    assert marker == "\\ No newline at end of file"

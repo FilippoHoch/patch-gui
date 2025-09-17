@@ -96,8 +96,53 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _is_hunk_boundary(line: str) -> bool:
+    """Return ``True`` when ``line`` marks the end of the current hunk body."""
+
+    if not line:
+        return True
+    if line.startswith("@@"):
+        return True
+    if line.startswith("+++ ") or line.startswith("--- "):
+        return True
+    return line[0] not in {" ", "+", "-", "\\"}
+
+
+def _scan_hunk_body(
+    lines: List[str], start_index: int
+) -> Tuple[int, List[str], int, int]:
+    """Return the end index, body lines, and line counts for a hunk."""
+
+    index = start_index
+    body_lines: List[str] = []
+    old_count = 0
+    new_count = 0
+    total = len(lines)
+
+    while index < total:
+        line = lines[index]
+        if _is_hunk_boundary(line):
+            break
+        prefix = line[0]
+        if prefix in {" ", "-"}:
+            old_count += 1
+        if prefix in {" ", "+"}:
+            new_count += 1
+        body_lines.append(line)
+        index += 1
+
+    return index, body_lines, old_count, new_count
+
+
 def _normalize_hunk_line_counts(text: str) -> str:
-    """Ensure hunk headers declare counts matching their body length."""
+    """Normalize hunk headers so their counts match the scanned body.
+
+    This routine repairs diffs where producers misreport the number of changed
+    lines, omit the counts entirely, or leave behind ``"\\ No newline at end of
+    file"`` markers without corresponding changes. Empty hunks are preserved and
+    rewritten to declare zero-length bodies when required, making the output
+    acceptable to ``unidiff.PatchSet`` and similar parsers.
+    """
 
     lines = text.splitlines()
     if not lines:
@@ -116,30 +161,7 @@ def _normalize_hunk_line_counts(text: str) -> str:
             index += 1
             continue
 
-        body_start = index + 1
-        body_index = body_start
-        old_count = 0
-        new_count = 0
-
-        while body_index < total:
-            body_line = lines[body_index]
-            if body_line.startswith("@@"):
-                break
-            if body_line.startswith("+++ ") or body_line.startswith("--- "):
-                break
-            if not body_line:
-                break
-
-            prefix = body_line[0]
-            if prefix not in {" ", "+", "-", "\\"}:
-                break
-            if prefix in {" ", "-"}:
-                old_count += 1
-            if prefix in {" ", "+"}:
-                new_count += 1
-
-            body_index += 1
-
+        body_index, body_lines, old_count, new_count = _scan_hunk_body(lines, index + 1)
         expected_old = int(match.group("old_count")) if match.group("old_count") is not None else 1
         expected_new = int(match.group("new_count")) if match.group("new_count") is not None else 1
         suffix = match.group("suffix") or ""
@@ -151,7 +173,7 @@ def _normalize_hunk_line_counts(text: str) -> str:
                 f"@@ -{match.group('old_start')},{old_count} +{match.group('new_start')},{new_count} @@{suffix}"
             )
 
-        normalized.extend(lines[body_start:body_index])
+        normalized.extend(body_lines)
         index = body_index
 
     result = "\n".join(normalized)
