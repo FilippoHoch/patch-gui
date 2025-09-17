@@ -32,7 +32,12 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_EXCLUDE_DIRS: tuple[str, ...] = (".git", ".venv", "node_modules")
+DEFAULT_EXCLUDE_DIRS: tuple[str, ...] = (
+    ".git",
+    ".venv",
+    "node_modules",
+    ".diff_backups",
+)
 
 
 class _HunkLine(Protocol):

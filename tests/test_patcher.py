@@ -122,6 +122,22 @@ def test_find_file_candidates_excludes_default_directories(tmp_path: Path) -> No
     assert result == [included_file]
 
 
+def test_find_file_candidates_excludes_backup_directory(tmp_path: Path) -> None:
+    project_root = tmp_path
+    included_dir = project_root / "src"
+    included_dir.mkdir()
+    included_file = included_dir / "module.py"
+    included_file.write_text("print('ok')\n", encoding="utf-8")
+
+    backup_file = project_root / ".diff_backups" / "20240101-000000" / "module.py"
+    backup_file.parent.mkdir(parents=True)
+    backup_file.write_text("print('backup')\n", encoding="utf-8")
+
+    result = find_file_candidates(project_root, "module.py")
+
+    assert result == [included_file]
+
+
 def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None:
     project_root = tmp_path
     hidden = project_root / ".venv" / "pkg"
