@@ -1,10 +1,6 @@
 <h1 align="center">Patch GUI – Diff Applier</h1>
 
 <p align="center">
-  <img src="images/patch_gui_logo_primary_256.png" alt="Logo Patch GUI" width="120" />
-</p>
-
-<p align="center">
   <strong>App desktop e CLI in Python per applicare patch <em>unified diff</em> in modo rapido, sicuro e interattivo.</strong>
 </p>
 
