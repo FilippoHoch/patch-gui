@@ -919,6 +919,8 @@ class MainWindow(_QMainWindowBase):
         left_layout = QtWidgets.QVBoxLayout(left)
 
         self.tree = QtWidgets.QTreeWidget()
+        self.tree.setMouseTracking(True)
+        self.tree.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover, True)
         self.tree.setHeaderLabels(["File / Hunk", "Stato"])
         left_layout.addWidget(self.tree, 1)
 

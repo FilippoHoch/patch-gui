@@ -26,7 +26,11 @@ where = ["."]
 include = ["patch_gui*"]
 
 [tool.setuptools.package-data]
-"patch_gui" = ["translations/*.ts", "translations/*.qm"]
+"patch_gui" = [
+    "translations/*.ts",
+    "translations/*.qm",
+    "resources/*.svg",
+]
 
 [tool.setuptools.cmdclass]
 # NOTE: setuptools>=75 validates that cmdclass targets are python-qualified

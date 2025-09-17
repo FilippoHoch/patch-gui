@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -77,7 +78,18 @@ def _resolve_default_font(app: QtWidgets.QApplication) -> QtGui.QFont:
     return font
 
 
+_RESOURCE_DIR = Path(__file__).resolve().parent / "resources"
+
+
+def _resource_url(name: str) -> str:
+    path = (_RESOURCE_DIR / name).resolve()
+    return QtCore.QUrl.fromLocalFile(str(path)).toString()
+
+
 def _build_stylesheet() -> str:
+    branch_closed_icon = _resource_url("tree_branch_closed.svg")
+    branch_open_icon = _resource_url("tree_branch_open.svg")
+
     return (
         "QToolTip {"
         "    color: %s;"
@@ -166,6 +178,24 @@ def _build_stylesheet() -> str:
             _BORDER_COLOR.name(),
             _BACKGROUND_INPUT.name(),
         )
+        + "\n"
+        "QTreeView::branch:has-children:!has-siblings:closed,"
+        "QTreeView::branch:has-children:!has-siblings:closed:hover,"
+        "QTreeView::branch:has-children:!has-siblings:closed:pressed {"
+        "    image: url(\"%s\");"
+        "    padding: 6px;"
+        "    margin: 0px;"
+        "}"
+        % (branch_closed_icon,)
+        + "\n"
+        "QTreeView::branch:has-children:!has-siblings:open,"
+        "QTreeView::branch:has-children:!has-siblings:open:hover,"
+        "QTreeView::branch:has-children:!has-siblings:open:pressed {"
+        "    image: url(\"%s\");"
+        "    padding: 6px;"
+        "    margin: 0px;"
+        "}"
+        % (branch_open_icon,)
         + "\n"
         "QHeaderView::section {"
         "    background-color: %s;"
