@@ -7,7 +7,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import IO, Sequence
+from typing import IO, Callable, Sequence, cast
 
 from .config import AppConfig, load_config, save_config
 from .executor import CLIError, apply_patchset, load_patch, session_completed
@@ -125,7 +125,8 @@ def run_config(argv: Sequence[str] | None = None) -> int:
     parser = build_config_parser()
     try:
         args = parser.parse_args(list(argv) if argv is not None else None)
-        return args.func(args)
+        func = cast("Callable[[argparse.Namespace], int]", getattr(args, "func"))
+        return func(args)
     except ConfigCommandError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=str(exc)))
 

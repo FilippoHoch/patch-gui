@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6 import QtGui
 
+if TYPE_CHECKING:
+    # ``PySide6`` exposes ``QSyntaxHighlighter`` as ``Any`` to type checkers.
+    # Providing a concrete subclass in the ``TYPE_CHECKING`` branch gives mypy
+    # a stable type to work with while keeping the runtime behaviour intact.
 
-class DiffHighlighter(QtGui.QSyntaxHighlighter):
+    class _QSyntaxHighlighter(QtGui.QSyntaxHighlighter):
+        """Concrete ``QSyntaxHighlighter`` subclass for static analysis."""
+
+else:
+    _QSyntaxHighlighter = QtGui.QSyntaxHighlighter
+
+
+class DiffHighlighter(_QSyntaxHighlighter):
     """Highlight diff-like text blocks."""
 
     def __init__(self, document: QtGui.QTextDocument) -> None:
@@ -38,7 +51,11 @@ class DiffHighlighter(QtGui.QSyntaxHighlighter):
         first = text[0]
         fmt: QtGui.QTextCharFormat | None
 
-        if text.startswith("@@") or text.startswith("diff ") or text.startswith("index "):
+        if (
+            text.startswith("@@")
+            or text.startswith("diff ")
+            or text.startswith("index ")
+        ):
             fmt = self._header_format
         elif text.startswith("---") or text.startswith("+++"):
             fmt = self._header_format
