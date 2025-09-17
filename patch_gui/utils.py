@@ -28,6 +28,24 @@ BACKUP_DIR = ".diff_backups"
 REPORT_JSON = "apply-report.json"
 REPORT_TXT = "apply-report.txt"
 
+
+def display_path(path: Path) -> str:
+    """Return ``path`` using forward slashes, regardless of the platform."""
+
+    return Path(path).as_posix()
+
+
+def display_relative_path(path: Path, root: Path) -> str:
+    """Return a relative path using forward slashes when ``path`` is under ``root``."""
+
+    path_obj = Path(path)
+    root_obj = Path(root)
+    try:
+        relative = path_obj.relative_to(root_obj)
+    except ValueError:
+        return display_path(path_obj)
+    return relative.as_posix()
+
 BEGIN_PATCH_RE = re.compile(r"^\*\*\* Begin Patch", re.MULTILINE)
 END_PATCH_RE = re.compile(r"^\*\*\* End Patch", re.MULTILINE)
 UPDATE_FILE_RE = re.compile(r"^\*\*\* Update File: (.+)$", re.MULTILINE)
@@ -241,6 +259,8 @@ __all__ = [
     "REPORT_TXT",
     "decode_bytes",
     "detect_encoding",
+    "display_path",
+    "display_relative_path",
     "normalize_newlines",
     "preprocess_patch_text",
     "write_text_preserving_encoding",

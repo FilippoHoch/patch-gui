@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path, PureWindowsPath
+
 import pytest
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
-from patch_gui.utils import decode_bytes, preprocess_patch_text
+from patch_gui.utils import (
+    decode_bytes,
+    display_path,
+    display_relative_path,
+    preprocess_patch_text,
+)
 
 
 def test_decode_bytes_reports_encoding_without_fallback() -> None:
@@ -85,3 +92,20 @@ def test_preprocess_patch_text_repairs_incorrect_hunk_lengths() -> None:
     hunk = patch[0][0]
     assert hunk.source_length == 2
     assert hunk.target_length == 2
+
+
+def test_display_path_normalizes_windows_separators() -> None:
+    win_path = Path(PureWindowsPath(r"C:\\projects\\demo\\file.txt"))
+    assert display_path(win_path) == "C:/projects/demo/file.txt"
+
+
+def test_display_relative_path_handles_windows_paths() -> None:
+    root = Path(PureWindowsPath(r"C:\\projects"))
+    path = Path(PureWindowsPath(r"C:\\projects\\demo\\file.txt"))
+    assert display_relative_path(path, root) == "demo/file.txt"
+
+
+def test_display_relative_path_returns_absolute_when_outside_root() -> None:
+    root = Path("/projects/root")
+    path = Path("/other/location/file.txt")
+    assert display_relative_path(path, root) == path.as_posix()

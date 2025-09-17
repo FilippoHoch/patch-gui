@@ -31,6 +31,7 @@ from .utils import (
     REPORT_JSON,
     REPORT_TXT,
     decode_bytes,
+    display_relative_path,
     normalize_newlines,
     preprocess_patch_text,
     write_text_preserving_encoding,
@@ -348,10 +349,7 @@ def _apply_file_patch(
     else:
         path = candidates[0]
     fr.file_path = path
-    try:
-        fr.relative_to_root = str(path.relative_to(project_root))
-    except ValueError:
-        fr.relative_to_root = str(path)
+    fr.relative_to_root = display_relative_path(path, project_root)
 
     try:
         raw = path.read_bytes()
@@ -395,10 +393,7 @@ def _apply_file_patch(
 def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
     display_paths: List[str] = []
     for path in candidates:
-        try:
-            display_paths.append(str(path.relative_to(project_root)))
-        except ValueError:
-            display_paths.append(str(path))
+        display_paths.append(display_relative_path(path, project_root))
 
     print(_("Multiple files match the patch path:"))
     for idx, value in enumerate(display_paths, start=1):
@@ -435,10 +430,7 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     max_display = 5
     shown: List[str] = []
     for path in candidates[:max_display]:
-        try:
-            shown.append(str(path.relative_to(project_root)))
-        except ValueError:
-            shown.append(str(path))
+        shown.append(display_relative_path(path, project_root))
     remaining = len(candidates) - max_display
     if remaining > 0:
         shown.append(_("… (+{count} more)").format(count=remaining))

@@ -35,6 +35,8 @@ from .utils import (
     APP_NAME,
     BACKUP_DIR,
     decode_bytes,
+    display_path,
+    display_relative_path,
     normalize_newlines,
     preprocess_patch_text,
     write_text_preserving_encoding,
@@ -286,6 +288,7 @@ class FileChoiceDialog(QtWidgets.QDialog):
         parent: QtWidgets.QWidget | None,
         title: str,
         choices: List[Path],
+        base: Path | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -295,9 +298,16 @@ class FileChoiceDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(QtWidgets.QLabel("Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"))
         self.list = QtWidgets.QListWidget()
-        for p in choices:
-            self.list.addItem(str(p))
-        self.list.setCurrentRow(0)
+        for path in choices:
+            if base is not None:
+                label = display_relative_path(path, base)
+            else:
+                label = display_path(path)
+            item = QtWidgets.QListWidgetItem(label)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, path)
+            self.list.addItem(item)
+        if self.list.count():
+            self.list.setCurrentRow(0)
         layout.addWidget(self.list, 1)
         btns = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -309,7 +319,13 @@ class FileChoiceDialog(QtWidgets.QDialog):
     def accept(self):
         row = self.list.currentRow()
         if row >= 0:
-            self.chosen = Path(self.list.item(row).text())
+            item = self.list.item(row)
+            if item is not None:
+                data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+                if isinstance(data, Path):
+                    self.chosen = data
+                elif data is not None:
+                    self.chosen = Path(str(data))
         super().accept()
 
 
@@ -409,7 +425,7 @@ class PatchApplyWorker(QtCore.QThread):
             path = candidates[0]
 
         fr.file_path = path
-        fr.relative_to_root = str(path.relative_to(self.session.project_root))
+        fr.relative_to_root = display_relative_path(path, self.session.project_root)
         fr.hunks_total = len(pf)
 
         try:
@@ -854,7 +870,12 @@ class MainWindow(QtWidgets.QMainWindow):
         worker = self._current_worker
         if worker is None:
             return
-        dlg = FileChoiceDialog(self, f"Seleziona file per {rel_path}", candidates)
+        dlg = FileChoiceDialog(
+            self,
+            f"Seleziona file per {rel_path}",
+            candidates,
+            base=self.project_root,
+        )
         choice: Optional[Path] = None
         if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted and dlg.chosen:
             choice = dlg.chosen
@@ -887,7 +908,12 @@ class MainWindow(QtWidgets.QMainWindow):
             logger.warning("SKIP: %s non trovato.", rel_path)
             return fr
         if len(candidates) > 1:
-            dlg = FileChoiceDialog(self, f"Seleziona file per {rel_path}", candidates)
+            dlg = FileChoiceDialog(
+                self,
+                f"Seleziona file per {rel_path}",
+                candidates,
+                base=self.project_root,
+            )
             if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted or not dlg.chosen:
                 fr.skipped_reason = "Ambiguità sul file, operazione annullata dall'utente"
                 return fr
@@ -896,7 +922,7 @@ class MainWindow(QtWidgets.QMainWindow):
             path = candidates[0]
 
         fr.file_path = path
-        fr.relative_to_root = str(path.relative_to(self.project_root))
+        fr.relative_to_root = display_relative_path(path, self.project_root)
         fr.hunks_total = len(pf)
 
         try:
