@@ -71,7 +71,9 @@ def _resolve_default_font(app: QtWidgets.QApplication) -> QtGui.QFont:
     if font.pointSize() <= 0:
         font.setPointSize(10)
     font.setHintingPreference(QtGui.QFont.HintingPreference.PreferFullHinting)
-    font.setStyleHint(QtGui.QFont.StyleHint.SansSerif, QtGui.QFont.StyleStrategy.PreferAntialias)
+    font.setStyleHint(
+        QtGui.QFont.StyleHint.SansSerif, QtGui.QFont.StyleStrategy.PreferAntialias
+    )
     return font
 
 
@@ -88,29 +90,29 @@ def _build_stylesheet() -> str:
         "QMainWindow {"
         "    background-color: %s;"
         "    color: %s;"
-        "}" % (_BACKGROUND_DARK.name(), _TEXT_PRIMARY.name())
-        + "\n"
+        "}" % (_BACKGROUND_DARK.name(), _TEXT_PRIMARY.name()) + "\n"
         "QWidget {"
         "    color: %s;"
         "    background-color: %s;"
         "    selection-background-color: %s;"
         "    selection-color: %s;"
-        "}" % (
+        "}"
+        % (
             _TEXT_PRIMARY.name(),
             _BACKGROUND_DARK.name(),
             _SELECTION_BG.name(),
             _SELECTION_FG.name(),
         )
         + "\n"
-        "QLabel { color: %s; }" % _TEXT_PRIMARY.name()
-        + "\n"
+        "QLabel { color: %s; }" % _TEXT_PRIMARY.name() + "\n"
         "QPushButton {"
         "    background-color: %s;"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
         "    padding: 6px 14px;"
         "    color: %s;"
-        "}" % (
+        "}"
+        % (
             _BACKGROUND_ELEVATED.name(),
             _BORDER_COLOR.name(),
             _TEXT_PRIMARY.name(),
@@ -119,18 +121,17 @@ def _build_stylesheet() -> str:
         "QPushButton:hover {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (_ACCENT_COLOR.lighter(125).name(), _ACCENT_COLOR.name())
-        + "\n"
+        "}" % (_ACCENT_COLOR.lighter(125).name(), _ACCENT_COLOR.name()) + "\n"
         "QPushButton:pressed {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (_ACCENT_DARK.name(), _ACCENT_DARK.darker(115).name())
-        + "\n"
+        "}" % (_ACCENT_DARK.name(), _ACCENT_DARK.darker(115).name()) + "\n"
         "QPushButton:disabled {"
         "    color: %s;"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (
+        "}"
+        % (
             _TEXT_DISABLED.name(),
             _BACKGROUND_ELEVATED.darker(110).name(),
             _BACKGROUND_ELEVATED.darker(125).name(),
@@ -142,7 +143,8 @@ def _build_stylesheet() -> str:
         "    border-radius: 6px;"
         "    padding: 6px 8px;"
         "    color: %s;"
-        "}" % (
+        "}"
+        % (
             _BACKGROUND_INPUT.name(),
             _BORDER_COLOR.name(),
             _TEXT_PRIMARY.name(),
@@ -152,14 +154,14 @@ def _build_stylesheet() -> str:
         " QSpinBox:focus, QDoubleSpinBox:focus {"
         "    border: 1px solid %s;"
         "    background-color: %s;"
-        "}" % (_BORDER_FOCUS.name(), _BACKGROUND_ELEVATED.name())
-        + "\n"
+        "}" % (_BORDER_FOCUS.name(), _BACKGROUND_ELEVATED.name()) + "\n"
         "QTreeWidget, QTreeView, QListWidget, QListView {"
         "    background-color: %s;"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
         "    alternate-background-color: %s;"
-        "}" % (
+        "}"
+        % (
             _BACKGROUND_ELEVATED.name(),
             _BORDER_COLOR.name(),
             _BACKGROUND_INPUT.name(),
@@ -171,7 +173,8 @@ def _build_stylesheet() -> str:
         "    padding: 6px;"
         "    border: none;"
         "    border-right: 1px solid %s;"
-        "}" % (
+        "}"
+        % (
             _BACKGROUND_INPUT.name(),
             _TEXT_SECONDARY.name(),
             _BORDER_COLOR.name(),
@@ -182,17 +185,14 @@ def _build_stylesheet() -> str:
         "    border: 1px solid %s;"
         "    margin: 4px;"
         "    border-radius: 4px;"
-        "}" % (_BACKGROUND_INPUT.name(), _BORDER_COLOR.name())
-        + "\n"
+        "}" % (_BACKGROUND_INPUT.name(), _BORDER_COLOR.name()) + "\n"
         "QSplitter::handle:hover {"
         "    background: %s;"
         "    border-color: %s;"
-        "}" % (_ACCENT_COLOR.name(), _ACCENT_COLOR.darker(120).name())
-        + "\n"
+        "}" % (_ACCENT_COLOR.name(), _ACCENT_COLOR.darker(120).name()) + "\n"
         "QSplitter::handle:pressed {"
         "    background: %s;"
-        "}" % (_ACCENT_DARK.name(),)
-        + "\n"
+        "}" % (_ACCENT_DARK.name(),) + "\n"
         "QProgressBar {"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
@@ -200,7 +200,8 @@ def _build_stylesheet() -> str:
         "    color: %s;"
         "    text-align: center;"
         "    padding: 2px;"
-        "}" % (
+        "}"
+        % (
             _BORDER_COLOR.name(),
             _BACKGROUND_ELEVATED.name(),
             _TEXT_PRIMARY.name(),
@@ -209,41 +210,34 @@ def _build_stylesheet() -> str:
         "QProgressBar::chunk {"
         "    background-color: %s;"
         "    border-radius: 6px;"
-        "}" % (_ACCENT_COLOR.name(),)
-        + "\n"
+        "}" % (_ACCENT_COLOR.name(),) + "\n"
         "QScrollBar:vertical {"
         "    background: %s;"
         "    width: 14px;"
         "    margin: 4px 2px 4px 2px;"
         "    border-radius: 6px;"
-        "}" % (_BACKGROUND_ELEVATED.name(),)
-        + "\n"
+        "}" % (_BACKGROUND_ELEVATED.name(),) + "\n"
         "QScrollBar::handle:vertical {"
         "    background: %s;"
         "    min-height: 24px;"
         "    border-radius: 6px;"
-        "}" % (_ACCENT_COLOR.name(),)
-        + "\n"
+        "}" % (_ACCENT_COLOR.name(),) + "\n"
         "QScrollBar::handle:vertical:hover {"
         "    background: %s;"
-        "}" % (_ACCENT_DARK.name(),)
-        + "\n"
+        "}" % (_ACCENT_DARK.name(),) + "\n"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
         "    background: none;"
-        "}" 
-        + "\n"
+        "}" + "\n"
         "QStatusBar {"
         "    background: %s;"
         "    color: %s;"
-        "}" % (_BACKGROUND_ELEVATED.name(), _TEXT_PRIMARY.name())
-        + "\n"
+        "}" % (_BACKGROUND_ELEVATED.name(), _TEXT_PRIMARY.name()) + "\n"
         "QGroupBox {"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
         "    margin-top: 16px;"
         "    padding: 10px;"
-        "}" % (_BORDER_COLOR.name(),)
-        + "\n"
+        "}" % (_BORDER_COLOR.name(),) + "\n"
         "QGroupBox::title {"
         "    subcontrol-origin: margin;"
         "    subcontrol-position: top left;"
@@ -267,7 +261,9 @@ def apply_modern_theme(app: QtWidgets.QApplication) -> None:
     if style_override:
         app.setStyle(style_override)
     elif not running_under_wsl():
-        available_styles = {name.lower(): name for name in QtWidgets.QStyleFactory.keys()}
+        available_styles = {
+            name.lower(): name for name in QtWidgets.QStyleFactory.keys()
+        }
         fusion = available_styles.get("fusion")
         if fusion:
             app.setStyle(fusion)

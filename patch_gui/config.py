@@ -7,19 +7,30 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
+from importlib import import_module
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Protocol, cast
 
 from .patcher import DEFAULT_EXCLUDE_DIRS
 from .utils import default_backup_base
 
-try:  # pragma: no cover - Python <3.11 fallback path
-    import tomllib as _tomllib  # type: ignore[attr-defined]
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    try:
-        import tomli as _tomllib  # type: ignore[attr-defined,assignment]
-    except ModuleNotFoundError:  # pragma: no cover - fallback for environments without TOML
-        _tomllib = None  # type: ignore[assignment]
+
+class _TomllibModule(Protocol):
+    def loads(self, __data: str, /) -> Any:  # pragma: no cover - protocol definition
+        ...
+
+
+def _import_tomllib() -> _TomllibModule | None:
+    for name in ("tomllib", "tomli"):
+        try:
+            module = import_module(name)
+        except ModuleNotFoundError:
+            continue
+        return cast("_TomllibModule", module)
+    return None
+
+
+_tomllib: _TomllibModule | None = _import_tomllib()
 
 
 _CONFIG_SECTION = "patch_gui"
@@ -59,9 +70,7 @@ class AppConfig:
         base = cls()
 
         threshold = _coerce_threshold(data.get("threshold"), base.threshold)
-        exclude_dirs = _coerce_exclude_dirs(
-            data.get("exclude_dirs"), base.exclude_dirs
-        )
+        exclude_dirs = _coerce_exclude_dirs(data.get("exclude_dirs"), base.exclude_dirs)
         backup_base = _coerce_backup_base(data.get("backup_base"), base.backup_base)
         log_level = _coerce_log_level(data.get("log_level"), base.log_level)
         dry_run_default = _coerce_bool(
@@ -173,9 +182,12 @@ def _format_float(value: float) -> str:
 def _load_toml(data: bytes) -> MutableMapping[str, Any]:
     if _tomllib is not None:  # pragma: no cover - exercised in Python 3.11+
         try:
-            return _tomllib.loads(data.decode("utf-8"))  # type: ignore[arg-type]
+            parsed = _tomllib.loads(data.decode("utf-8"))
         except Exception:
             return {}
+        if isinstance(parsed, MutableMapping):
+            return dict(parsed)
+        return {}
 
     text = data.decode("utf-8", errors="replace")
     result: MutableMapping[str, Any] = {}
@@ -221,9 +233,7 @@ def _coerce_threshold(value: Any, default: float) -> float:
     return default
 
 
-def _coerce_exclude_dirs(
-    value: Any, default: tuple[str, ...]
-) -> tuple[str, ...]:
+def _coerce_exclude_dirs(value: Any, default: tuple[str, ...]) -> tuple[str, ...]:
     if value is None:
         return tuple(default)
     candidates: list[str] = []

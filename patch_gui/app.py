@@ -33,7 +33,6 @@ from .patcher import (
     FileResult,
     HunkDecision,
     HunkView,
-    DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
     build_hunk_view as patcher_build_hunk_view,
@@ -462,12 +461,8 @@ class SettingsDialog(_QDialogBase):
         )
         form.addRow(_("Directory escluse"), self.exclude_edit)
 
-        self.backup_edit = QtWidgets.QLineEdit(
-            str(self._original_config.backup_base)
-        )
-        self.backup_edit.setPlaceholderText(
-            _("Percorso base per i backup")
-        )
+        self.backup_edit = QtWidgets.QLineEdit(str(self._original_config.backup_base))
+        self.backup_edit.setPlaceholderText(_("Percorso base per i backup"))
         backup_layout = QtWidgets.QHBoxLayout()
         backup_layout.setContentsMargins(0, 0, 0, 0)
         backup_layout.addWidget(self.backup_edit, 1)
@@ -838,7 +833,9 @@ class MainWindow(_QMainWindowBase):
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
         self.action_from_text = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            style.standardIcon(
+                QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
+            ),
             _("Da testo"),
             self,
         )
@@ -886,9 +883,7 @@ class MainWindow(_QMainWindowBase):
         self.action_analyze.setToolTip(
             _("Analizza il diff attualmente caricato o incollato")
         )
-        self.action_analyze.setStatusTip(
-            _("Avvia l'analisi del diff selezionato")
-        )
+        self.action_analyze.setStatusTip(_("Avvia l'analisi del diff selezionato"))
         self.action_analyze.triggered.connect(self.analyze_diff)
         self.toolbar.addAction(self.action_analyze)
 

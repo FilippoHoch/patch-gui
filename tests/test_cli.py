@@ -791,12 +791,14 @@ def test_run_cli_uses_config_defaults(
     monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
     monkeypatch.setattr(cli, "session_completed", lambda session: True)
 
-    exit_code = cli.run_cli([
-        "--root",
-        str(project),
-        "--dry-run",
-        str(patch_path),
-    ])
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            str(patch_path),
+        ]
+    )
 
     assert exit_code == 0
     assert captured["threshold"] == config.threshold

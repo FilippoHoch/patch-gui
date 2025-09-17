@@ -7,14 +7,15 @@ import pytest
 
 from patch_gui import diff_applier_gui
 from patch_gui.config import AppConfig
-from tests._pytest_typing import typed_parametrize
+from tests._pytest_typing import typed_fixture, typed_parametrize
 
 try:  # pragma: no cover - environment-dependent
-    from PySide6 import QtWidgets  # type: ignore[import-not-found]
+    from PySide6 import QtWidgets as _QtWidgets
 except Exception as exc:  # pragma: no cover - optional dependency
-    QtWidgets = None  # type: ignore[assignment]
-    _QT_IMPORT_ERROR = exc
+    QtWidgets: Any | None = None
+    _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - exercised when bindings are available
+    QtWidgets = _QtWidgets
     _QT_IMPORT_ERROR = None
 
 
@@ -23,7 +24,7 @@ CLI_RESULT = 17
 CONFIG_RESULT = 7
 
 
-@pytest.fixture()
+@typed_fixture()
 def qt_app() -> Any:
     if QtWidgets is None:
         pytest.skip(f"PySide6 non disponibile: {_QT_IMPORT_ERROR}")
@@ -214,6 +215,7 @@ def test_main_window_applies_settings_dialog(
             self.result_config = result
 
         def exec(self) -> Any:
+            assert QtWidgets is not None
             return QtWidgets.QDialog.DialogCode.Accepted
 
     fake_dialog = _FakeDialog(new_config)
