@@ -108,7 +108,8 @@ patch-gui apply --root . --dry-run --log-level debug diff.patch
 patch-gui apply --root . --non-interactive diff.patch
 ```
 
-* `--dry-run` esegue solo l'analisi lasciando i file invariati.
+* `--dry-run` esegue solo l'analisi lasciando i file invariati; i report possono comunque
+  essere generati (a meno di `--no-report`) per consultare l'esito della simulazione.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
 * `--report-json` / `--report-txt` impostano il percorso dei report generati (default `<backup>/apply-report.json` e `<backup>/apply-report.txt`).
@@ -156,6 +157,8 @@ pytest
 
    * `apply-report.json` (strutturato),
    * `apply-report.txt` (leggibile).
+   Anche in dry‑run, se i report non sono disattivati, questi file vengono creati (senza
+   backup dei file) per documentare la simulazione.
 7. **Ripristino**: pulsante **Ripristina da backup…** → seleziona il timestamp → i file vengono ripristinati.
 Per una guida passo-passo con esempi consulta [USAGE.md](USAGE.md).
 

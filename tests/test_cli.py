@@ -57,7 +57,14 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     target = project / "sample.txt"
     assert target.read_text(encoding="utf-8") == "old line\nline2\n"
     assert session.dry_run is True
-    assert not session.backup_dir.exists()
+    assert session.backup_dir.exists()
+    assert session.report_json_path is not None
+    assert session.report_txt_path is not None
+    assert session.report_json_path.exists()
+    assert session.report_txt_path.exists()
+    assert session.report_json_path.parent == session.backup_dir
+    assert session.report_txt_path.parent == session.backup_dir
+    assert not (session.backup_dir / "sample.txt").exists()
     assert len(session.results) == 1
 
     file_result = session.results[0]
