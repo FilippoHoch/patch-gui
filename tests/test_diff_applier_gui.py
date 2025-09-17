@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from typing import Any, cast
 
 from patch_gui import diff_applier_gui
 
@@ -30,7 +31,8 @@ def test_main_dispatches_between_gui_and_cli(
         calls.append(("gui", ()))
         return GUI_RESULT
 
-    monkeypatch.setattr(diff_applier_gui.cli, "run_cli", fake_run_cli)
+    module_cli = cast(Any, diff_applier_gui).cli
+    monkeypatch.setattr(module_cli, "run_cli", fake_run_cli)
     monkeypatch.setattr(diff_applier_gui, "_launch_gui", fake_launch_gui)
 
     result = diff_applier_gui.main(argv)

@@ -48,10 +48,3 @@ module = [
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = [
-    "patch_gui.app",
-    "patch_gui.diff_applier_gui",
-]
-allow_untyped_defs = true
-allow_untyped_calls = true

@@ -18,8 +18,8 @@ from .utils import APP_NAME
 
 __all__ = ["main"]
 
-CLI_FLAGS = {"--dry-run", "--threshold", "--backup", "--root"}
-CLI_PREFIXES = ("--threshold=", "--backup=")
+CLI_FLAGS: set[str] = {"--dry-run", "--threshold", "--backup", "--root"}
+CLI_PREFIXES: tuple[str, ...] = ("--threshold=", "--backup=")
 
 
 def _tr(text: str) -> str:
