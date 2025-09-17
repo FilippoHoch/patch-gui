@@ -203,6 +203,7 @@ class HunkView:
     header: str
     before_lines: List[str]
     after_lines: List[str]
+    context_lines: List[str] = field(default_factory=list)
 
 
 ManualResolver = Callable[
@@ -215,12 +216,14 @@ def build_hunk_view(hunk: _HunkLike) -> HunkView:
 
     before: List[str] = []
     after: List[str] = []
+    context: List[str] = []
     for line in hunk:
         tag = line.line_type  # ' ', '+', '-', '\\'
         value = line.value
         if tag == " ":
             before.append(value)
             after.append(value)
+            context.append(value)
         elif tag == "-":
             before.append(value)
         elif tag == "+":
@@ -229,7 +232,12 @@ def build_hunk_view(hunk: _HunkLike) -> HunkView:
             # "\\ No newline at end of file" markers – ignore in content
             pass
     header = str(hunk).split("\n")[0]
-    return HunkView(header=header, before_lines=before, after_lines=after)
+    return HunkView(
+        header=header,
+        before_lines=before,
+        after_lines=after,
+        context_lines=context,
+    )
 
 
 def text_similarity(a: str, b: str) -> float:
@@ -403,7 +411,7 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
-        context_lines = [ln for ln in hv.before_lines if not ln.startswith(("+", "-"))]
+        context_lines = hv.context_lines
         context_candidates: List[Tuple[int, float]] = []
         if context_lines:
             context_candidates = find_candidates(
