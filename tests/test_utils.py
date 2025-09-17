@@ -44,6 +44,25 @@ def test_preprocess_patch_text_normalizes_newlines_without_wrapper() -> None:
     assert preprocess_patch_text(raw) == expected
 
 
+def test_preprocess_patch_text_rewrites_triple_asterisk_headers() -> None:
+    raw = (
+        "*** a/js/eventReview.js\n"
+        "--- b/js/eventReview.js\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+    )
+
+    processed = preprocess_patch_text(raw)
+    lines = processed.splitlines()
+    assert lines[0] == "--- a/js/eventReview.js"
+    assert lines[1] == "+++ b/js/eventReview.js"
+
+    patch = PatchSet(processed)
+    assert len(patch) == 1
+    assert patch[0].path == "js/eventReview.js"
+
+
 def test_preprocess_patch_text_extracts_begin_patch_blocks() -> None:
     raw = (
         "*** Begin Patch\n"
