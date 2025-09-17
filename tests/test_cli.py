@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import logging
 import sys
@@ -348,6 +349,43 @@ def test_load_patch_logs_warning_on_fallback(
 
     assert isinstance(patch, PatchSet)
     assert any("fallback" in record.message.lower() for record in caplog.records)
+
+
+def test_load_patch_reads_non_utf8_from_stdin(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    class DummyStdin:
+        def __init__(self, payload: bytes) -> None:
+            self.buffer = io.BytesIO(payload)
+
+        def read(self) -> str:
+            raise AssertionError("Text read should not be used when buffer is available")
+
+    payload = NON_UTF8_DIFF.encode("utf-16")
+    monkeypatch.setattr(sys, "stdin", DummyStdin(payload))
+
+    def fake_decode(data: bytes) -> tuple[str, str, bool]:
+        assert data == payload
+        return NON_UTF8_DIFF, "utf-16", True
+
+    monkeypatch.setattr(executor, "decode_bytes", fake_decode)
+
+    caplog.set_level(logging.WARNING, logger=executor.logger.name)
+    patch = executor.load_patch("-")
+
+    assert isinstance(patch, PatchSet)
+
+    added_lines = [
+        line.value
+        for hunk in patch[0]
+        for line in hunk
+        if getattr(line, "is_added", False)
+    ]
+    assert any("nuova riga con caffè" in line for line in added_lines)
+    assert any(
+        "Decoded diff" in record.getMessage() and "standard input" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_load_patch_missing_file_raises_clierror(tmp_path: Path) -> None:

@@ -51,6 +51,19 @@ class CLIError(Exception):
 def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     """Load and parse a diff/patch file from ``source`` (path or ``'-'`` for stdin)."""
 
+    def _decode_with_logging(raw: bytes, source_label: str) -> str:
+        text, detected_encoding, used_fallback = decode_bytes(raw)
+        if used_fallback:
+            logger.warning(
+                _(
+                    "Decoded diff %s using fallback UTF-8 (original encoding %s); "
+                    "the content may contain substituted characters."
+                ),
+                source_label,
+                detected_encoding,
+            )
+        return text
+
     if source == "-":
         if encoding:
             stream = getattr(sys.stdin, "buffer", None)
@@ -67,7 +80,14 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                     ).format(encoding=encoding, error=exc)
                 ) from exc
         else:
-            text = sys.stdin.read()
+            stream = getattr(sys.stdin, "buffer", None)
+            if stream is not None:
+                raw = stream.read()
+                if not isinstance(raw, bytes):
+                    raw = bytes(raw)
+                text = _decode_with_logging(raw, _("standard input"))
+            else:
+                text = sys.stdin.read()
     else:
         path = Path(source)
         if not path.exists():
@@ -96,16 +116,7 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                 raise CLIError(
                     _("Cannot read {path}: {error}").format(path=path, error=exc)
                 ) from exc
-            text, detected_encoding, used_fallback = decode_bytes(raw)
-            if used_fallback:
-                logger.warning(
-                    _(
-                        "Decoded diff %s using fallback UTF-8 (original encoding %s); "
-                        "the content may contain substituted characters."
-                    ),
-                    path,
-                    detected_encoding,
-                )
+            text = _decode_with_logging(raw, str(path))
 
     processed = preprocess_patch_text(text)
     try:
