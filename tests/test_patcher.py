@@ -18,6 +18,7 @@ from patch_gui.patcher import (
     prepare_backup_dir,
     write_reports,
 )
+from patch_gui.utils import format_session_timestamp
 
 
 def test_find_candidates_returns_exact_match_first() -> None:
@@ -173,7 +174,8 @@ def test_find_file_candidates_excludes_backup_directory(tmp_path: Path) -> None:
     included_file = included_dir / "module.py"
     included_file.write_text("print('ok')\n", encoding="utf-8")
 
-    backup_file = project_root / ".diff_backups" / "20240101-000000" / "module.py"
+    timestamp = format_session_timestamp(1704067200.123)
+    backup_file = project_root / ".diff_backups" / timestamp / "module.py"
     backup_file.parent.mkdir(parents=True)
     backup_file.write_text("print('backup')\n", encoding="utf-8")
 
@@ -199,12 +201,54 @@ def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
     project_root = tmp_path
     base_dir = tmp_path / "backups"
+    base_dir.mkdir()
 
-    dry_dir = prepare_backup_dir(project_root, dry_run=True, backup_base=base_dir)
+    started_at = 1735689600.456
+    dry_dir = prepare_backup_dir(
+        project_root,
+        dry_run=True,
+        backup_base=base_dir,
+        started_at=started_at,
+    )
     assert not dry_dir.exists()
+    assert dry_dir.name == format_session_timestamp(started_at)
 
-    real_dir = prepare_backup_dir(project_root, dry_run=False, backup_base=base_dir)
+    real_dir = prepare_backup_dir(
+        project_root,
+        dry_run=False,
+        backup_base=base_dir,
+        started_at=started_at,
+    )
     assert real_dir.exists()
+    assert real_dir.name == format_session_timestamp(started_at)
+
+
+def test_prepare_backup_dir_uses_millisecond_precision(tmp_path: Path) -> None:
+    project_root = tmp_path
+    base_dir = tmp_path / "millis"
+    base_dir.mkdir()
+
+    ts_first = 1735689600.100
+    ts_second = 1735689600.101
+
+    first = prepare_backup_dir(
+        project_root,
+        dry_run=True,
+        backup_base=base_dir,
+        started_at=ts_first,
+    )
+    second = prepare_backup_dir(
+        project_root,
+        dry_run=True,
+        backup_base=base_dir,
+        started_at=ts_second,
+    )
+
+    assert first.parent == base_dir
+    assert second.parent == base_dir
+    assert first.name == format_session_timestamp(ts_first)
+    assert second.name == format_session_timestamp(ts_second)
+    assert first.name != second.name
 
 
 def test_write_reports_dry_run_skips_backup_dir(tmp_path: Path) -> None:

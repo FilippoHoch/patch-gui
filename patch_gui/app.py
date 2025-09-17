@@ -934,14 +934,19 @@ class MainWindow(_QMainWindowBase):
         thr = float(self.spin_thresh.value())
         excludes = self._current_exclude_dirs()
         self.exclude_dirs = excludes
-        backup_dir = prepare_backup_dir(self.project_root, dry_run=dry)
+        started_at = time.time()
+        backup_dir = prepare_backup_dir(
+            self.project_root,
+            dry_run=dry,
+            started_at=started_at,
+        )
         session = ApplySession(
             project_root=self.project_root,
             backup_dir=backup_dir,
             dry_run=dry,
             threshold=thr,
             exclude_dirs=excludes,
-            started_at=time.time(),
+            started_at=started_at,
         )
         worker = PatchApplyWorker(self.patch, session)
         worker.progress.connect(self._on_worker_progress)

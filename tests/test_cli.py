@@ -16,7 +16,12 @@ from patch_gui import cli, localization
 import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
-from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from patch_gui.utils import (
+    BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
+    format_session_timestamp,
+)
 
 SAMPLE_DIFF = """--- a/sample.txt
 +++ b/sample.txt
@@ -85,6 +90,7 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "old line\nline2\n"
     assert session.dry_run is True
     assert session.backup_dir.parent == utils.default_backup_base()
+    assert session.backup_dir.name == format_session_timestamp(session.started_at)
     assert not session.backup_dir.exists()
     assert session.report_json_path is not None
     assert session.report_txt_path is not None
@@ -134,6 +140,7 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "new line\nline2\n"
     assert session.backup_dir.parent.name == BACKUP_DIR
     assert session.backup_dir.parent == utils.default_backup_base()
+    assert session.backup_dir.name == format_session_timestamp(session.started_at)
     assert session.backup_dir.exists()
 
     backup_copy = session.backup_dir / "sample.txt"
