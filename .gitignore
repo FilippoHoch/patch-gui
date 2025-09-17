@@ -7,3 +7,5 @@ __pycache__/
 patch_gui/reports/
 .diff_backups/
 .venv-upgrade
+build
+patch_gui.*
