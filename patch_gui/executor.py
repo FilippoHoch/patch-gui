@@ -11,6 +11,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .filetypes import inspect_file_type
 from .localization import gettext as _
 from .patcher import (
     ApplySession,
@@ -157,7 +158,10 @@ def _apply_file_patch(
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
 
-    if getattr(pf, "is_binary_file", False):
+    file_type_info = inspect_file_type(pf)
+    fr.file_type = file_type_info.name
+
+    if file_type_info.name == "binary":
         fr.skipped_reason = _("Binary patches are not supported in CLI mode")
         return fr
 
