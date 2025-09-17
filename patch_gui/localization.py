@@ -78,18 +78,40 @@ def _candidate_languages(preferred: str | None) -> List[str]:
     return candidates
 
 
+def _load_translation(languages: Tuple[str, ...]) -> _gettext.NullTranslations:
+    """Load the appropriate translation for ``languages``."""
+
+    if not languages:
+        return _gettext.NullTranslations()
+
+    saw_english = False
+    for language in languages:
+        base = language.split("_", 1)[0]
+        if saw_english and base != "en":
+            break
+        try:
+            return _gettext.translation(
+                DOMAIN,
+                localedir=str(LOCALE_DIR),
+                languages=[language],
+                fallback=False,
+            )
+        except OSError:
+            if base == "en":
+                saw_english = True
+                continue
+            continue
+
+    return _gettext.NullTranslations()
+
+
 def get_translator(locale_code: str | None = None) -> _gettext.NullTranslations:
     """Return (and cache) the gettext translator for ``locale_code``."""
 
     languages = tuple(_candidate_languages(locale_code))
     translation = _CACHE.get(languages)
     if translation is None:
-        translation = _gettext.translation(
-            DOMAIN,
-            localedir=str(LOCALE_DIR),
-            languages=list(languages),
-            fallback=True,
-        )
+        translation = _load_translation(languages)
         _CACHE[languages] = translation
     return translation
 
