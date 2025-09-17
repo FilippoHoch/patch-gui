@@ -143,6 +143,8 @@ patch-gui apply --root . --non-interactive diff.patch
 - `--backup` permette di scegliere la cartella base (default `~/.diff_backups`).
 - `--report-json` / `--report-txt` impostano i percorsi dei report generati (default `~/.diff_backups/reports/results/<timestamp>/apply-report.json|.txt`).
 - `--no-report` disattiva entrambi i file di report.
+- `--exclude-dir NAME` permette di aggiungere directory personalizzate all'elenco di esclusione (puoi passare l'opzione più volte o separare i valori con virgole).
+- `--no-default-exclude` disabilita la lista predefinita di esclusioni (es. `.git`, `.venv`, `node_modules`, `.diff_backups`) così da poter patchare anche file normalmente ignorati.
 - `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
 - `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
 - L'uscita termina con codice `0` solo se tutti gli hunk vengono applicati.

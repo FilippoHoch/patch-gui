@@ -429,6 +429,39 @@ def test_run_cli_rejects_report_conflicts(
     assert "--no-report" in message or "no-report" in message
 
 
+def test_run_cli_can_include_default_excludes(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    venv_dir = project / ".venv"
+    venv_dir.mkdir()
+    target = venv_dir / "module.py"
+    target.write_text("old_value = 1\n", encoding="utf-8")
+
+    patch_text = """--- a/.venv/module.py
++++ b/.venv/module.py
+@@ -1 +1 @@
+-old_value = 1
++old_value = 2
+"""
+    patch_path = tmp_path / "inside-venv.diff"
+    patch_path.write_text(patch_text, encoding="utf-8")
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--backup",
+            str(tmp_path / "backups"),
+            "--no-report",
+            "--no-default-exclude",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert target.read_text(encoding="utf-8") == "old_value = 2\n"
+
+
 def test_apply_patchset_logs_warning_on_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
