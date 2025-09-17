@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from unidiff import PatchSet
 
+import patch_gui.executor as executor
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -19,6 +20,14 @@ from patch_gui.patcher import (
     write_reports,
 )
 from patch_gui.utils import format_session_timestamp
+
+
+REMOVED_DIFF = """--- a/sample.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line
+-line2
+"""
 
 
 def test_find_candidates_returns_exact_match_first() -> None:
@@ -302,3 +311,47 @@ def test_backup_file_copies_content(tmp_path: Path) -> None:
     copied = backup_root / "data.txt"
     assert copied.exists()
     assert copied.read_text(encoding="utf-8") == "hello"
+
+
+def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "sample.txt"
+    original = "old line\nline2\n"
+    target.write_text(original, encoding="utf-8")
+
+    patch = PatchSet(REMOVED_DIFF)
+    pf = patch[0]
+    rel_path = (pf.path or pf.target_file or pf.source_file or "").strip()
+
+    backup_base = tmp_path / "backups"
+    backup_dir = prepare_backup_dir(
+        project_root,
+        dry_run=False,
+        backup_base=backup_base,
+        started_at=123.456,
+    )
+
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=False,
+        threshold=0.85,
+        started_at=123.456,
+    )
+
+    fr = executor._apply_file_patch(
+        project_root,
+        pf,
+        rel_path,
+        session,
+        interactive=False,
+    )
+
+    assert fr.skipped_reason is None
+    assert fr.hunks_applied == fr.hunks_total == 1
+    assert not target.exists()
+
+    backup_copy = backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
