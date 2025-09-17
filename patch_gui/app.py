@@ -779,11 +779,24 @@ class MainWindow(_QMainWindowBase):
         layout.addSpacing(6)
 
         style = self.style()
+        icons_dir = Path(__file__).resolve().parent.parent / "images" / "icons"
+
+        def load_icon(
+            filename: str,
+            fallback: QtWidgets.QStyle.StandardPixmap,
+        ) -> QtGui.QIcon:
+            icon_path = icons_dir / filename
+            if icon_path.exists():
+                icon = QtGui.QIcon(str(icon_path))
+                if not icon.isNull():
+                    return icon
+            return style.standardIcon(fallback)
 
         self.toolbar = QtWidgets.QToolBar(_("Azioni"))
         self.toolbar.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
+        self.toolbar.setIconSize(QtCore.QSize(28, 28))
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.root_edit = QtWidgets.QLineEdit()
@@ -797,7 +810,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addAction(root_widget_action)
 
         self.action_choose_root = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
+            load_icon("choose_root.svg", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
             _("Scegli root…"),
             self,
         )
@@ -813,7 +826,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addSeparator()
 
         self.action_load_file = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
+            load_icon("load_file.svg", QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
             _("Apri file diff…"),
             self,
         )
@@ -822,7 +835,7 @@ class MainWindow(_QMainWindowBase):
         self.action_load_file.triggered.connect(self.load_diff_file)
 
         self.action_from_clip = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
+            load_icon("from_clipboard.svg", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
             _("Da appunti"),
             self,
         )
@@ -833,9 +846,7 @@ class MainWindow(_QMainWindowBase):
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
         self.action_from_text = QtGui.QAction(
-            style.standardIcon(
-                QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
-            ),
+            load_icon("from_text.svg", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView),
             _("Da testo"),
             self,
         )
@@ -855,7 +866,7 @@ class MainWindow(_QMainWindowBase):
         self.load_diff_button = QtWidgets.QToolButton()
         self.load_diff_button.setText(_("Carica diff"))
         self.load_diff_button.setIcon(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
+            load_icon("load_diff.svg", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
         )
         self.load_diff_button.setToolTip(
             _("Scegli come caricare o analizzare il diff da elaborare")
@@ -876,7 +887,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addAction(load_diff_widget_action)
 
         self.action_analyze = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
+            load_icon("analyze.svg", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
             _("Analizza diff"),
             self,
         )
