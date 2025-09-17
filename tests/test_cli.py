@@ -17,6 +17,7 @@ from tests._pytest_typing import typed_parametrize
 
 import patch_gui
 from patch_gui import cli, localization
+from patch_gui.config import AppConfig
 import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
@@ -120,6 +121,27 @@ def test_parser_version_reports_package_version(
     captured = capsys.readouterr()
     assert captured.out.strip() == patch_gui.__version__
     assert captured.err == ""
+
+
+def test_build_parser_uses_config_defaults(tmp_path: Path) -> None:
+    custom_backup = tmp_path / "backups"
+    config = AppConfig(
+        threshold=0.92,
+        exclude_dirs=("foo", "bar"),
+        backup_base=custom_backup,
+        log_level="info",
+    )
+
+    parser_obj = parser.build_parser(config=config)
+
+    assert parser_obj.get_default("threshold") == pytest.approx(config.threshold)
+    assert parser_obj.get_default("log_level") == config.log_level
+
+    help_text = parser_obj.format_help()
+    assert "foo, bar" in help_text
+    expected_snippet = f'defaults to "{custom_backup.as_posix()}"'
+    normalized_help = help_text.replace("\\", "/").replace("\n", "").replace(" ", "")
+    assert expected_snippet.replace(" ", "") in normalized_help
 
 
 def test_apply_patchset_dry_run(tmp_path: Path) -> None:
@@ -729,6 +751,58 @@ def test_apply_patchset_logs_warning_on_fallback(
 
     assert session.results
     assert any("fallback" in record.message.lower() for record in caplog.records)
+
+
+def test_run_cli_uses_config_defaults(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config = AppConfig(
+        threshold=0.91,
+        exclude_dirs=("foo", "bar"),
+        backup_base=tmp_path / "custom-backups",
+        log_level="debug",
+    )
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cli, "load_config", lambda: config)
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["source"] = source
+        captured["encoding"] = encoding
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(
+        patch: PatchSet,
+        project_root: Path,
+        **kwargs: object,
+    ) -> _DummySession:
+        captured["threshold"] = kwargs.get("threshold")
+        captured["exclude_dirs"] = kwargs.get("exclude_dirs")
+        captured["backup_base"] = kwargs.get("backup_base")
+        captured["config"] = kwargs.get("config")
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    exit_code = cli.run_cli([
+        "--root",
+        str(project),
+        "--dry-run",
+        str(patch_path),
+    ])
+
+    assert exit_code == 0
+    assert captured["threshold"] == config.threshold
+    assert captured["exclude_dirs"] == config.exclude_dirs
+    assert captured["backup_base"] is None
+    assert captured["config"] is config
 
 
 def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
 from .patcher import (
@@ -19,7 +20,6 @@ from .patcher import (
     FileResult,
     HunkDecision,
     HunkView,
-    DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
     find_file_candidates,
@@ -144,6 +144,7 @@ def apply_patchset(
     report_txt: Path | str | None = None,
     write_report_files: bool = True,
     exclude_dirs: Sequence[str] | None = None,
+    config: AppConfig | None = None,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
 
@@ -151,15 +152,18 @@ def apply_patchset(
     if not root.exists() or not root.is_dir():
         raise CLIError(_("Invalid project root: {path}").format(path=project_root))
 
+    resolved_config = config or load_config()
     started_at = time.time()
     backup_dir = prepare_backup_dir(
         root,
         dry_run=dry_run,
-        backup_base=backup_base,
+        backup_base=backup_base or resolved_config.backup_base,
         started_at=started_at,
     )
     resolved_excludes = (
-        tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
+        tuple(exclude_dirs)
+        if exclude_dirs is not None
+        else resolved_config.exclude_dirs
     )
 
     session = ApplySession(

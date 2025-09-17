@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from .config import load_config
 from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
 from .parser import build_parser, parse_exclude_dirs
@@ -26,7 +27,8 @@ logger = logging.getLogger(__name__)
 def run_cli(argv: Sequence[str] | None = None) -> int:
     """Parse ``argv`` and execute the CLI workflow."""
 
-    parser = build_parser()
+    config = load_config()
+    parser = build_parser(config=config)
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     if args.no_report and (args.report_json or args.report_txt):
@@ -53,7 +55,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             else None
         )
         exclude_dirs = parse_exclude_dirs(
-            args.exclude_dirs, ignore_default=args.no_default_exclude
+            args.exclude_dirs,
+            ignore_default=args.no_default_exclude,
+            default_excludes=config.exclude_dirs,
         )
         session = apply_patchset(
             patch,
@@ -66,6 +70,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             report_txt=args.report_txt,
             write_report_files=not args.no_report,
             exclude_dirs=exclude_dirs,
+            config=config,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
