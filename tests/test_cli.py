@@ -253,6 +253,29 @@ def test_load_patch_applies_non_utf8_diff(tmp_path: Path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
+def test_load_patch_respects_explicit_encoding(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "latin1.diff"
+    patch_path.write_bytes(NON_UTF8_DIFF.encode("cp1252"))
+
+    patch = cli.load_patch(str(patch_path), encoding="cp1252")
+    assert "nuova riga con caffè" in str(patch)
+
+    session = cli.apply_patchset(
+        patch,
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    target = project / "sample.txt"
+    assert target.read_text(encoding="utf-8") == "nuova riga con caffè\nline2\n"
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
 def test_load_patch_logs_warning_on_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -413,6 +436,54 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         for handler in previous_handlers:
             configured_logger.addHandler(handler)
         configured_logger.setLevel(previous_level)
+
+
+class _DummySession:
+    def __init__(self, project_root: Path) -> None:
+        self.project_root = project_root
+        self.backup_dir = project_root / "backups"
+        self.dry_run = True
+        self.threshold = 0.85
+        self.started_at = 0.0
+        self.results: list[cli.FileResult] = []
+        self.report_json_path = None
+        self.report_txt_path = None
+
+    def to_txt(self) -> str:
+        return "report"
+
+
+@pytest.mark.parametrize("encoding_opt", [None, "cp1252"])
+def test_run_cli_passes_encoding_option(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, encoding_opt: str | None
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    received: dict[str, object] = {}
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        received["source"] = source
+        received["encoding"] = encoding
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(*args, **kwargs) -> _DummySession:
+        return _DummySession(project)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+
+    cli_args = ["--root", str(project), "--dry-run"]
+    if encoding_opt:
+        cli_args.extend(["--encoding", encoding_opt])
+    cli_args.append(str(patch_path))
+
+    exit_code = cli.run_cli(cli_args)
+
+    assert exit_code == 0
+    assert received["source"] == str(patch_path)
+    assert received["encoding"] == encoding_opt
 
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

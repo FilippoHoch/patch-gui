@@ -125,6 +125,14 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         ),
     )
     parser.add_argument(
+        "--encoding",
+        default=None,
+        help=(
+            "Encoding del file diff; se non specificato viene tentato il rilevamento "
+            "automatico."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=_LOG_LEVEL_CHOICES,
@@ -135,25 +143,51 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
     return parser
 
 
-def load_patch(source: str) -> PatchSet:
+def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     """Load and parse a diff/patch file from ``source`` (path or ``'-'`` for stdin)."""
 
     if source == "-":
-        text = sys.stdin.read()
+        if encoding:
+            stream = getattr(sys.stdin, "buffer", None)
+            if stream is not None:
+                data = stream.read()
+            else:  # pragma: no cover - extremely rare TextIO without buffer
+                data = sys.stdin.read()
+            if isinstance(data, (bytes, bytearray)):
+                try:
+                    text = bytes(data).decode(encoding)
+                except (LookupError, UnicodeDecodeError) as exc:
+                    raise CLIError(
+                        "Impossibile decodificare il diff da STDIN con l'encoding "
+                        f"{encoding}: {exc}"
+                    ) from exc
+            else:
+                text = data
+        else:
+            text = sys.stdin.read()
     else:
         path = Path(source)
         if not path.exists():
             raise CLIError(f"File diff non trovato: {path}")
         try:
             raw = path.read_bytes()
-            text, encoding, used_fallback = decode_bytes(raw)
-            if used_fallback:
-                logger.warning(
-                    "Decodifica del diff %s eseguita con fallback UTF-8 (encoding %s); "
-                    "il contenuto potrebbe contenere caratteri sostituiti.",
-                    path,
-                    encoding,
-                )
+            if encoding:
+                try:
+                    text = raw.decode(encoding)
+                except (LookupError, UnicodeDecodeError) as exc:
+                    raise CLIError(
+                        "Impossibile decodificare il diff %s con l'encoding %s: %s"
+                        % (path, encoding, exc)
+                    ) from exc
+            else:
+                text, detected_encoding, used_fallback = decode_bytes(raw)
+                if used_fallback:
+                    logger.warning(
+                        "Decodifica del diff %s eseguita con fallback UTF-8 (encoding %s); "
+                        "il contenuto potrebbe contenere caratteri sostituiti.",
+                        path,
+                        detected_encoding,
+                    )
         except Exception as exc:  # pragma: no cover - extremely rare I/O error types
             raise CLIError(f"Impossibile leggere {path}: {exc}") from exc
 
@@ -230,7 +264,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     )
 
     try:
-        patch = load_patch(args.patch)
+        patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
         backup_base = (
             Path(raw_backup).expanduser() if isinstance(raw_backup, str) and raw_backup else None
