@@ -4,21 +4,26 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional, Sequence
+from typing import Any, Sequence, TYPE_CHECKING, cast
 
 try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
-    from PySide6 import QtCore
+    from PySide6 import QtCore as _QtCore
 except ImportError:  # pragma: no cover - executed when PySide6 is not installed
-    QtCore = None  # type: ignore[assignment]
+    _QtCore = cast(Any, None)
+
+if TYPE_CHECKING:
+    from PySide6.QtCore import QCoreApplication
+
+QtCore: Any = cast(Any, _QtCore)
 
 from . import cli
 from .i18n import install_translators
 from .utils import APP_NAME
 
-__all__ = ["main"]
+__all__: list[str] = ["main"]
 
-CLI_FLAGS = {"--dry-run", "--threshold", "--backup", "--root"}
-CLI_PREFIXES = ("--threshold=", "--backup=")
+CLI_FLAGS: set[str] = {"--dry-run", "--threshold", "--backup", "--root"}
+CLI_PREFIXES: tuple[str, ...] = ("--threshold=", "--backup=")
 
 
 def _tr(text: str) -> str:
@@ -26,7 +31,7 @@ def _tr(text: str) -> str:
 
     if QtCore is None:
         return text
-    return QtCore.QCoreApplication.translate("diff_applier_gui", text)
+    return cast(str, QtCore.QCoreApplication.translate("diff_applier_gui", text))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -116,7 +121,7 @@ def _ensure_translator() -> None:
     if QtCore is None:
         return
 
-    app = QtCore.QCoreApplication.instance()
+    app: QCoreApplication | None = QtCore.QCoreApplication.instance()
     if app is None:
         # ``[]`` so the temporary instance does not inherit CLI arguments that belong to
         # ``argparse``; this avoids warnings from Qt about unknown options.
@@ -130,7 +135,7 @@ def _ensure_translator() -> None:
     setattr(app, "_installed_translators", translators)
 
 
-def _print_missing_gui_dependency(exc: Optional[Exception] = None) -> None:
+def _print_missing_gui_dependency(exc: Exception | None = None) -> None:
     message = (
         "PySide6 non è installato. Installa le dipendenze della GUI con "
         "'pip install .[gui]' oppure includi l'extra 'gui' quando installi il pacchetto."

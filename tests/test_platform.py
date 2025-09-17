@@ -19,20 +19,20 @@ def test_running_under_wsl_detects_env(monkeypatch: pytest.MonkeyPatch, env_valu
 def test_running_under_wsl_detects_kernel_release(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
-    def fake_read_text(self: Path, *args, **kwargs) -> str:
+    def fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
         if str(self) == "/proc/sys/kernel/osrelease":
             return "5.15.133.1-microsoft-standard-WSL2"
         raise OSError
 
-    monkeypatch.setattr(platform.Path, "read_text", fake_read_text)
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
     assert platform.running_under_wsl()
 
 
 def test_running_under_wsl_returns_false_when_no_markers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
-    def fake_read_text(self: Path, *args, **kwargs) -> str:
+    def fake_read_text(self: Path, *args: object, **kwargs: object) -> str:
         raise OSError
 
-    monkeypatch.setattr(platform.Path, "read_text", fake_read_text)
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
     assert not platform.running_under_wsl()
