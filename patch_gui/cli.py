@@ -52,7 +52,9 @@ class CLIError(Exception):
     """Raised for recoverable CLI usage errors."""
 
 
-def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.ArgumentParser:
+def build_parser(
+    parser: Optional[argparse.ArgumentParser] = None,
+) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
     if parser is None:
@@ -100,8 +102,7 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
     parser.add_argument(
         "--report-json",
         help=(
-            "Percorso del report JSON generato; di default '<backup>/%s'."
-            % REPORT_JSON
+            "Percorso del report JSON generato; di default '<backup>/%s'." % REPORT_JSON
         ),
     )
     parser.add_argument(
@@ -233,7 +234,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         patch = load_patch(args.patch)
         raw_backup = args.backup
         backup_base = (
-            Path(raw_backup).expanduser() if isinstance(raw_backup, str) and raw_backup else None
+            Path(raw_backup).expanduser()
+            if isinstance(raw_backup, str) and raw_backup
+            else None
         )
         session = apply_patchset(
             patch,
@@ -251,7 +254,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     print(session.to_txt())
     if args.dry_run:
-        print("\nModalità dry-run: nessun file è stato modificato e non sono stati creati backup.")
+        print(
+            "\nModalità dry-run: nessun file è stato modificato e non sono stati creati backup."
+        )
     else:
         print(f"\nBackup salvati in: {session.backup_dir}")
         if session.report_json_path or session.report_txt_path:
@@ -270,10 +275,16 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 def _threshold_value(value: str) -> float:
     try:
         parsed = float(value)
-    except ValueError as exc:  # pragma: no cover - argparse already handles typical errors
-        raise argparse.ArgumentTypeError("La soglia deve essere un numero decimale.") from exc
+    except (
+        ValueError
+    ) as exc:  # pragma: no cover - argparse already handles typical errors
+        raise argparse.ArgumentTypeError(
+            "La soglia deve essere un numero decimale."
+        ) from exc
     if not 0 < parsed <= 1:
-        raise argparse.ArgumentTypeError("La soglia deve essere compresa tra 0 (escluso) e 1 (incluso).")
+        raise argparse.ArgumentTypeError(
+            "La soglia deve essere compresa tra 0 (escluso) e 1 (incluso)."
+        )
     return parsed
 
 
@@ -355,7 +366,9 @@ def _apply_file_patch(
     return fr
 
 
-def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) -> Optional[Path]:
+def _prompt_candidate_selection(
+    project_root: Path, candidates: Sequence[Path]
+) -> Optional[Path]:
     display_paths: List[str] = []
     for path in candidates:
         try:
@@ -386,7 +399,9 @@ def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) 
         try:
             index = int(choice)
         except ValueError:
-            print("Input non valido. Inserire un numero o lasciare vuoto per annullare.")
+            print(
+                "Input non valido. Inserire un numero o lasciare vuoto per annullare."
+            )
             continue
 
         if 1 <= index <= len(candidates):
@@ -409,8 +424,8 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     joined = ", ".join(shown)
     return (
         "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente. "
-      f"Candidati: {joined}"
-  )
+        f"Candidati: {joined}"
+    )
 
 
 def _cli_manual_resolver(
@@ -424,13 +439,9 @@ def _cli_manual_resolver(
     decision.candidates = candidates
     decision.strategy = "ambiguous"
     if reason == "fuzzy":
-        decision.message = (
-            "Più posizioni trovate sopra la soglia. La CLI non può scegliere automaticamente."
-        )
+        decision.message = "Più posizioni trovate sopra la soglia. La CLI non può scegliere automaticamente."
     else:
-        decision.message = (
-            "Solo il contesto coincide. Usa la GUI o regola la soglia per applicare questo hunk."
-        )
+        decision.message = "Solo il contesto coincide. Usa la GUI o regola la soglia per applicare questo hunk."
     return None
 
 

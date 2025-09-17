@@ -24,7 +24,9 @@ Announcer = Callable[[str, int], None]
 Level = int
 
 
-def _emit(message: str, level: Level = logging.INFO, announcer: Announcer | None = None) -> None:
+def _emit(
+    message: str, level: Level = logging.INFO, announcer: Announcer | None = None
+) -> None:
     if announcer is not None:
         announcer(message, level)
         return
@@ -125,14 +127,15 @@ if _build_py is not None:
             compile_translations(announcer=self.announce)
             super().run()
 
-
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
     class BuildPy:  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
 
         def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError("setuptools is required to use the custom build command.")
+            raise RuntimeError(
+                "setuptools is required to use the custom build command."
+            )
 
 
 if _sdist is not None:
@@ -144,14 +147,15 @@ if _sdist is not None:
             compile_translations(announcer=self.announce)
             super().run()
 
-
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
     class SDist:  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
 
         def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError("setuptools is required to use the custom sdist command.")
+            raise RuntimeError(
+                "setuptools is required to use the custom sdist command."
+            )
 
 
 def main(argv: Optional[List[str]] = None) -> int:

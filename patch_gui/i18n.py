@@ -126,7 +126,9 @@ def _compiled_dir(app: QtCore.QCoreApplication) -> Path:
     cache_location = QtCore.QStandardPaths.StandardLocation.CacheLocation
     location = QtCore.QStandardPaths.writableLocation(cache_location)
     if not location:
-        location = os.path.join(tempfile.gettempdir(), app.applicationName() or "patch_gui")
+        location = os.path.join(
+            tempfile.gettempdir(), app.applicationName() or "patch_gui"
+        )
     path = Path(location) / "translations"
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -145,7 +147,9 @@ def _ensure_compiled(ts_path: Path, target_dir: Path) -> Optional[Path]:
                 ts_path.name,
             )
         except OSError:
-            logger.debug("Unable to compare timestamps for %s; using bundled file", packaged_qm)
+            logger.debug(
+                "Unable to compare timestamps for %s; using bundled file", packaged_qm
+            )
             return packaged_qm
 
         compiled = _compile_with_lrelease(ts_path, target_dir)
@@ -173,7 +177,9 @@ def _compile_with_lrelease(ts_path: Path, target_dir: Path) -> Optional[Path]:
 
     executable = _find_lrelease()
     if executable is None:
-        logger.warning("Cannot find 'lrelease' executable. Skipping compilation of %s", ts_path)
+        logger.warning(
+            "Cannot find 'lrelease' executable. Skipping compilation of %s", ts_path
+        )
         return None
 
     result = subprocess.run(
@@ -207,7 +213,9 @@ def _find_lrelease() -> Optional[Path]:
 def _load_qt_base_translation(
     app: QtCore.QCoreApplication, locale: QtCore.QLocale
 ) -> Optional[QtCore.QTranslator]:
-    translations_path = QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.LibraryPath.TranslationsPath)
+    translations_path = QtCore.QLibraryInfo.path(
+        QtCore.QLibraryInfo.LibraryPath.TranslationsPath
+    )
     if not translations_path:
         return None
 

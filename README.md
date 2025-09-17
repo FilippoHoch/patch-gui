@@ -127,6 +127,19 @@ Per eseguire la suite automatizzata del progetto:
 pytest
 ```
 
+## Pre-commit
+
+Installa e attiva gli hook locali per avere i controlli automatici prima di ogni commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+# (opzionale) esegui tutti i controlli una volta sola
+pre-commit run --all-files
+```
+
+Gli hook includono `black`, `ruff`, `mypy` e `pytest` (in modalità rapida `pytest --maxfail=1 --disable-warnings --quiet`).
+
 ---
 
 ## Guida all'uso

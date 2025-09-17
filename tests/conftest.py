@@ -1,4 +1,5 @@
 """Test configuration for avoiding GUI dependencies during imports."""
+
 from __future__ import annotations
 
 import sys
