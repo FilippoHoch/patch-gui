@@ -4,3 +4,4 @@ __pycache__/
 .fetch-client
 *.qm
 patch_gui/reports/
+.venv-upgrade
