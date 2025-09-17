@@ -28,9 +28,11 @@ CONFIG_RESULT = 7
 def qt_app() -> Any:
     if QtWidgets is None:
         pytest.skip(f"PySide6 non disponibile: {_QT_IMPORT_ERROR}")
-    app = QtWidgets.QApplication.instance()
+    assert QtWidgets is not None
+    qt_widgets = QtWidgets
+    app = qt_widgets.QApplication.instance()
     if app is None:
-        app = QtWidgets.QApplication([])
+        app = qt_widgets.QApplication([])
     return app
 
 
