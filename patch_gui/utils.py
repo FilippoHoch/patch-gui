@@ -119,6 +119,44 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _hunk_body_line_effect(line: str) -> Tuple[bool, int, int]:
+    """Return whether ``line`` is part of the hunk body and its line counters."""
+
+    if line.startswith("@@"):
+        return False, 0, 0
+    if line.startswith("+++ ") or line.startswith("--- "):
+        return False, 0, 0
+    if not line:
+        return False, 0, 0
+
+    prefix = line[0]
+    if prefix not in {" ", "+", "-", "\\"}:
+        return False, 0, 0
+
+    old_increment = 1 if prefix in {" ", "-"} else 0
+    new_increment = 1 if prefix in {" ", "+"} else 0
+    return True, old_increment, new_increment
+
+
+def _scan_hunk_body(lines: List[str], start: int) -> Tuple[int, int, int]:
+    """Return the end index and counters for the hunk body starting at ``start``."""
+
+    index = start
+    old_count = 0
+    new_count = 0
+    total = len(lines)
+
+    while index < total:
+        continue_body, old_increment, new_increment = _hunk_body_line_effect(lines[index])
+        if not continue_body:
+            break
+        old_count += old_increment
+        new_count += new_increment
+        index += 1
+
+    return index, old_count, new_count
+
+
 def _normalize_hunk_line_counts(text: str) -> str:
     """Ensure hunk headers declare counts matching their body length."""
 
@@ -140,28 +178,7 @@ def _normalize_hunk_line_counts(text: str) -> str:
             continue
 
         body_start = index + 1
-        body_index = body_start
-        old_count = 0
-        new_count = 0
-
-        while body_index < total:
-            body_line = lines[body_index]
-            if body_line.startswith("@@"):
-                break
-            if body_line.startswith("+++ ") or body_line.startswith("--- "):
-                break
-            if not body_line:
-                break
-
-            prefix = body_line[0]
-            if prefix not in {" ", "+", "-", "\\"}:
-                break
-            if prefix in {" ", "-"}:
-                old_count += 1
-            if prefix in {" ", "+"}:
-                new_count += 1
-
-            body_index += 1
+        body_index, old_count, new_count = _scan_hunk_body(lines, body_start)
 
         expected_old = int(match.group("old_count")) if match.group("old_count") is not None else 1
         expected_new = int(match.group("new_count")) if match.group("new_count") is not None else 1
@@ -184,7 +201,14 @@ def _normalize_hunk_line_counts(text: str) -> str:
 
 
 def preprocess_patch_text(raw_text: str) -> str:
-    """Accept either unified diff or "*** Begin Patch" formats and return diff text."""
+    """Normalize ``raw_text`` and extract diff content from known patch formats.
+
+    The helper accepts raw unified diff text or the "*** Begin Patch" wrapper
+    used by GitHub suggestions. It normalizes newline styles, flattens wrapped
+    patches into regular unified diffs, and repairs hunk headers whose line
+    counts do not match their bodies (including hunks without explicit counts,
+    empty hunks, or those containing ``"\\ No newline at end of file"`` markers).
+    """
 
     text = normalize_newlines(raw_text)
 
