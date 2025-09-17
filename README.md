@@ -204,6 +204,8 @@ patch-gui
 * **Logging**:
   * `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, oppure valori numerici come `20`). Il default è `INFO`.
   * `PATCH_GUI_LOG_FILE` imposta il percorso del file di log (valori come `~/logs/patch_gui.log`). In assenza della variabile viene usato `~/.patch_gui.log`.
+  * In modalità CLI puoi ottenere gli stessi livelli su stdout con `--log-level` (es. `patch-gui apply --log-level debug ...`).
+  * Il livello `DEBUG` mostra anche i dettagli sul matching degli hunk (candidati, strategie, risoluzioni manuali).
 
   ```bash
   # Avvio della GUI con log dettagliati nel percorso di default (~/.patch_gui.log)

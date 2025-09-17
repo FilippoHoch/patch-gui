@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -125,6 +126,9 @@ class HunkView:
 ManualResolver = Callable[["HunkView", List[str], List[Tuple[int, float]], HunkDecision, str], Optional[int]]
 
 
+logger = logging.getLogger(__name__)
+
+
 def build_hunk_view(hunk: _HunkLike) -> HunkView:
     """Construct lists of strings for the "before" and "after" sequences for a hunk."""
 
@@ -156,8 +160,15 @@ def find_candidates(
 ) -> List[Tuple[int, float]]:
     """Return candidate start positions with similarity >= threshold, sorted by score desc."""
 
+    logger.debug(
+        "find_candidates: searching window of %s lines within file of %s lines (threshold %.2f)",
+        len(before_lines),
+        len(file_lines),
+        threshold,
+    )
     candidates: List[Tuple[int, float]] = []
     if not before_lines:
+        logger.debug("find_candidates: empty before_lines, returning 0 candidates")
         return candidates
     window_len = len(before_lines)
     target_text = "".join(before_lines)
@@ -172,6 +183,7 @@ def find_candidates(
                 break
             cumulative += len(line)
         if candidates:
+            logger.debug("find_candidates: found exact candidate at position %s", candidates[0][0])
             return candidates
 
     for i in range(0, len(file_lines) - window_len + 1):
@@ -181,6 +193,11 @@ def find_candidates(
             candidates.append((i, score))
 
     candidates.sort(key=lambda x: x[1], reverse=True)
+    logger.debug(
+        "find_candidates: returning %s candidate(s) meeting threshold %.2f",
+        len(candidates),
+        threshold,
+    )
     return candidates
 
 
@@ -208,6 +225,11 @@ def apply_hunks(
     current_lines = file_lines
     decisions: List[HunkDecision] = []
     applied_count = 0
+    logger.debug(
+        "apply_hunks: starting with threshold %.2f (manual_resolver=%s)",
+        threshold,
+        manual_resolver is not None,
+    )
 
     def _apply(
         lines: List[str],
@@ -222,17 +244,31 @@ def apply_hunks(
         except Exception as exc:
             decision.strategy = "failed"
             decision.message = f"Errore durante l'applicazione del hunk: {exc}"
+            logger.exception(
+                "apply_hunks: error applying hunk '%s' at position %s",
+                hv.header,
+                pos,
+            )
             return lines, False
         if strategy:
             decision.strategy = strategy
         decision.selected_pos = pos
         if similarity is not None:
             decision.similarity = similarity
+        logger.debug(
+            "apply_hunks: applied hunk '%s' at position %s with strategy %s (similarity=%s)",
+            hv.header,
+            pos,
+            strategy or decision.strategy,
+            None if similarity is None else f"{similarity:.3f}",
+        )
         return new_lines, True
 
-    for hunk in hunks:
+    total_hunks = 0
+    for total_hunks, hunk in enumerate(hunks, 1):
         hv = build_hunk_view(hunk)
         decision = HunkDecision(hunk_header=hv.header, strategy="")
+        logger.debug("apply_hunks: processing hunk #%s '%s'", total_hunks, hv.header)
 
         exact_candidates = find_candidates(current_lines, hv.before_lines, threshold=1.0)
         if exact_candidates:
@@ -240,6 +276,11 @@ def apply_hunks(
             current_lines, success = _apply(current_lines, hv, decision, pos, score, "exact")
             if success:
                 applied_count += 1
+                logger.info(
+                    "apply_hunks: hunk '%s' applied via exact match at line %s",
+                    hv.header,
+                    pos,
+                )
             decisions.append(decision)
             continue
 
@@ -249,6 +290,12 @@ def apply_hunks(
             current_lines, success = _apply(current_lines, hv, decision, pos, score, "fuzzy")
             if success:
                 applied_count += 1
+                logger.info(
+                    "apply_hunks: hunk '%s' applied via fuzzy match at line %s (similarity %.3f)",
+                    hv.header,
+                    pos,
+                    score,
+                )
             decisions.append(decision)
             continue
         if len(fuzzy_candidates) > 1:
@@ -256,17 +303,28 @@ def apply_hunks(
             decision.candidates = fuzzy_candidates
             chosen: Optional[int] = None
             if manual_resolver is not None:
+                logger.info(
+                    "apply_hunks: hunk '%s' requires manual resolution for %s fuzzy candidates",
+                    hv.header,
+                    len(fuzzy_candidates),
+                )
                 chosen = manual_resolver(hv, current_lines, fuzzy_candidates, decision, "fuzzy")
             if chosen is not None:
                 similarity = next((score for pos_, score in fuzzy_candidates if pos_ == chosen), None)
                 current_lines, success = _apply(current_lines, hv, decision, chosen, similarity, None)
                 if success:
                     applied_count += 1
+                    logger.info(
+                        "apply_hunks: hunk '%s' applied after manual fuzzy selection at line %s",
+                        hv.header,
+                        chosen,
+                    )
                 decisions.append(decision)
                 continue
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
                 decision.message = "Applicazione annullata per ambiguità fuzzy."
+            logger.info("apply_hunks: hunk '%s' skipped due to fuzzy ambiguity", hv.header)
             decisions.append(decision)
             continue
 
@@ -279,25 +337,42 @@ def apply_hunks(
             decision.candidates = context_candidates
             chosen = None
             if manual_resolver is not None:
+                logger.info(
+                    "apply_hunks: hunk '%s' requires manual resolution (context-only) with %s candidates",
+                    hv.header,
+                    len(context_candidates),
+                )
                 chosen = manual_resolver(hv, current_lines, context_candidates, decision, "context")
             if chosen is not None:
                 similarity = next((score for pos_, score in context_candidates if pos_ == chosen), None)
                 current_lines, success = _apply(current_lines, hv, decision, chosen, similarity, None)
                 if success:
                     applied_count += 1
+                    logger.info(
+                        "apply_hunks: hunk '%s' applied after manual context selection at line %s",
+                        hv.header,
+                        chosen,
+                    )
                 decisions.append(decision)
                 continue
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
                 decision.message = "Applicazione annullata (solo contesto)."
+            logger.info("apply_hunks: hunk '%s' skipped after context-only ambiguity", hv.header)
             decisions.append(decision)
             continue
 
         decision.strategy = "failed"
         if not decision.message:
             decision.message = "Nessun candidato compatibile trovato sopra la soglia impostata."
+        logger.info("apply_hunks: hunk '%s' failed – no candidates", hv.header)
         decisions.append(decision)
 
+    logger.info(
+        "apply_hunks: completed with %s/%s hunks applied",
+        applied_count,
+        total_hunks,
+    )
     return current_lines, decisions, applied_count
 
 
@@ -308,15 +383,19 @@ def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
     if rel.startswith("a/") or rel.startswith("b/"):
         rel = rel[2:]
     if not rel:
+        logger.debug("find_file_candidates: empty relative path")
         return []
 
     exact = project_root / rel
     if exact.exists():
+        logger.debug("find_file_candidates: found exact path match for '%s'", rel)
         return [exact]
 
     name = Path(rel).name
+    logger.debug("find_file_candidates: searching recursively for '%s' (basename '%s')", rel, name)
     matches = [p for p in project_root.rglob(name) if p.is_file()]
     if not matches:
+        logger.info("find_file_candidates: no candidates found for '%s'", rel)
         return []
 
     suffix_matches = []
@@ -324,13 +403,29 @@ def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
         try:
             relative = path.relative_to(project_root)
         except ValueError:
+            logger.debug(
+                "find_file_candidates: skipping path '%s' outside project root '%s'",
+                path,
+                project_root,
+            )
             continue
         if str(relative).endswith(rel):
             suffix_matches.append(path)
     if len(suffix_matches) == 1:
+        logger.debug(
+            "find_file_candidates: selected suffix match '%s' for '%s'",
+            suffix_matches[0],
+            rel,
+        )
         return suffix_matches
 
-    return sorted(matches)
+    sorted_matches = sorted(matches)
+    logger.debug(
+        "find_file_candidates: returning %s candidate(s) for '%s'",
+        len(sorted_matches),
+        rel,
+    )
+    return sorted_matches
 
 
 def prepare_backup_dir(
