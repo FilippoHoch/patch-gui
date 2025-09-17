@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from . import _version
+
 __all__ = ["main", "__version__"]
 
-__version__ = "0.1.0"
+__version__ = _version.__version__
+
+
+def __getattr__(name: str):
+    if name == "__version__":
+        return _version.__version__
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

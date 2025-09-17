@@ -15,6 +15,7 @@ from unidiff import PatchSet
 
 from tests._pytest_typing import typed_parametrize
 
+import patch_gui
 from patch_gui import cli, localization
 import patch_gui.executor as executor
 import patch_gui.utils as utils
@@ -84,6 +85,18 @@ def test_parser_help_uses_english_by_default(monkeypatch: pytest.MonkeyPatch) ->
         "Directory (relative to the root) to ignore while searching for files."
         in help_text
     )
+
+
+def test_parser_version_reports_package_version(capsys: pytest.CaptureFixture[str]) -> None:
+    parser_obj = parser.build_parser()
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser_obj.parse_args(["--version"])
+
+    assert excinfo.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == patch_gui.__version__
+    assert captured.err == ""
 
 
 def test_apply_patchset_dry_run(tmp_path: Path) -> None:
