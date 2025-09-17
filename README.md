@@ -112,7 +112,7 @@ patch-gui apply --root . --non-interactive diff.patch
   essere generati (a meno di `--no-report`) per consultare l'esito della simulazione.
 * `--threshold` imposta la soglia fuzzy (default 0.85).
 * `--backup` permette di scegliere la cartella base dei backup (di default `<root>/.diff_backups`).
-* `--report-json` / `--report-txt` impostano il percorso dei report generati (default `<backup>/apply-report.json` e `<backup>/apply-report.txt`).
+* `--report-json` / `--report-txt` impostano il percorso dei report generati (default `<app>/reports/<timestamp>/apply-report.json` e `<app>/reports/<timestamp>/apply-report.txt`, con `<app>` pari alla cartella dell'applicazione).
 * `--no-report` disattiva entrambi i file di report.
 * `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza richiesta su STDIN.
 * `--log-level` imposta la verbosità del logger su stdout (`debug`, `info`, `warning`, `error`, `critical`; default `warning`).
@@ -301,6 +301,8 @@ Aggiungi l’italiano e alcune parole tecniche:
 .diff_backups/
   2025YYYYMMDD-HHMMSS/
     path/del/file/originale.ext
+patch_gui/reports/
+  2025YYYYMMDD-HHMMSS-fff/
     apply-report.json
     apply-report.txt
 ```

@@ -64,8 +64,10 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert session.report_txt_path is not None
     assert session.report_json_path.exists()
     assert session.report_txt_path.exists()
-    assert session.report_json_path.parent == session.backup_dir
-    assert session.report_txt_path.parent == session.backup_dir
+    expected_dir = utils.default_session_report_dir(session.started_at)
+    assert expected_dir.parent == utils.DEFAULT_REPORTS_DIR
+    assert session.report_json_path.parent == expected_dir
+    assert session.report_txt_path.parent == expected_dir
     assert not (session.backup_dir / "sample.txt").exists()
     assert len(session.results) == 1
 
@@ -94,8 +96,10 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     assert backup_copy.exists()
     assert backup_copy.read_text(encoding="utf-8") == original
 
-    json_report = session.backup_dir / REPORT_JSON
-    text_report = session.backup_dir / REPORT_TXT
+    report_dir = utils.default_session_report_dir(session.started_at)
+    assert report_dir.parent == utils.DEFAULT_REPORTS_DIR
+    json_report = report_dir / REPORT_JSON
+    text_report = report_dir / REPORT_TXT
     assert json_report.exists()
     assert text_report.exists()
     assert session.report_json_path == json_report
@@ -127,8 +131,9 @@ def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     assert session.report_txt_path == txt_dest
     assert json_dest.exists()
     assert txt_dest.exists()
-    assert not (session.backup_dir / REPORT_JSON).exists()
-    assert not (session.backup_dir / REPORT_TXT).exists()
+    default_dir = utils.default_session_report_dir(session.started_at)
+    assert not (default_dir / REPORT_JSON).exists()
+    assert not (default_dir / REPORT_TXT).exists()
 
     data = json.loads(json_dest.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
@@ -147,8 +152,9 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
 
     assert session.report_json_path is None
     assert session.report_txt_path is None
-    assert not (session.backup_dir / REPORT_JSON).exists()
-    assert not (session.backup_dir / REPORT_TXT).exists()
+    default_dir = utils.default_session_report_dir(session.started_at)
+    assert not (default_dir / REPORT_JSON).exists()
+    assert not (default_dir / REPORT_TXT).exists()
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
