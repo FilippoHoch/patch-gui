@@ -63,7 +63,7 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "old line\nline2\n"
     assert session.dry_run is True
     assert session.backup_dir.parent == utils.default_backup_base()
-    assert session.backup_dir.exists()
+    assert not session.backup_dir.exists()
     assert session.report_json_path is not None
     assert session.report_txt_path is not None
     assert session.report_json_path.exists()

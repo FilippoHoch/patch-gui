@@ -6,6 +6,7 @@ import pytest
 from unidiff import PatchSet
 
 from patch_gui.patcher import (
+    ApplySession,
     HunkDecision,
     HunkView,
     apply_hunk_at_position,
@@ -15,6 +16,7 @@ from patch_gui.patcher import (
     find_candidates,
     find_file_candidates,
     prepare_backup_dir,
+    write_reports,
 )
 
 
@@ -161,6 +163,24 @@ def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
 
     real_dir = prepare_backup_dir(project_root, dry_run=False, backup_base=base_dir)
     assert real_dir.exists()
+
+
+def test_write_reports_dry_run_skips_backup_dir(tmp_path: Path) -> None:
+    session = ApplySession(
+        project_root=tmp_path,
+        backup_dir=tmp_path / "backups" / "session",
+        dry_run=True,
+        threshold=0.85,
+        started_at=0.0,
+    )
+    json_dest = tmp_path / "reports" / "apply.json"
+    txt_dest = tmp_path / "reports" / "apply.txt"
+
+    write_reports(session, json_path=json_dest, txt_path=txt_dest)
+
+    assert not session.backup_dir.exists()
+    assert json_dest.exists()
+    assert txt_dest.exists()
 
 
 def test_backup_file_copies_content(tmp_path: Path) -> None:

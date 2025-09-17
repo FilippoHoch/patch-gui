@@ -564,7 +564,6 @@ def write_reports(
     if not write_json and not write_txt:
         return None, None
 
-    session.backup_dir.mkdir(parents=True, exist_ok=True)
     default_report_dir = default_session_report_dir(session.started_at)
 
     def _resolve_path(raw: Path | str | None, default: Path) -> Path:
@@ -579,17 +578,40 @@ def write_reports(
 
     json_target: Optional[Path] = None
     txt_target: Optional[Path] = None
+    resolved_targets: list[Path] = []
 
     if write_json:
         json_target = _resolve_path(json_path, default_report_dir / REPORT_JSON)
+        resolved_targets.append(json_target)
+    if write_txt:
+        txt_target = _resolve_path(txt_path, default_report_dir / REPORT_TXT)
+        resolved_targets.append(txt_target)
+
+    def _is_within_directory(path: Path, directory: Path) -> bool:
+        try:
+            resolved_path = path.expanduser().resolve()
+            resolved_directory = directory.expanduser().resolve()
+        except (RuntimeError, OSError):
+            return False
+        try:
+            resolved_path.relative_to(resolved_directory)
+        except ValueError:
+            return False
+        return True
+
+    if (not session.dry_run) or any(
+        _is_within_directory(target, session.backup_dir) for target in resolved_targets
+    ):
+        session.backup_dir.mkdir(parents=True, exist_ok=True)
+
+    if json_target is not None:
         json_target.parent.mkdir(parents=True, exist_ok=True)
         json_target.write_text(
             json.dumps(session.to_json(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
-    if write_txt:
-        txt_target = _resolve_path(txt_path, default_report_dir / REPORT_TXT)
+    if txt_target is not None:
         txt_target.parent.mkdir(parents=True, exist_ok=True)
         txt_target.write_text(session.to_txt(), encoding="utf-8")
 
