@@ -191,31 +191,46 @@ def _normalize_hunk_line_counts(text: str) -> str:
     while index < total:
         line = lines[index]
         match = HUNK_HEADER_DETAIL_RE.match(line)
-        if not match:
-            normalized.append(line)
-            index += 1
+
+        if match or line.startswith("@@"):
+            body_start = index + 1
+            body_index, old_count, new_count = _scan_hunk_body(lines, body_start)
+
+            if match:
+                expected_old = (
+                    int(match.group("old_count")) if match.group("old_count") is not None else 1
+                )
+                expected_new = (
+                    int(match.group("new_count")) if match.group("new_count") is not None else 1
+                )
+                suffix = match.group("suffix") or ""
+
+                if old_count == expected_old and new_count == expected_new:
+                    normalized.append(line)
+                else:
+                    normalized.append(
+                        f"@@ -{match.group('old_start')},{old_count} +{match.group('new_start')},{new_count} @@{suffix}"
+                    )
+            else:
+                # Bare "@@" headers (without ranges) appear in some legacy patches.
+                # Synthesize minimal header information so the diff becomes valid.
+                suffix_start = line.find("@@", 2)
+                if suffix_start != -1:
+                    suffix = line[suffix_start + 2 :]
+                else:
+                    suffix = line[2:]
+                old_start = 1 if old_count > 0 else 0
+                new_start = 1 if new_count > 0 else 0
+                normalized.append(
+                    f"@@ -{old_start},{old_count} +{new_start},{new_count} @@{suffix}"
+                )
+
+            normalized.extend(lines[body_start:body_index])
+            index = body_index
             continue
 
-        body_start = index + 1
-        body_index, old_count, new_count = _scan_hunk_body(lines, body_start)
-
-        expected_old = (
-            int(match.group("old_count")) if match.group("old_count") is not None else 1
-        )
-        expected_new = (
-            int(match.group("new_count")) if match.group("new_count") is not None else 1
-        )
-        suffix = match.group("suffix") or ""
-
-        if old_count == expected_old and new_count == expected_new:
-            normalized.append(line)
-        else:
-            normalized.append(
-                f"@@ -{match.group('old_start')},{old_count} +{match.group('new_start')},{new_count} @@{suffix}"
-            )
-
-        normalized.extend(lines[body_start:body_index])
-        index = body_index
+        normalized.append(line)
+        index += 1
 
     result = "\n".join(normalized)
     if trailing_newline:
