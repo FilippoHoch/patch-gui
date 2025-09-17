@@ -25,6 +25,7 @@ from .i18n import install_translators
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_under_wsl
+from .theme import apply_modern_theme
 from .patcher import (
     ApplySession,
     FileResult,
@@ -1372,6 +1373,7 @@ def main() -> None:
     configure_logging(level=app_config.log_level)
     _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
+    apply_modern_theme(app)
     app.setApplicationName(APP_NAME)
     translators = install_translators(app)
     setattr(app, "_installed_translators", translators)
