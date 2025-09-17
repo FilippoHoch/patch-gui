@@ -6,13 +6,13 @@ import argparse
 from typing import List, Optional, Sequence
 
 from ._version import __version__
+from .config import AppConfig, load_config
 from .localization import gettext as _
 from .patcher import DEFAULT_EXCLUDE_DIRS
 from .utils import (
     APP_NAME,
     REPORT_JSON,
     REPORT_TXT,
-    default_backup_base,
     display_path,
 )
 
@@ -38,6 +38,8 @@ __all__ = [
 
 def build_parser(
     parser: Optional[argparse.ArgumentParser] = None,
+    *,
+    config: AppConfig | None = None,
 ) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
@@ -74,16 +76,17 @@ def build_parser(
         action="store_true",
         help=_("Simulate the execution without modifying files or creating backups."),
     )
+    resolved_config = config or load_config()
     parser.add_argument(
         "--threshold",
         type=threshold_value,
-        default=0.85,
+        default=resolved_config.threshold,
         help=_("Matching threshold (0-1) for fuzzy context alignment."),
     )
     parser.add_argument(
         "--backup",
         help=_('Base directory for backups and reports; defaults to "{path}".').format(
-            path=display_path(default_backup_base())
+            path=display_path(resolved_config.backup_base)
         ),
     )
     parser.add_argument(
@@ -120,7 +123,7 @@ def build_parser(
     )
     parser.add_argument(
         "--log-level",
-        default="warning",
+        default=resolved_config.log_level,
         choices=_LOG_LEVEL_CHOICES,
         help=_(
             "Logging level to emit on stdout (debug, info, warning, error, critical)."
@@ -135,7 +138,7 @@ def build_parser(
             "Directory (relative to the root) to ignore while searching for files. "
             "Specify the option multiple times to provide more than one. Defaults: %s."
         )
-        % ", ".join(DEFAULT_EXCLUDE_DIRS),
+        % ", ".join(resolved_config.exclude_dirs or DEFAULT_EXCLUDE_DIRS),
     )
     parser.add_argument(
         "--no-default-exclude",
@@ -169,9 +172,15 @@ def parse_exclude_dirs(
     values: Sequence[str] | None,
     *,
     ignore_default: bool = False,
+    default_excludes: Sequence[str] | None = None,
 ) -> tuple[str, ...]:
+    defaults = (
+        tuple(default_excludes)
+        if default_excludes is not None
+        else DEFAULT_EXCLUDE_DIRS
+    )
     if not values:
-        return tuple() if ignore_default else DEFAULT_EXCLUDE_DIRS
+        return tuple() if ignore_default else defaults
     parsed: List[str] = []
     for raw in values:
         for item in raw.split(","):
@@ -179,6 +188,6 @@ def parse_exclude_dirs(
             if normalized:
                 parsed.append(normalized)
     if not parsed:
-        return tuple() if ignore_default else DEFAULT_EXCLUDE_DIRS
+        return tuple() if ignore_default else defaults
     # Remove duplicates preserving order
     return tuple(dict.fromkeys(parsed))
