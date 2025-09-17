@@ -24,7 +24,7 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     """Help formatter that keeps ample width for long descriptions."""
 
     def __init__(self, prog: str) -> None:
-        super().__init__(prog)
+        super().__init__(prog, max_help_position=36)
         self._width = max(self._width, _MINIMUM_HELP_WIDTH)
 
 
@@ -129,6 +129,10 @@ def build_parser(
             "Logging level to emit on stdout (debug, info, warning, error, critical)."
         ),
     )
+    resolved_exclude_defaults = tuple(
+        resolved_config.exclude_dirs or DEFAULT_EXCLUDE_DIRS
+    )
+    resolved_exclude_defaults_text = ", ".join(resolved_exclude_defaults)
     parser.add_argument(
         "--exclude-dir",
         dest="exclude_dirs",
@@ -138,7 +142,7 @@ def build_parser(
             "Directory (relative to the root) to ignore while searching for files. "
             "Specify the option multiple times to provide more than one. Defaults: %s."
         )
-        % ", ".join(resolved_config.exclude_dirs or DEFAULT_EXCLUDE_DIRS),
+        % resolved_exclude_defaults_text,
     )
     parser.add_argument(
         "--no-default-exclude",
