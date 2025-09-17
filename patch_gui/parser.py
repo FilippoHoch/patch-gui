@@ -71,6 +71,13 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
         % REPORT_TXT,
     )
     parser.add_argument(
+        "--encoding",
+        default=None,
+        help=_(
+            "Explicit encoding to decode the diff file; defaults to automatic detection."
+        ),
+    )
+    parser.add_argument(
         "--no-report",
         action="store_true",
         help=_("Do not create JSON/TXT report files."),

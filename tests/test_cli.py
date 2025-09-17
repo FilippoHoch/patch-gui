@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -44,6 +45,22 @@ def _create_project(tmp_path: Path) -> Path:
     project.mkdir()
     (project / "sample.txt").write_text("old line\nline2\n", encoding="utf-8")
     return project
+
+
+@contextmanager
+def _preserve_root_logger() -> None:
+    root_logger = logging.getLogger()
+    previous_handlers = root_logger.handlers[:]
+    previous_level = root_logger.level
+    try:
+        yield
+    finally:
+        configured_logger = logging.getLogger()
+        for handler in configured_logger.handlers[:]:
+            configured_logger.removeHandler(handler)
+        for handler in previous_handlers:
+            configured_logger.addHandler(handler)
+        configured_logger.setLevel(previous_level)
 
 
 def test_apply_patchset_dry_run(tmp_path: Path) -> None:
@@ -245,6 +262,15 @@ def test_apply_patchset_skipped_reason_lists_candidates(tmp_path: Path) -> None:
     assert "legacy/sample.txt" in file_result.skipped_reason
 
 
+def test_load_patch_uses_explicit_encoding(tmp_path: Path) -> None:
+    patch_path = tmp_path / "explicit.diff"
+    patch_path.write_bytes(NON_UTF8_DIFF.encode("cp1252"))
+
+    patch = cli.load_patch(str(patch_path), encoding="cp1252")
+
+    assert "nuova riga con caffè" in str(patch)
+
+
 def test_load_patch_applies_non_utf8_diff(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     patch_path = tmp_path / "non-utf8.diff"
@@ -368,6 +394,59 @@ def test_run_cli_rejects_report_conflicts(
     assert "--no-report" in message or "no-report" in message
 
 
+def test_run_cli_applies_patch_with_explicit_encoding(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "cli-explicit.diff"
+    patch_path.write_bytes(NON_UTF8_DIFF.encode("cp1252"))
+
+    with _preserve_root_logger():
+        exit_code = cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--encoding",
+                "cp1252",
+                str(patch_path),
+            ]
+        )
+
+    assert exit_code == 0
+
+    target = project / "sample.txt"
+    assert target.read_text(encoding="utf-8") == "nuova riga con caffè\nline2\n"
+
+
+def test_run_cli_automatic_encoding_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "cli-fallback.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    real_decode = utils.decode_bytes
+
+    def fake_decode(data: bytes) -> tuple[str, str, bool]:
+        text, detected_encoding, _ = real_decode(data)
+        return text, detected_encoding, True
+
+    monkeypatch.setattr(executor, "decode_bytes", fake_decode)
+
+    with _preserve_root_logger():
+        exit_code = cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--dry-run",
+                str(patch_path),
+            ]
+        )
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "Decoded diff" in captured.out
+    assert "fallback" in captured.out.lower()
+
+
 def test_apply_patchset_logs_warning_on_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -398,11 +477,7 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
     patch_path = tmp_path / "run-cli.diff"
     patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
 
-    root_logger = logging.getLogger()
-    previous_handlers = root_logger.handlers[:]
-    previous_level = root_logger.level
-
-    try:
+    with _preserve_root_logger():
         exit_code = cli.run_cli(
             [
                 "--root",
@@ -421,13 +496,6 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
             isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
             for handler in configured_logger.handlers
         )
-    finally:
-        configured_logger = logging.getLogger()
-        for handler in configured_logger.handlers[:]:
-            configured_logger.removeHandler(handler)
-        for handler in previous_handlers:
-            configured_logger.addHandler(handler)
-        configured_logger.setLevel(previous_level)
 
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

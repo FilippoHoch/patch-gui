@@ -46,7 +46,7 @@ class CLIError(Exception):
     """Raised for recoverable CLI usage errors."""
 
 
-def load_patch(source: str) -> PatchSet:
+def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     """Load and parse a diff/patch file from ``source`` (path or ``'-'`` for stdin)."""
 
     if source == "-":
@@ -57,7 +57,22 @@ def load_patch(source: str) -> PatchSet:
             raise CLIError(_("Diff file not found: {path}").format(path=path))
         try:
             raw = path.read_bytes()
-            text, encoding, used_fallback = decode_bytes(raw)
+        except Exception as exc:  # pragma: no cover - extremely rare I/O error types
+            raise CLIError(_("Cannot read {path}: {error}").format(path=path, error=exc)) from exc
+
+        if encoding is not None:
+            try:
+                text = raw.decode(encoding)
+            except (LookupError, UnicodeDecodeError) as exc:
+                raise CLIError(
+                    _("Cannot decode {path} using encoding {encoding}: {error}").format(
+                        path=path, encoding=encoding, error=exc
+                    )
+                ) from exc
+            used_fallback = False
+            detected_encoding = encoding
+        else:
+            text, detected_encoding, used_fallback = decode_bytes(raw)
             if used_fallback:
                 logger.warning(
                     _(
@@ -65,10 +80,8 @@ def load_patch(source: str) -> PatchSet:
                         "the content may contain substituted characters."
                     ),
                     path,
-                    encoding,
+                    detected_encoding,
                 )
-        except Exception as exc:  # pragma: no cover - extremely rare I/O error types
-            raise CLIError(_("Cannot read {path}: {error}").format(path=path, error=exc)) from exc
 
     processed = preprocess_patch_text(text)
     try:
