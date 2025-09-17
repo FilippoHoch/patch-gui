@@ -140,7 +140,7 @@ patch-gui apply --root . --non-interactive diff.patch
 
 - `--dry-run` simula l'applicazione lasciando i file invariati; i report vengono generati a meno di `--no-report`.
 - `--threshold` imposta la soglia fuzzy (default 0.85).
-- `--backup` permette di scegliere la cartella base (default `<root>/.diff_backups`).
+- `--backup` permette di scegliere la cartella base (default `~/.diff_backups`).
 - `--report-json` / `--report-txt` impostano i percorsi dei report generati (default `<app>/reports/results/<timestamp>/apply-report.json|.txt`).
 - `--no-report` disattiva entrambi i file di report.
 - `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
@@ -194,7 +194,7 @@ pre-commit run --all-files
 6. **Avanzamento**: la barra di stato mostra il progresso in tempo reale.
 7. **Ambiguità**: se sono trovate più posizioni plausibili, appare un dialog con tutte le opzioni e relativo contesto.
 8. **File mancanti**: se non trovati sotto la root, vengono saltati (come da preferenza).
-9. **Backup & report**: ogni run reale crea `./.diff_backups/<timestamp>/` con copie originali e genera `apply-report.json` e `apply-report.txt`. Anche in dry‑run, se i report non sono disattivati, vengono creati (senza backup) per documentare la simulazione.
+9. **Backup & report**: ogni run reale crea `~/.diff_backups/<timestamp>/` con copie originali (a meno di specificare `--backup`) e genera `apply-report.json` e `apply-report.txt`. Anche in dry‑run, se i report non sono disattivati, vengono creati (senza backup) per documentare la simulazione.
 10. **Ripristino**: usa **Ripristina da backup…**, scegli il timestamp e i file verranno ripristinati.
 
 Per una guida dettagliata con screenshot e flussi completi consulta [USAGE.md](USAGE.md).
