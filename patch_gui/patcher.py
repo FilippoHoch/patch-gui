@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -27,6 +28,7 @@ from .utils import (
     REPORT_TXT,
     default_backup_base,
     default_session_report_dir,
+    format_session_timestamp,
 )
 
 
@@ -573,13 +575,21 @@ def prepare_backup_dir(
     *,
     dry_run: bool,
     backup_base: Optional[Path] = None,
+    started_at: Optional[float] = None,
 ) -> Path:
-    """Return a timestamped backup directory for the session."""
+    """Return a timestamped backup directory for the session.
+
+    When ``started_at`` is provided the directory will match the session timestamp.
+    Otherwise the current time is used with millisecond precision to avoid
+    collisions between multiple runs that start within the same second.
+    """
 
     base = (
         backup_base.expanduser() if backup_base is not None else default_backup_base()
     )
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = format_session_timestamp(
+        started_at if started_at is not None else time.time()
+    )
     backup_dir = base / timestamp
     if not dry_run:
         backup_dir.mkdir(parents=True, exist_ok=True)

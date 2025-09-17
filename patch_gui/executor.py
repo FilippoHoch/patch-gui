@@ -138,7 +138,13 @@ def apply_patchset(
     if not root.exists() or not root.is_dir():
         raise CLIError(_("Invalid project root: {path}").format(path=project_root))
 
-    backup_dir = prepare_backup_dir(root, dry_run=dry_run, backup_base=backup_base)
+    started_at = time.time()
+    backup_dir = prepare_backup_dir(
+        root,
+        dry_run=dry_run,
+        backup_base=backup_base,
+        started_at=started_at,
+    )
     resolved_excludes = (
         tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
     )
@@ -149,7 +155,7 @@ def apply_patchset(
         dry_run=dry_run,
         threshold=threshold,
         exclude_dirs=resolved_excludes,
-        started_at=time.time(),
+        started_at=started_at,
     )
 
     for pf in patch:
