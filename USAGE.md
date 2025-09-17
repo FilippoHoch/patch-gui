@@ -36,6 +36,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 5. **Applica la patch**
    - Con Dry‑run attivo clicca **Applica patch** per vedere l'anteprima dei risultati.
    - Quando sei soddisfatto, disattiva Dry‑run e premi nuovamente **Applica patch** per modificare realmente i file.
+   - Durante l'esecuzione la barra di stato mostra una barra di avanzamento numerica con la percentuale di file/hunk già elaborati.
 6. **Gestisci eventuali ambiguità**
    - Se la patch può essere applicata in più punti plausibili, viene aperto un dialog che mostra tutte le opzioni con il relativo contesto.
    - Scegli manualmente il posizionamento corretto.

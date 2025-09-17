@@ -314,7 +314,7 @@ class FileChoiceDialog(QtWidgets.QDialog):
 
 
 class PatchApplyWorker(QtCore.QThread):
-    progress = QtCore.Signal(str)
+    progress = QtCore.Signal(str, int)
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
     request_file_choice = QtCore.Signal(str, object)
@@ -328,6 +328,27 @@ class PatchApplyWorker(QtCore.QThread):
         self._file_choice_result: Optional[Path] = None
         self._hunk_choice_event = threading.Event()
         self._hunk_choice_result: Optional[int] = None
+        self._total_files = len(self.patch)
+        self._total_hunks = sum(len(pf) for pf in self.patch)
+        self._total_units = sum(max(len(pf), 1) for pf in self.patch)
+        self._processed_files = 0
+        self._processed_hunks = 0
+        self._processed_units = 0
+
+    def _calculate_percent(self) -> int:
+        if self._total_units:
+            ratio = self._processed_units / self._total_units
+        elif self._processed_files:
+            ratio = 1.0
+        else:
+            ratio = 0.0
+        percent = int(round(ratio * 100))
+        return max(0, min(percent, 100))
+
+    def _emit_progress(self, message: str, *, percent: Optional[int] = None) -> None:
+        resolved_percent = self._calculate_percent() if percent is None else percent
+        resolved_percent = max(0, min(int(resolved_percent), 100))
+        self.progress.emit(message, resolved_percent)
 
     def provide_file_choice(self, choice: Optional[Path]) -> None:
         self._file_choice_result = choice
@@ -339,12 +360,28 @@ class PatchApplyWorker(QtCore.QThread):
 
     def run(self) -> None:  # pragma: no cover - thread orchestration
         try:
+            if not self._total_units:
+                self._emit_progress("Nessun file o hunk da applicare.", percent=100)
             for pf in self.patch:
                 rel = pf.path or pf.target_file or pf.source_file or ""
-                self.progress.emit(f"Applicazione file: {rel}")
                 file_result = self.apply_file_patch(pf, rel)
                 self.session.results.append(file_result)
-            self.progress.emit("Applicazione diff completata.")
+                self._processed_files += 1
+                hunks_in_file = len(pf)
+                self._processed_hunks += hunks_in_file
+                self._processed_units += max(hunks_in_file, 1)
+                hunks_total = self._total_hunks
+                if hunks_total:
+                    hunks_msg = f"hunk {self._processed_hunks}/{hunks_total}"
+                else:
+                    hunks_msg = "hunk 0/0"
+                files_total = self._total_files or 0
+                message = (
+                    f"Applicazione file: {rel} "
+                    f"(file {self._processed_files}/{files_total}, {hunks_msg})"
+                )
+                self._emit_progress(message)
+            self._emit_progress("Applicazione diff completata.", percent=100)
             self.finished.emit(self.session)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.exception("Errore durante l'applicazione della patch: %s", exc)
@@ -571,7 +608,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._setup_gui_logging()
 
-        self.statusBar().showMessage("Pronto")
+        status_bar = self.statusBar()
+        status_bar.showMessage("Pronto")
+        self.progress_bar = QtWidgets.QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("%p%")
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setVisible(False)
+        status_bar.addPermanentWidget(self.progress_bar)
 
         self.restore_last_project_root()
 
@@ -761,15 +806,22 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.error.connect(worker.deleteLater)
         self._current_worker = worker
         self._set_busy(True)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setToolTip("")
         self.statusBar().showMessage("Applicazione diff in corso…")
         worker.start()
 
-    @QtCore.Slot(str)
-    def _on_worker_progress(self, message: str) -> None:  # pragma: no cover - UI feedback
+    @QtCore.Slot(str, int)
+    def _on_worker_progress(self, message: str, percent: int) -> None:  # pragma: no cover - UI feedback
         if not message:
             return
         self.log.appendPlainText(message)
         self.statusBar().showMessage(message[:100])
+        clamped = max(0, min(int(percent), 100))
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(clamped)
+        self.progress_bar.setToolTip(message)
 
     @QtCore.Slot(object)
     def _on_worker_finished(self, session: ApplySession) -> None:  # pragma: no cover - UI feedback
@@ -777,6 +829,9 @@ class MainWindow(QtWidgets.QMainWindow):
         write_reports(session)
         logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
         self._set_busy(False)
+        self.progress_bar.setValue(100)
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setToolTip("")
         QtWidgets.QMessageBox.information(
             self,
             "Completato",
@@ -789,6 +844,8 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.error("Errore durante l'applicazione della patch: %s", message)
         self._set_busy(False)
         self._current_worker = None
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setToolTip("")
         QtWidgets.QMessageBox.critical(self, "Errore", message)
         self.statusBar().showMessage("Errore durante l'applicazione della patch")
 
