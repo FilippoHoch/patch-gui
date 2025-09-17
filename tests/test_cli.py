@@ -49,6 +49,15 @@ def _create_project(tmp_path: Path) -> Path:
     return project
 
 
+def test_default_reports_dir_points_to_user_space() -> None:
+    started_at = time.time()
+
+    default_dir = utils.default_session_report_dir(started_at)
+
+    assert utils.default_backup_base() in default_dir.parents
+    assert default_dir.parent == utils.DEFAULT_REPORTS_DIR
+
+
 def test_parser_help_uses_english_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     localization.clear_translation_cache()
     monkeypatch.delenv(localization.LANG_ENV_VAR, raising=False)
@@ -82,6 +91,7 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert session.report_json_path.exists()
     assert session.report_txt_path.exists()
     expected_dir = utils.default_session_report_dir(session.started_at)
+    assert utils.default_backup_base() in expected_dir.parents
     assert expected_dir.parent == utils.DEFAULT_REPORTS_DIR
     assert session.report_json_path.parent == expected_dir
     assert session.report_txt_path.parent == expected_dir
@@ -131,6 +141,7 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     assert backup_copy.read_text(encoding="utf-8") == original
 
     report_dir = utils.default_session_report_dir(session.started_at)
+    assert utils.default_backup_base() in report_dir.parents
     assert report_dir.parent == utils.DEFAULT_REPORTS_DIR
     json_report = report_dir / REPORT_JSON
     text_report = report_dir / REPORT_TXT
@@ -168,6 +179,7 @@ def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     assert json_dest.exists()
     assert txt_dest.exists()
     default_dir = utils.default_session_report_dir(session.started_at)
+    assert utils.default_backup_base() in default_dir.parents
     assert not (default_dir / REPORT_JSON).exists()
     assert not (default_dir / REPORT_TXT).exists()
 
@@ -190,6 +202,7 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
     assert session.report_json_path is None
     assert session.report_txt_path is None
     default_dir = utils.default_session_report_dir(session.started_at)
+    assert utils.default_backup_base() in default_dir.parents
     assert not (default_dir / REPORT_JSON).exists()
     assert not (default_dir / REPORT_TXT).exists()
 

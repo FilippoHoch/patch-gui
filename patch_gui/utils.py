@@ -35,13 +35,15 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _APP_ROOT = _PACKAGE_ROOT.parent
 REPORTS_SUBDIR = "reports"
 REPORT_RESULTS_SUBDIR = "results"
-DEFAULT_REPORTS_DIR = _PACKAGE_ROOT / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
-
-
 def default_backup_base() -> Path:
     """Return the default directory where diff backups are stored."""
 
     return Path.home() / BACKUP_DIR
+
+
+DEFAULT_REPORTS_DIR = (
+    default_backup_base() / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
+)
 
 
 def display_path(path: Path) -> str:
