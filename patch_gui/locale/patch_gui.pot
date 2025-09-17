@@ -24,6 +24,80 @@ msgid ""
 "but from the command line."
 msgstr ""
 
+#: patch_gui/app.py:437 patch_gui/app.py:755
+msgid "Impostazioni"
+msgstr ""
+
+#: patch_gui/app.py:756
+msgid "Preferenze…"
+msgstr ""
+
+#: patch_gui/app.py:452
+msgid "Soglia fuzzy"
+msgstr ""
+
+#: patch_gui/app.py:458
+msgid "Directory escluse (separate da virgola)"
+msgstr ""
+
+#: patch_gui/app.py:460
+msgid "Directory escluse"
+msgstr ""
+
+#: patch_gui/app.py:466
+msgid "Percorso base per i backup"
+msgstr ""
+
+#: patch_gui/app.py:471
+msgid "Sfoglia…"
+msgstr ""
+
+#: patch_gui/app.py:476
+msgid "Directory backup"
+msgstr ""
+
+#: patch_gui/app.py:484
+msgid "Livello log"
+msgstr ""
+
+#: patch_gui/app.py:487
+msgid "Esegui sempre in dry-run inizialmente"
+msgstr ""
+
+#: patch_gui/app.py:493
+msgid "Genera report al termine (JSON + testo)"
+msgstr ""
+
+#: patch_gui/app.py:509
+msgid "Seleziona directory di backup"
+msgstr ""
+
+#: patch_gui/app.py:947
+msgid "Impostazioni salvate"
+msgstr ""
+
+#: patch_gui/app.py:1173
+msgid "Operazione terminata. Vedi log e report nella cartella di backup."
+msgstr ""
+
+#: patch_gui/app.py:1177
+msgid "Operazione terminata. Report disabilitati nelle impostazioni."
+msgstr ""
+
+#: patch_gui/app.py:1184
+msgid "Operazione completata"
+msgstr ""
+
+#: patch_gui/cli.py:327
+#, python-brace-format
+msgid "The {key} key expects exactly one value."
+msgstr ""
+
+#: patch_gui/cli.py:346
+#, python-brace-format
+msgid "Unsupported boolean value: {value}."
+msgstr ""
+
 #: patch_gui/parser.py:48
 msgid "Path to the diff file to apply ('-' reads from STDIN)."
 msgstr ""

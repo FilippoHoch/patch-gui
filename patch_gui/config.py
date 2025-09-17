@@ -26,6 +26,8 @@ _CONFIG_SECTION = "patch_gui"
 _CONFIG_FILENAME = "settings.toml"
 _DEFAULT_THRESHOLD = 0.85
 _DEFAULT_LOG_LEVEL = "warning"
+_DEFAULT_DRY_RUN = True
+_DEFAULT_WRITE_REPORTS = True
 
 
 __all__ = [
@@ -47,6 +49,8 @@ class AppConfig:
     )
     backup_base: Path = field(default_factory=default_backup_base)
     log_level: str = _DEFAULT_LOG_LEVEL
+    dry_run_default: bool = _DEFAULT_DRY_RUN
+    write_reports: bool = _DEFAULT_WRITE_REPORTS
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -60,12 +64,18 @@ class AppConfig:
         )
         backup_base = _coerce_backup_base(data.get("backup_base"), base.backup_base)
         log_level = _coerce_log_level(data.get("log_level"), base.log_level)
+        dry_run_default = _coerce_bool(
+            data.get("dry_run_default"), base.dry_run_default
+        )
+        write_reports = _coerce_bool(data.get("write_reports"), base.write_reports)
 
         return cls(
             threshold=threshold,
             exclude_dirs=exclude_dirs,
             backup_base=backup_base,
             log_level=log_level,
+            dry_run_default=dry_run_default,
+            write_reports=write_reports,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -76,6 +86,8 @@ class AppConfig:
             "exclude_dirs": list(self.exclude_dirs),
             "backup_base": str(self.backup_base),
             "log_level": str(self.log_level),
+            "dry_run_default": bool(self.dry_run_default),
+            "write_reports": bool(self.write_reports),
         }
 
 
@@ -135,6 +147,8 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     threshold_repr = _format_float(mapping["threshold"])
     exclude_repr = ", ".join(json.dumps(item) for item in mapping["exclude_dirs"])
     log_level_repr = json.dumps(mapping["log_level"])
+    dry_run_repr = json.dumps(mapping["dry_run_default"])
+    write_reports_repr = json.dumps(mapping["write_reports"])
     backup_repr = json.dumps(mapping["backup_base"])
 
     content_lines = [
@@ -143,6 +157,8 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"exclude_dirs = [{exclude_repr}]",
         f"backup_base = {backup_repr}",
         f"log_level = {log_level_repr}",
+        f"dry_run_default = {dry_run_repr}",
+        f"write_reports = {write_reports_repr}",
         "",
     ]
 
@@ -249,3 +265,17 @@ def _coerce_log_level(value: Any, default: str) -> str:
         return default
     candidate = value.strip()
     return candidate.lower() if candidate else default
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
