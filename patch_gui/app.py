@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, TypeVar, cast
 from logging.handlers import RotatingFileHandler
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtCore import QObject, QThread
+from PySide6.QtCore import QObject, QPointF, QRectF, QSize, QThread
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
@@ -80,6 +81,265 @@ else:
     _QDialogBase = QDialog
     _QThreadBase = QThread
     _QMainWindowBase = QMainWindow
+
+
+_ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icons"
+_ICON_FILE_NAMES: dict[str, str] = {
+    "choose_root": "choose_root.svg",
+    "load_file": "load_file.svg",
+    "from_clipboard": "from_clipboard.svg",
+    "from_text": "from_text.svg",
+    "load_diff": "load_diff.svg",
+    "analyze": "analyze.svg",
+}
+
+_ICON_SIZE = QSize(28, 28)
+_BRAND_BASE = QColor("#0f172a")
+_BRAND_SURFACE = QColor("#1f2b4d")
+_BRAND_PRIMARY = QColor("#4a7bd6")
+_BRAND_ACCENT = QColor("#7aa2ff")
+_BRAND_LIGHT = QColor("#f1f5ff")
+
+
+def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
+    pen = QPen(color)
+    pen.setWidthF(max(1.0, size.width() * scale))
+    return pen
+
+
+def _draw_document(painter: QPainter, size: QSize, *, offset: QPointF = QPointF(0, 0),
+                   body_color: QColor = _BRAND_SURFACE, corner_color: QColor | None = None,
+                   radius: float = 4.0) -> None:
+    width = size.width() * 0.52
+    height = size.height() * 0.64
+    x = size.width() * 0.24 + offset.x()
+    y = size.height() * 0.18 + offset.y()
+    fold = size.width() * 0.16
+
+    rect = QRectF(x, y, width, height)
+    painter.setPen(QtCore.Qt.NoPen)
+    painter.setBrush(body_color)
+    painter.drawRoundedRect(rect, radius, radius)
+
+    corner_color = corner_color or _BRAND_PRIMARY
+    corner = QPolygonF(
+        [
+            rect.topRight() - QPointF(fold, 0),
+            rect.topRight(),
+            rect.topRight() + QPointF(0, fold),
+        ]
+    )
+
+    painter.setBrush(corner_color)
+    painter.drawPolygon(corner)
+
+
+def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    folder_pen = _configured_pen(_BRAND_BASE, size, scale=0.045)
+    painter.setPen(folder_pen)
+    painter.setBrush(_BRAND_SURFACE)
+
+    tab_rect = QRectF(size.width() * 0.14, size.height() * 0.28, size.width() * 0.34, size.height() * 0.22)
+    painter.drawRoundedRect(tab_rect, 3, 3)
+
+    body_rect = QRectF(size.width() * 0.12, size.height() * 0.4, size.width() * 0.72, size.height() * 0.42)
+    painter.drawRoundedRect(body_rect, 4, 4)
+
+    center = QPointF(size.width() * 0.7, size.height() * 0.52)
+    outer = size.width() * 0.16
+    inner = outer * 0.45
+
+    painter.setPen(QtCore.Qt.NoPen)
+    gradient = QLinearGradient(center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer)
+    gradient.setColorAt(0.0, _BRAND_PRIMARY)
+    gradient.setColorAt(1.0, _BRAND_ACCENT)
+    painter.setBrush(gradient)
+
+    painter.drawEllipse(center, outer, outer)
+
+    pointer = QtGui.QPolygonF(
+        [
+            QPointF(center.x(), center.y() + outer * 1.7),
+            QPointF(center.x() - outer * 0.8, center.y() + outer * 0.6),
+            QPointF(center.x() + outer * 0.8, center.y() + outer * 0.6),
+        ]
+    )
+    painter.drawPolygon(pointer)
+
+    painter.setBrush(_BRAND_LIGHT)
+    painter.drawEllipse(center, inner, inner)
+
+
+def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    _draw_document(painter, size)
+
+    painter.setPen(QtCore.Qt.NoPen)
+    painter.setBrush(_BRAND_ACCENT)
+
+    arrow_top = size.height() * 0.32
+    arrow_bottom = size.height() * 0.74
+    arrow_x = size.width() * 0.5
+    arrow_half = size.width() * 0.14
+
+    shaft_rect = QRectF(arrow_x - arrow_half * 0.45, arrow_top, arrow_half * 0.9, arrow_bottom - arrow_top - arrow_half * 0.9)
+    painter.drawRoundedRect(shaft_rect, 2, 2)
+
+    arrow = QtGui.QPolygonF(
+        [
+            QPointF(arrow_x - arrow_half, arrow_bottom - arrow_half),
+            QPointF(arrow_x + arrow_half, arrow_bottom - arrow_half),
+            QPointF(arrow_x, arrow_bottom),
+        ]
+    )
+    painter.drawPolygon(arrow)
+
+
+def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(_configured_pen(_BRAND_BASE, size, scale=0.04))
+    painter.setBrush(_BRAND_SURFACE)
+
+    body_rect = QRectF(size.width() * 0.2, size.height() * 0.26, size.width() * 0.6, size.height() * 0.6)
+    painter.drawRoundedRect(body_rect, 4, 4)
+
+    painter.setPen(QtCore.Qt.NoPen)
+    painter.setBrush(_BRAND_PRIMARY)
+    clip_rect = QRectF(size.width() * 0.32, size.height() * 0.16, size.width() * 0.36, size.height() * 0.16)
+    painter.drawRoundedRect(clip_rect, 4, 4)
+
+    painter.setBrush(_BRAND_ACCENT)
+    handle_rect = QRectF(size.width() * 0.42, size.height() * 0.12, size.width() * 0.16, size.height() * 0.12)
+    painter.drawRoundedRect(handle_rect, 3, 3)
+
+    painter.setBrush(_BRAND_ACCENT)
+    arrow_top = body_rect.center().y() - size.height() * 0.06
+    arrow_bottom = body_rect.bottom() - size.height() * 0.08
+    arrow_x = body_rect.center().x()
+    half_width = size.width() * 0.13
+
+    shaft = QRectF(arrow_x - half_width * 0.3, arrow_top, half_width * 0.6, arrow_bottom - arrow_top - half_width * 0.7)
+    painter.drawRoundedRect(shaft, 2, 2)
+
+    arrow = QtGui.QPolygonF(
+        [
+            QPointF(arrow_x - half_width, arrow_bottom - half_width * 0.7),
+            QPointF(arrow_x + half_width, arrow_bottom - half_width * 0.7),
+            QPointF(arrow_x, arrow_bottom),
+        ]
+    )
+    painter.drawPolygon(arrow)
+
+
+def _generate_text_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+
+    pen = _configured_pen(_BRAND_LIGHT, size, scale=0.035)
+    pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+
+    start_x = size.width() * 0.32
+    end_x = size.width() * 0.68
+    line_spacing = size.height() * 0.12
+    baseline = size.height() * 0.38
+
+    for i in range(3):
+        y = baseline + line_spacing * i
+        painter.drawLine(QPointF(start_x, y), QPointF(end_x, y))
+
+    accent_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    accent_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+    painter.setPen(accent_pen)
+
+    bracket_top = size.height() * 0.44
+    bracket_bottom = size.height() * 0.68
+    bracket_x = size.width() * 0.42
+    painter.drawLine(QPointF(bracket_x, bracket_top), QPointF(bracket_x, bracket_bottom))
+    painter.drawLine(QPointF(bracket_x, bracket_top), QPointF(bracket_x + size.width() * 0.08, bracket_top))
+    painter.drawLine(QPointF(bracket_x, bracket_bottom), QPointF(bracket_x + size.width() * 0.08, bracket_bottom))
+
+
+def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    shadow_offset = QPointF(-size.width() * 0.08, size.height() * 0.08)
+    painter.setOpacity(0.65)
+    _draw_document(painter, size, offset=shadow_offset, body_color=_BRAND_BASE, corner_color=_BRAND_PRIMARY)
+    painter.setOpacity(1.0)
+    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+
+    painter.setPen(QtCore.Qt.NoPen)
+    painter.setBrush(_BRAND_ACCENT)
+
+    arrow = QtGui.QPolygonF(
+        [
+            QPointF(size.width() * 0.34, size.height() * 0.58),
+            QPointF(size.width() * 0.66, size.height() * 0.58),
+            QPointF(size.width() * 0.5, size.height() * 0.78),
+        ]
+    )
+    painter.drawPolygon(arrow)
+
+
+def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    center = QPointF(size.width() / 2, size.height() / 2)
+    radius = min(size.width(), size.height()) * 0.42
+
+    painter.setPen(QtCore.Qt.NoPen)
+    gradient = QLinearGradient(center.x() - radius, center.y() - radius, center.x() + radius, center.y() + radius)
+    gradient.setColorAt(0.0, _BRAND_SURFACE)
+    gradient.setColorAt(1.0, _BRAND_BASE)
+    painter.setBrush(gradient)
+    painter.drawEllipse(center, radius, radius)
+
+    play_path = QtGui.QPolygonF(
+        [
+            QPointF(size.width() * 0.46, size.height() * 0.36),
+            QPointF(size.width() * 0.46, size.height() * 0.64),
+            QPointF(size.width() * 0.68, size.height() * 0.5),
+        ]
+    )
+    painter.setBrush(_BRAND_PRIMARY)
+    painter.drawPolygon(play_path)
+
+    bar_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    bar_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+    painter.setPen(bar_pen)
+    painter.drawLine(QPointF(size.width() * 0.34, size.height() * 0.42), QPointF(size.width() * 0.34, size.height() * 0.62))
+    painter.drawLine(QPointF(size.width() * 0.28, size.height() * 0.48), QPointF(size.width() * 0.28, size.height() * 0.58))
+
+
+_ICON_GENERATORS: dict[str, Callable[[QPainter, QSize], None]] = {
+    "choose_root": _generate_choose_root_icon,
+    "load_file": _generate_load_file_icon,
+    "from_clipboard": _generate_clipboard_icon,
+    "from_text": _generate_text_icon,
+    "load_diff": _generate_load_diff_icon,
+    "analyze": _generate_analyze_icon,
+}
+
+
+def _create_generated_icon(name: str, size: QSize) -> QtGui.QIcon | None:
+    generator = _ICON_GENERATORS.get(name)
+    if generator is None:
+        return None
+
+    pixmap = QPixmap(size)
+    pixmap.fill(QtCore.Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    try:
+        generator(painter, size)
+    finally:
+        painter.end()
+
+    if pixmap.isNull():
+        return None
+    return QtGui.QIcon(pixmap)
 
 
 def _qt_slot(
@@ -780,10 +1040,29 @@ class MainWindow(_QMainWindowBase):
 
         style = self.style()
 
+        def load_icon(
+            name: str,
+            fallback: QtWidgets.QStyle.StandardPixmap,
+        ) -> QtGui.QIcon:
+            filename = _ICON_FILE_NAMES.get(name)
+            if filename:
+                icon_path = _ICON_DIR / filename
+                if icon_path.exists():
+                    icon = QtGui.QIcon(str(icon_path))
+                    if not icon.isNull():
+                        return icon
+
+            generated = _create_generated_icon(name, _ICON_SIZE)
+            if generated is not None:
+                return generated
+
+            return style.standardIcon(fallback)
+
         self.toolbar = QtWidgets.QToolBar(_("Azioni"))
         self.toolbar.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
+        self.toolbar.setIconSize(_ICON_SIZE)
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.root_edit = QtWidgets.QLineEdit()
@@ -797,7 +1076,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addAction(root_widget_action)
 
         self.action_choose_root = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
+            load_icon("choose_root", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
             _("Scegli root…"),
             self,
         )
@@ -813,7 +1092,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addSeparator()
 
         self.action_load_file = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
+            load_icon("load_file", QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
             _("Apri file diff…"),
             self,
         )
@@ -822,7 +1101,7 @@ class MainWindow(_QMainWindowBase):
         self.action_load_file.triggered.connect(self.load_diff_file)
 
         self.action_from_clip = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
+            load_icon("from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
             _("Da appunti"),
             self,
         )
@@ -833,9 +1112,7 @@ class MainWindow(_QMainWindowBase):
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
         self.action_from_text = QtGui.QAction(
-            style.standardIcon(
-                QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
-            ),
+            load_icon("from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView),
             _("Da testo"),
             self,
         )
@@ -855,7 +1132,7 @@ class MainWindow(_QMainWindowBase):
         self.load_diff_button = QtWidgets.QToolButton()
         self.load_diff_button.setText(_("Carica diff"))
         self.load_diff_button.setIcon(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
+            load_icon("load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
         )
         self.load_diff_button.setToolTip(
             _("Scegli come caricare o analizzare il diff da elaborare")
@@ -876,7 +1153,7 @@ class MainWindow(_QMainWindowBase):
         self.toolbar.addAction(load_diff_widget_action)
 
         self.action_analyze = QtGui.QAction(
-            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
+            load_icon("analyze", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
             _("Analizza diff"),
             self,
         )
