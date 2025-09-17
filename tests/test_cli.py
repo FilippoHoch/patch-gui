@@ -268,6 +268,15 @@ def test_load_patch_applies_non_utf8_diff(tmp_path: Path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
+def test_load_patch_respects_explicit_encoding(tmp_path: Path) -> None:
+    patch_path = tmp_path / "explicit.diff"
+    patch_path.write_text(NON_UTF8_DIFF, encoding="utf-16")
+
+    patch = cli.load_patch(str(patch_path), encoding="utf-16")
+
+    assert "nuova riga con caffè" in str(patch)
+
+
 def test_load_patch_logs_warning_on_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -428,6 +437,87 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         for handler in previous_handlers:
             configured_logger.addHandler(handler)
         configured_logger.setLevel(previous_level)
+
+
+def _create_dummy_session(tmp_path: Path):
+    class DummySession:
+        def __init__(self) -> None:
+            self.dry_run = True
+            self.report_json_path = None
+            self.report_txt_path = None
+            self.results = []
+            self.backup_dir = tmp_path / "backups"
+            self.backup_dir.mkdir(exist_ok=True)
+
+        def to_txt(self) -> str:
+            return "Summary"
+
+    return DummySession()
+
+
+def test_run_cli_passes_explicit_encoding(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["encoding"] = encoding
+        captured["source"] = source
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(*args: object, **kwargs: object) -> object:
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--encoding",
+            "utf-16",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["encoding"] == "utf-16"
+    assert captured["source"] == str(patch_path)
+
+
+def test_run_cli_defaults_to_auto_encoding(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["encoding"] = encoding
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(*args: object, **kwargs: object) -> object:
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    exit_code = cli.run_cli(
+        ["--root", str(project), "--dry-run", str(patch_path)]
+    )
+
+    assert exit_code == 0
+    assert captured["encoding"] is None
 
 
 @pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

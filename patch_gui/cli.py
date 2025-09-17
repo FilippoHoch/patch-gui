@@ -45,7 +45,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     )
 
     try:
-        patch = load_patch(args.patch)
+        patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
         backup_base = (
             Path(raw_backup).expanduser()
