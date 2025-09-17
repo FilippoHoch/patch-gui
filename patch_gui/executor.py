@@ -217,12 +217,13 @@ def _apply_file_patch(
         return fr
 
     is_added_file = bool(getattr(pf, "is_added_file", False))
+    is_removed_file = bool(getattr(pf, "is_removed_file", False))
     source_file = getattr(pf, "source_file", None)
     target_file = getattr(pf, "target_file", None)
     if isinstance(source_file, str) and source_file.strip() == "/dev/null":
         is_added_file = True
     if isinstance(target_file, str) and target_file.strip() == "/dev/null":
-        is_added_file = True
+        is_removed_file = True
 
     candidates = find_file_candidates(
         project_root,
@@ -315,10 +316,27 @@ def _apply_file_patch(
     if not session.dry_run and applied:
         if is_new_file:
             path.parent.mkdir(parents=True, exist_ok=True)
-        new_text = "".join(lines)
-        if not is_new_file:
+            new_text = "".join(lines)
+            write_text_preserving_encoding(path, new_text, file_encoding)
+        elif is_removed_file:
+            try:
+                path.unlink()
+            except Exception as exc:
+                message = _("Failed to delete the file: {error}").format(error=exc)
+                fr.skipped_reason = message
+                fr.decisions.append(
+                    HunkDecision(
+                        hunk_header="(delete-file)",
+                        strategy="failed",
+                        selected_pos=None,
+                        message=message,
+                    )
+                )
+                fr.hunks_applied = 0
+        else:
+            new_text = "".join(lines)
             new_text = new_text.replace("\n", orig_eol)
-        write_text_preserving_encoding(path, new_text, file_encoding)
+            write_text_preserving_encoding(path, new_text, file_encoding)
 
     return fr
 

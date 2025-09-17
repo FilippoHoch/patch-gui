@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from unidiff import PatchSet
 
+import patch_gui.executor as executor
+
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -19,6 +21,14 @@ from patch_gui.patcher import (
     write_reports,
 )
 from patch_gui.utils import format_session_timestamp
+
+
+REMOVED_DIFF = """--- a/sample.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line
+-line2
+"""
 
 
 def test_find_candidates_returns_exact_match_first() -> None:
@@ -136,6 +146,48 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     assert captured[0][1] == expected_candidates
     assert decisions[0].candidates == expected_candidates
     assert decisions[0].message == "context review"
+
+
+def test_apply_file_patch_removes_file(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "sample.txt"
+    original = "old line\nline2\n"
+    target.write_text(original, encoding="utf-8")
+
+    patch = PatchSet(REMOVED_DIFF)
+    backup_base = tmp_path / "backups"
+    backup_base.mkdir()
+    backup_dir = prepare_backup_dir(
+        project_root,
+        dry_run=False,
+        backup_base=backup_base,
+        started_at=0.0,
+    )
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=False,
+        threshold=0.85,
+        started_at=0.0,
+    )
+
+    pf = patch[0]
+    result = executor._apply_file_patch(
+        project_root,
+        pf,
+        "sample.txt",
+        session,
+        interactive=False,
+    )
+
+    assert result.skipped_reason is None
+    assert result.hunks_applied == result.hunks_total == 1
+    assert not target.exists()
+
+    backup_copy = backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
 
 
 def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:
