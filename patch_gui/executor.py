@@ -21,7 +21,6 @@ from .patcher import (
     DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
-    build_hunk_view,
     find_file_candidates,
     prepare_backup_dir,
 )
@@ -291,23 +290,12 @@ def _apply_file_patch(
     if not session.dry_run and not is_new_file:
         backup_file(project_root, path, session.backup_dir)
 
-    if is_new_file:
-        decisions: List[HunkDecision] = []
-        new_lines: List[str] = []
-        for hunk in pf:
-            hv = build_hunk_view(hunk)
-            new_lines.extend(hv.after_lines)
-            decision = HunkDecision(hunk_header=hv.header, strategy="new-file", selected_pos=0)
-            decisions.append(decision)
-        lines = new_lines
-        applied = len(decisions)
-    else:
-        lines, decisions, applied = apply_hunks(
-            lines,
-            pf,
-            threshold=session.threshold,
-            manual_resolver=_cli_manual_resolver,
-        )
+    lines, decisions, applied = apply_hunks(
+        lines,
+        pf,
+        threshold=session.threshold,
+        manual_resolver=_cli_manual_resolver,
+    )
 
     fr.hunks_applied = applied
     fr.decisions.extend(decisions)

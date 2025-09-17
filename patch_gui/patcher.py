@@ -392,6 +392,21 @@ def apply_hunks(
         decision = HunkDecision(hunk_header=hv.header, strategy="")
         logger.debug("Processo hunk: %s", hv.header)
 
+        if not current_lines and not hv.before_lines:
+            logger.debug("File vuoto: applico l'hunk %s come nuova creazione", hv.header)
+            current_lines, success = _apply(
+                current_lines,
+                hv,
+                decision,
+                0,
+                None,
+                "new-file",
+            )
+            if success:
+                applied_count += 1
+            decisions.append(decision)
+            continue
+
         exact_candidates = find_candidates(
             current_lines, hv.before_lines, threshold=1.0
         )
