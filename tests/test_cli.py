@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import json
 import logging
 import sys
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -409,6 +411,38 @@ def test_load_patch_logs_warning_on_fallback(
 
     assert isinstance(patch, PatchSet)
     assert any("fallback" in record.message.lower() for record in caplog.records)
+
+
+def test_load_patch_reads_stdin_with_fallback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    encoded = NON_UTF8_DIFF.encode("utf-16")
+    decoded = encoded.decode("utf-16")
+
+    fake_stdin = types.SimpleNamespace(buffer=io.BytesIO(encoded))
+
+    def _read() -> str:
+        fake_stdin.buffer.seek(0)
+        return decoded
+
+    fake_stdin.read = _read
+    monkeypatch.setattr(executor.sys, "stdin", fake_stdin)
+
+    real_decode = utils.decode_bytes
+
+    def fake_decode(data: bytes) -> tuple[str, str, bool]:
+        text, encoding, _ = real_decode(data)
+        return text, encoding, True
+
+    monkeypatch.setattr(executor, "decode_bytes", fake_decode)
+
+    with caplog.at_level(logging.WARNING):
+        patch = cli.load_patch("-")
+
+    assert isinstance(patch, PatchSet)
+    assert "nuova riga con caffè" in str(patch)
+    assert any("fallback" in record.message.lower() for record in caplog.records)
+    assert any("stdin" in record.message.lower() for record in caplog.records)
 
 
 def test_load_patch_missing_file_raises_clierror(tmp_path: Path) -> None:
