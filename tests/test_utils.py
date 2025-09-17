@@ -156,11 +156,7 @@ def test_preprocess_patch_text_handles_no_newline_marker() -> None:
 
 
 def test_preprocess_patch_text_allows_empty_hunks() -> None:
-    raw = (
-        "--- a/empty.txt\n"
-        "+++ b/empty.txt\n"
-        "@@ -0,0 +0,0 @@\n"
-    )
+    raw = "--- a/empty.txt\n" "+++ b/empty.txt\n" "@@ -0,0 +0,0 @@\n"
 
     processed = preprocess_patch_text(raw)
     assert processed == raw
@@ -180,6 +176,7 @@ def test_preprocess_patch_text_infers_missing_counts() -> None:
     processed = preprocess_patch_text(raw)
     header_line = processed.splitlines()[2]
     assert header_line == "@@ -1,2 +1,2 @@"
+
 
 def test_display_path_normalizes_windows_separators() -> None:
     win_path = Path(PureWindowsPath(r"C:\\projects\\demo\\file.txt"))

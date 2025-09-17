@@ -157,7 +157,9 @@ def _scan_hunk_body(lines: List[str], start: int) -> Tuple[int, int, int]:
     total = len(lines)
 
     while index < total:
-        continue_body, old_increment, new_increment = _hunk_body_line_effect(lines[index])
+        continue_body, old_increment, new_increment = _hunk_body_line_effect(
+            lines[index]
+        )
         if not continue_body:
             break
         old_count += old_increment

@@ -8,14 +8,34 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, TYPE_CHECKING
 
 try:  # Used when setuptools is available (build/install)
-    from setuptools.command.build_py import build_py as _build_py
-    from setuptools.command.sdist import sdist as _sdist
+    from setuptools.command.build_py import build_py as _setuptools_build_py
 except ModuleNotFoundError:  # pragma: no cover - CLI usage without setuptools installed
-    _build_py = None  # type: ignore[assignment]
-    _sdist = None  # type: ignore[assignment]
+    _setuptools_build_py = None
+
+try:
+    from setuptools.command.sdist import sdist as _setuptools_sdist
+except ModuleNotFoundError:  # pragma: no cover - CLI usage without setuptools installed
+    _setuptools_sdist = None
+
+if TYPE_CHECKING:  # pragma: no cover - typing helper
+    from setuptools.command.build_py import build_py as _BuildPyParent
+    from setuptools.command.sdist import sdist as _SDistParent
+else:
+
+    class _BuildPyParent:  # pragma: no cover - runtime placeholder
+        pass
+
+    class _SDistParent:  # pragma: no cover - runtime placeholder
+        pass
+
+
+_BuildPyBase = (
+    _setuptools_build_py if _setuptools_build_py is not None else _BuildPyParent
+)
+_SDistBase = _setuptools_sdist if _setuptools_sdist is not None else _SDistParent
 
 TRANSLATIONS_DIR = Path(__file__).resolve().parent / "patch_gui" / "translations"
 LRELEASE_CANDIDATES: tuple[str, ...] = ("pyside6-lrelease", "lrelease-qt6", "lrelease")
@@ -24,7 +44,9 @@ Announcer = Callable[[str, int], None]
 Level = int
 
 
-def _emit(message: str, level: Level = logging.INFO, announcer: Announcer | None = None) -> None:
+def _emit(
+    message: str, level: Level = logging.INFO, announcer: Announcer | None = None
+) -> None:
     if announcer is not None:
         announcer(message, level)
         return
@@ -116,42 +138,44 @@ def _compile_single(
     return qm_path
 
 
-if _build_py is not None:
+if _setuptools_build_py is not None:
 
-    class BuildPy(_build_py):
+    class BuildPy(_setuptools_build_py):
         """Custom build command that ensures Qt translations are generated."""
 
         def run(self) -> None:  # type: ignore[override]
             compile_translations(announcer=self.announce)
             super().run()
 
-
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
-    class BuildPy:  # type: ignore[no-redef]
+    class BuildPy(_BuildPyBase):  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
 
         def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError("setuptools is required to use the custom build command.")
+            raise RuntimeError(
+                "setuptools is required to use the custom build command."
+            )
 
 
-if _sdist is not None:
+if _setuptools_sdist is not None:
 
-    class SDist(_sdist):
+    class SDist(_setuptools_sdist):
         """Custom sdist command that ensures Qt translations are generated."""
 
         def run(self) -> None:  # type: ignore[override]
             compile_translations(announcer=self.announce)
             super().run()
 
-
 else:  # pragma: no cover - setuptools not installed when running CLI only
 
-    class SDist:  # type: ignore[no-redef]
+    class SDist(_SDistBase):  # type: ignore[no-redef]
         """Placeholder used when setuptools is not available."""
 
         def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError("setuptools is required to use the custom sdist command.")
+            raise RuntimeError(
+                "setuptools is required to use the custom sdist command."
+            )
 
 
 def main(argv: Optional[List[str]] = None) -> int:

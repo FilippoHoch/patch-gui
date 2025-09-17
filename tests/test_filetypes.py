@@ -1,23 +1,32 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import cast
+
 from unidiff import PatchSet
+from unidiff.patch import Hunk
+from unidiff.patch import PatchedFile
 
 from patch_gui.filetypes import FileTypeInfo, inspect_file_type
 
 
-def _first_file(diff: str):
+def _first_file(diff: str) -> PatchedFile:
     patch = PatchSet(diff)
     return patch[0]
 
 
 def test_inspect_python_file() -> None:
-    diff = """--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-print('hi')\n+print('hello')\n"""
+    diff = (
+        """--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-print('hi')\n+print('hello')\n"""
+    )
     info = inspect_file_type(_first_file(diff))
     assert info == FileTypeInfo(name="python")
 
 
 def test_inspect_json_file() -> None:
-    diff = """--- a/config.json\n+++ b/config.json\n@@ -1 +1 @@\n-{"a": 1}\n+{"a": 2}\n"""
+    diff = (
+        """--- a/config.json\n+++ b/config.json\n@@ -1 +1 @@\n-{"a": 1}\n+{"a": 2}\n"""
+    )
     info = inspect_file_type(_first_file(diff))
     assert info.name == "json"
     assert info.preserve_final_newline is True
@@ -31,13 +40,13 @@ def test_inspect_special_filename() -> None:
 
 def test_inspect_binary_stub() -> None:
     class DummyBinary:
-        path = "image.png"
-        source_file = "image.png"
-        target_file = "image.png"
-        is_binary_file = True
+        path: str | None = "image.png"
+        source_file: str | None = "image.png"
+        target_file: str | None = "image.png"
+        is_binary_file: bool | None = True
 
-        def __iter__(self):  # pragma: no cover - protocol requirement
-            return iter(())
+        def __iter__(self) -> Iterator[Hunk]:  # pragma: no cover - protocol requirement
+            return cast(Iterator[Hunk], iter(()))
 
     info = inspect_file_type(DummyBinary())
     assert info.name == "binary"
