@@ -69,7 +69,13 @@ def _qt_slot(
 ) -> Callable[[_F], _F]:
     """Typed wrapper around :func:`QtCore.Slot` to appease the type checker."""
 
-    return cast("Callable[[_F], _F]", QtCore.Slot(*types, name=name, result=result))
+    kwargs: dict[str, object] = {}
+    if name is not None:
+        kwargs["name"] = name
+    if result is not None:
+        kwargs["result"] = result
+
+    return cast("Callable[[_F], _F]", QtCore.Slot(*types, **kwargs))
 
 
 LOG_FILE_ENV_VAR: str = "PATCH_GUI_LOG_FILE"
