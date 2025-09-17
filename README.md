@@ -141,7 +141,7 @@ patch-gui apply --root . --non-interactive diff.patch
 - `--dry-run` simula l'applicazione lasciando i file invariati; i report vengono generati a meno di `--no-report`.
 - `--threshold` imposta la soglia fuzzy (default 0.85).
 - `--backup` permette di scegliere la cartella base (default `~/.diff_backups`).
-- `--report-json` / `--report-txt` impostano i percorsi dei report generati (default `<app>/reports/results/<timestamp>/apply-report.json|.txt`).
+- `--report-json` / `--report-txt` impostano i percorsi dei report generati (default `~/.diff_backups/reports/results/<timestamp>/apply-report.json|.txt`).
 - `--no-report` disattiva entrambi i file di report.
 - `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
 - `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
@@ -302,14 +302,14 @@ Aggiungi l'italiano e alcune parole tecniche:
 ## 🗂️ Struttura backup/report
 
 ```text
-.diff_backups/
+~/.diff_backups/
   2025YYYYMMDD-HHMMSS/
     path/del/file/originale.ext
-patch_gui/reports/
-  results/
-    2025YYYYMMDD-HHMMSS-fff/
-      apply-report.json
-      apply-report.txt
+  reports/
+    results/
+      2025YYYYMMDD-HHMMSS-fff/
+        apply-report.json
+        apply-report.txt
 ```
 
 ---
