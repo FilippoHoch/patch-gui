@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,21 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
+
+
+def test_session_report_highlights_missing_changes(tmp_path: Path) -> None:
+    session = executor.ApplySession(
+        project_root=tmp_path,
+        backup_dir=tmp_path / "backup",
+        dry_run=True,
+        threshold=0.85,
+        started_at=time.time(),
+    )
+
+    report = session.to_txt()
+
+    assert "Riepilogo:" in report
+    assert "Nessuna modifica è stata applicata ai file." in report
 
 
 def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:

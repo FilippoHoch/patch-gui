@@ -156,6 +156,19 @@ class ApplySession:
         lines.append(f"Soglia fuzzy: {self.threshold}")
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else "(nessuna)"
         lines.append(f"Directory escluse: {excludes}")
+        total_files = len(self.results)
+        total_hunks = sum(fr.hunks_total for fr in self.results)
+        applied_hunks = sum(fr.hunks_applied for fr in self.results)
+        changed_files = sum(1 for fr in self.results if fr.hunks_applied > 0)
+        skipped_files = sum(1 for fr in self.results if fr.skipped_reason)
+        lines.append("Riepilogo:")
+        lines.append(f"  File analizzati: {total_files}")
+        lines.append(f"  File con modifiche: {changed_files}")
+        if skipped_files:
+            lines.append(f"  File saltati: {skipped_files}")
+        lines.append(f"  Hunks applicati: {applied_hunks}/{total_hunks}")
+        if not total_hunks or not applied_hunks:
+            lines.append("  Nessuna modifica è stata applicata ai file.")
         lines.append("")
         for fr in self.results:
             lines.append(f"File: {fr.relative_to_root}")
