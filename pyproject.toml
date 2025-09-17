@@ -48,6 +48,8 @@ module = [
     "charset_normalizer.*",
     "unidiff",
     "unidiff.*",
+    "setuptools",
+    "setuptools.*",
 ]
 ignore_missing_imports = true
 
