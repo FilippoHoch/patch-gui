@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,7 +10,15 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
-from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from .utils import (
+    APP_NAME,
+    BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
+    decode_bytes,
+    normalize_newlines,
+    write_text_preserving_encoding,
+)
 
 
 class _HunkLine(Protocol):
@@ -120,6 +129,17 @@ class HunkView:
     header: str
     before_lines: List[str]
     after_lines: List[str]
+
+
+logger = logging.getLogger(__name__)
+
+
+class PatchApplicationError(RuntimeError):
+    """Raised when a recoverable error occurs while applying a file patch."""
+
+    def __init__(self, skipped_reason: str) -> None:
+        super().__init__(skipped_reason)
+        self.skipped_reason = skipped_reason
 
 
 ManualResolver = Callable[["HunkView", List[str], List[Tuple[int, float]], HunkDecision, str], Optional[int]]
@@ -301,6 +321,48 @@ def apply_hunks(
     return current_lines, decisions, applied_count
 
 
+def apply_patch_to_file(
+    path: Path,
+    hunks: Iterable[_HunkLike],
+    *,
+    session: ApplySession,
+    manual_resolver: Optional[ManualResolver] = None,
+) -> Tuple[List[HunkDecision], int]:
+    """Apply ``hunks`` to ``path`` according to ``session`` settings."""
+
+    try:
+        raw = path.read_bytes()
+    except Exception as exc:  # pragma: no cover - filesystem errors are environment-dependent
+        raise PatchApplicationError(f"Impossibile leggere il file: {exc}") from exc
+
+    content, file_encoding, used_fallback = decode_bytes(raw)
+    if used_fallback:
+        logger.warning(
+            "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
+            "alcuni caratteri potrebbero essere sostituiti.",
+            path,
+            file_encoding,
+        )
+    orig_eol = "\r\n" if "\r\n" in content else "\n"
+    lines = normalize_newlines(content).splitlines(keepends=True)
+
+    if not session.dry_run:
+        backup_file(session.project_root, path, session.backup_dir)
+
+    lines, decisions, applied = apply_hunks(
+        lines,
+        hunks,
+        threshold=session.threshold,
+        manual_resolver=manual_resolver,
+    )
+
+    if not session.dry_run and applied:
+        new_text = "".join(lines).replace("\n", orig_eol)
+        write_text_preserving_encoding(path, new_text, file_encoding)
+
+    return decisions, applied
+
+
 def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
     """Return possible file matches for ``rel_path`` relative to ``project_root``."""
 
@@ -408,8 +470,10 @@ __all__ = [
     "HunkDecision",
     "HunkView",
     "ManualResolver",
+    "PatchApplicationError",
     "apply_hunk_at_position",
     "apply_hunks",
+    "apply_patch_to_file",
     "backup_file",
     "build_hunk_view",
     "find_file_candidates",

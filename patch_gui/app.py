@@ -21,8 +21,8 @@ from .patcher import (
     ApplySession,
     FileResult,
     HunkView,
-    apply_hunks,
-    backup_file,
+    PatchApplicationError,
+    apply_patch_to_file,
     build_hunk_view as patcher_build_hunk_view,
     find_file_candidates,
     prepare_backup_dir,
@@ -31,10 +31,7 @@ from .patcher import (
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
-    decode_bytes,
-    normalize_newlines,
     preprocess_patch_text,
-    write_text_preserving_encoding,
 )
 
 
@@ -317,39 +314,18 @@ class PatchApplyWorker(QtCore.QThread):
         fr.hunks_total = len(pf)
 
         try:
-            raw = path.read_bytes()
-        except Exception as e:
-            fr.skipped_reason = f"Impossibile leggere file: {e}"
-            return fr
-
-        content_str, file_encoding, used_fallback = decode_bytes(raw)
-        if used_fallback:
-            logger.warning(
-                "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-                "alcuni caratteri potrebbero essere sostituiti.",
+            decisions, applied = apply_patch_to_file(
                 path,
-                file_encoding,
+                pf,
+                session=self.session,
+                manual_resolver=self._resolve_hunk_choice,
             )
-        orig_eol = "\r\n" if "\r\n" in content_str else "\n"
-        lines = normalize_newlines(content_str).splitlines(keepends=True)
-
-        if not self.session.dry_run:
-            backup_file(self.session.project_root, path, self.session.backup_dir)
-
-        lines, decisions, applied = apply_hunks(
-            lines,
-            pf,
-            threshold=self.session.threshold,
-            manual_resolver=self._resolve_hunk_choice,
-        )
+        except PatchApplicationError as exc:
+            fr.skipped_reason = exc.skipped_reason
+            return fr
 
         fr.hunks_applied = applied
         fr.decisions.extend(decisions)
-
-        if not self.session.dry_run and applied:
-            new_text = "".join(lines)
-            new_text = new_text.replace("\n", orig_eol)
-            write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 
@@ -749,39 +725,18 @@ class MainWindow(QtWidgets.QMainWindow):
         fr.hunks_total = len(pf)
 
         try:
-            raw = path.read_bytes()
-        except Exception as e:
-            fr.skipped_reason = f"Impossibile leggere file: {e}"
-            return fr
-
-        content_str, file_encoding, used_fallback = decode_bytes(raw)
-        if used_fallback:
-            logger.warning(
-                "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-                "alcuni caratteri potrebbero essere sostituiti.",
+            decisions, applied = apply_patch_to_file(
                 path,
-                file_encoding,
+                pf,
+                session=session,
+                manual_resolver=self._dialog_hunk_choice,
             )
-        orig_eol = "\r\n" if "\r\n" in content_str else "\n"
-        lines = normalize_newlines(content_str).splitlines(keepends=True)
-
-        if not session.dry_run:
-            backup_file(self.project_root, path, session.backup_dir)
-
-        lines, decisions, applied = apply_hunks(
-            lines,
-            pf,
-            threshold=session.threshold,
-            manual_resolver=self._dialog_hunk_choice,
-        )
+        except PatchApplicationError as exc:
+            fr.skipped_reason = exc.skipped_reason
+            return fr
 
         fr.hunks_applied = applied
         fr.decisions.extend(decisions)
-
-        if not session.dry_run and applied:
-            new_text = "".join(lines)
-            new_text = new_text.replace("\n", orig_eol)
-            write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 

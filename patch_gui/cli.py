@@ -17,8 +17,8 @@ from .patcher import (
     FileResult,
     HunkDecision,
     HunkView,
-    apply_hunks,
-    backup_file,
+    PatchApplicationError,
+    apply_patch_to_file,
     find_file_candidates,
     prepare_backup_dir,
     write_reports,
@@ -29,9 +29,7 @@ from .utils import (
     REPORT_JSON,
     REPORT_TXT,
     decode_bytes,
-    normalize_newlines,
     preprocess_patch_text,
-    write_text_preserving_encoding,
 )
 
 _LOG_LEVEL_CHOICES = ("critical", "error", "warning", "info", "debug")
@@ -319,38 +317,18 @@ def _apply_file_patch(
         fr.relative_to_root = str(path)
 
     try:
-        raw = path.read_bytes()
-    except Exception as exc:
-        fr.skipped_reason = f"Impossibile leggere il file: {exc}"
-        return fr
-
-    content, file_encoding, used_fallback = decode_bytes(raw)
-    if used_fallback:
-        logger.warning(
-            "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-            "alcuni caratteri potrebbero essere sostituiti.",
+        decisions, applied = apply_patch_to_file(
             path,
-            file_encoding,
+            pf,
+            session=session,
+            manual_resolver=_cli_manual_resolver,
         )
-    orig_eol = "\r\n" if "\r\n" in content else "\n"
-    lines = normalize_newlines(content).splitlines(keepends=True)
-
-    if not session.dry_run:
-        backup_file(project_root, path, session.backup_dir)
-
-    lines, decisions, applied = apply_hunks(
-        lines,
-        pf,
-        threshold=session.threshold,
-        manual_resolver=_cli_manual_resolver,
-    )
+    except PatchApplicationError as exc:
+        fr.skipped_reason = exc.skipped_reason
+        return fr
 
     fr.hunks_applied = applied
     fr.decisions.extend(decisions)
-
-    if not session.dry_run and applied:
-        new_text = "".join(lines).replace("\n", orig_eol)
-        write_text_preserving_encoding(path, new_text, file_encoding)
 
     return fr
 

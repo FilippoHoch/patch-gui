@@ -10,6 +10,7 @@ import pytest
 from unidiff import PatchSet
 
 from patch_gui import cli
+import patch_gui.patcher as patcher
 import patch_gui.utils as utils
 from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
 
@@ -364,7 +365,7 @@ def test_apply_patchset_logs_warning_on_fallback(
         text, encoding, _ = real_decode(data)
         return text, encoding, True
 
-    monkeypatch.setattr(cli, "decode_bytes", fake_decode)
+    monkeypatch.setattr(patcher, "decode_bytes", fake_decode)
 
     with caplog.at_level(logging.WARNING):
         session = cli.apply_patchset(

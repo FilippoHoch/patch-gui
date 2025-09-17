@@ -1,20 +1,43 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import pytest
 from unidiff import PatchSet
 
 from patch_gui.patcher import (
+    ApplySession,
     HunkDecision,
     HunkView,
+    PatchApplicationError,
     apply_hunk_at_position,
     apply_hunks,
+    apply_patch_to_file,
     backup_file,
     find_candidates,
     find_file_candidates,
     prepare_backup_dir,
 )
+
+
+SAMPLE_DIFF = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,2 +1,2 @@
+-old line
++new line
+ line2
+"""
+
+
+def _make_session(project_root: Path, *, dry_run: bool) -> ApplySession:
+    return ApplySession(
+        project_root=project_root,
+        backup_dir=project_root / "backups",
+        dry_run=dry_run,
+        threshold=0.85,
+        started_at=time.time(),
+    )
 
 
 def test_find_candidates_returns_exact_match_first() -> None:
@@ -122,3 +145,56 @@ def test_backup_file_copies_content(tmp_path: Path) -> None:
     copied = backup_root / "data.txt"
     assert copied.exists()
     assert copied.read_text(encoding="utf-8") == "hello"
+
+
+def test_apply_patch_to_file_updates_content_and_creates_backup(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "sample.txt"
+    original = "old line\r\nline2\r\n"
+    target.write_text(original, encoding="utf-8")
+
+    session = _make_session(project_root, dry_run=False)
+    pf = PatchSet(SAMPLE_DIFF)[0]
+
+    decisions, applied = apply_patch_to_file(target, pf, session=session)
+
+    assert applied == 1
+    assert decisions
+    assert target.read_bytes() == "new line\r\nline2\r\n".encode("utf-8")
+
+    backup_copy = session.backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == original.encode("utf-8")
+
+
+def test_apply_patch_to_file_dry_run_preserves_file(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "sample.txt"
+    target.write_text("old line\nline2\n", encoding="utf-8")
+
+    session = _make_session(project_root, dry_run=True)
+    pf = PatchSet(SAMPLE_DIFF)[0]
+
+    decisions, applied = apply_patch_to_file(target, pf, session=session)
+
+    assert applied == 1
+    assert decisions
+    assert target.read_text(encoding="utf-8") == "old line\nline2\n"
+    assert not session.backup_dir.exists()
+
+
+def test_apply_patch_to_file_raises_patch_application_error(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    session = _make_session(project_root, dry_run=True)
+    missing = project_root / "missing.txt"
+    pf = PatchSet(SAMPLE_DIFF)[0]
+
+    with pytest.raises(PatchApplicationError) as excinfo:
+        apply_patch_to_file(missing, pf, session=session)
+
+    message = str(excinfo.value)
+    assert message.startswith("Impossibile leggere il file:")
+    assert excinfo.value.skipped_reason == message
