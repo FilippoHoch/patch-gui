@@ -129,6 +129,17 @@ Per eseguire la suite automatizzata del progetto:
 pytest
 ```
 
+### Pre-commit hooks
+
+Per allineare automaticamente formattazione, linting e test rapidi prima dei commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+# (facoltativo) esegui subito tutti gli hook sul repository
+pre-commit run --all-files
+```
+
 ### Verifica manuale barra di avanzamento
 
 1. Avvia la GUI (`patch-gui`) e analizza un diff contenente più file/hunk.
