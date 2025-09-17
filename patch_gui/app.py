@@ -21,6 +21,7 @@ from .patcher import (
     ApplySession,
     FileResult,
     HunkView,
+    DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
     build_hunk_view as patcher_build_hunk_view,
@@ -298,7 +299,11 @@ class PatchApplyWorker(QtCore.QThread):
     def apply_file_patch(self, pf: Any, rel_path: str) -> FileResult:
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
-        candidates = find_file_candidates(self.session.project_root, rel_path)
+        candidates = find_file_candidates(
+            self.session.project_root,
+            rel_path,
+            exclude_dirs=self.session.exclude_dirs,
+        )
         if not candidates:
             fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
             logger.warning("SKIP: %s non trovato.", rel_path)
@@ -396,6 +401,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.patch: Optional[PatchSet] = None
 
         self.threshold = 0.85
+        self.exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
 
@@ -460,6 +466,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.spin_thresh.setDecimals(2)
         self.spin_thresh.setValue(self.threshold)
         second.addWidget(self.spin_thresh)
+
+        second.addSpacing(20)
+        second.addWidget(QtWidgets.QLabel("Ignora directory"))
+        self.exclude_edit = QtWidgets.QLineEdit(", ".join(DEFAULT_EXCLUDE_DIRS))
+        self.exclude_edit.setPlaceholderText("es. .git,.venv,node_modules")
+        self.exclude_edit.setToolTip(
+            "Elenco di directory da ignorare (relative alla root), separate da virgola."
+        )
+        second.addWidget(self.exclude_edit, 1)
         second.addStretch(1)
 
         splitter = QtWidgets.QSplitter()
@@ -549,6 +564,23 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.settings.remove("last_project_root")
             self.settings.sync()
+
+    def _current_exclude_dirs(self) -> tuple[str, ...]:
+        text = self.exclude_edit.text() if hasattr(self, "exclude_edit") else ""
+        if not text:
+            return DEFAULT_EXCLUDE_DIRS
+        parsed: list[str] = []
+        for item in text.split(","):
+            normalized = item.strip()
+            if normalized:
+                parsed.append(normalized)
+        if not parsed:
+            return DEFAULT_EXCLUDE_DIRS
+        unique: list[str] = []
+        for value in parsed:
+            if value not in unique:
+                unique.append(value)
+        return tuple(unique)
 
     def choose_root(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(self, "Seleziona root del progetto")
@@ -654,11 +686,15 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         dry = self.chk_dry.isChecked()
         thr = float(self.spin_thresh.value())
+        excludes = self._current_exclude_dirs()
+        self.exclude_dirs = excludes
+        backup_dir = prepare_backup_dir(self.project_root, dry_run=dry)
         session = ApplySession(
             project_root=self.project_root,
-            backup_dir=prepare_backup_dir(self.project_root, dry_run=dry),
+            backup_dir=backup_dir,
             dry_run=dry,
             threshold=thr,
+            exclude_dirs=excludes,
             started_at=time.time(),
         )
         worker = PatchApplyWorker(self.patch, session)
@@ -730,7 +766,11 @@ class MainWindow(QtWidgets.QMainWindow):
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
         assert self.project_root is not None
-        candidates = find_file_candidates(self.project_root, rel_path)
+        candidates = find_file_candidates(
+            self.project_root,
+            rel_path,
+            exclude_dirs=session.exclude_dirs,
+        )
         if not candidates:
             fr.skipped_reason = "File non trovato nella root – salto per preferenza utente"
             logger.warning("SKIP: %s non trovato.", rel_path)

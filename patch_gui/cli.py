@@ -17,6 +17,7 @@ from .patcher import (
     FileResult,
     HunkDecision,
     HunkView,
+    DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
     find_file_candidates,
@@ -132,6 +133,17 @@ def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.A
             "Livello di logging da inviare su stdout (debug, info, warning, error, critical)."
         ),
     )
+    parser.add_argument(
+        "--exclude-dir",
+        dest="exclude_dirs",
+        action="append",
+        metavar="NAME",
+        help=(
+            "Directory (relative alla root) da ignorare durante la ricerca dei file. "
+            "Specificare l'opzione più volte per indicarne più di una. Predefinite: %s."
+            % ", ".join(DEFAULT_EXCLUDE_DIRS)
+        ),
+    )
     return parser
 
 
@@ -178,6 +190,7 @@ def apply_patchset(
     report_json: Path | str | None = None,
     report_txt: Path | str | None = None,
     write_report_files: bool = True,
+    exclude_dirs: Sequence[str] | None = None,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
 
@@ -186,11 +199,14 @@ def apply_patchset(
         raise CLIError(f"Root del progetto non valida: {project_root}")
 
     backup_dir = prepare_backup_dir(root, dry_run=dry_run, backup_base=backup_base)
+    resolved_excludes = tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
+
     session = ApplySession(
         project_root=root,
         backup_dir=backup_dir,
         dry_run=dry_run,
         threshold=threshold,
+        exclude_dirs=resolved_excludes,
         started_at=time.time(),
     )
 
@@ -235,6 +251,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         backup_base = (
             Path(raw_backup).expanduser() if isinstance(raw_backup, str) and raw_backup else None
         )
+        exclude_dirs = _parse_exclude_dirs(args.exclude_dirs)
         session = apply_patchset(
             patch,
             Path(args.root),
@@ -245,6 +262,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             report_json=args.report_json,
             report_txt=args.report_txt,
             write_report_files=not args.no_report,
+            exclude_dirs=exclude_dirs,
         )
     except CLIError as exc:
         parser.exit(1, f"Errore: {exc}\n")
@@ -277,6 +295,21 @@ def _threshold_value(value: str) -> float:
     return parsed
 
 
+def _parse_exclude_dirs(values: Sequence[str] | None) -> tuple[str, ...]:
+    if not values:
+        return DEFAULT_EXCLUDE_DIRS
+    parsed: List[str] = []
+    for raw in values:
+        for item in raw.split(","):
+            normalized = item.strip()
+            if normalized:
+                parsed.append(normalized)
+    if not parsed:
+        return DEFAULT_EXCLUDE_DIRS
+    # Remove duplicates preserving order
+    return tuple(dict.fromkeys(parsed))
+
+
 def _relative_path_from_patch(pf: Any) -> str:
     rel = pf.path or pf.target_file or pf.source_file or ""
     return rel.strip()
@@ -297,7 +330,11 @@ def _apply_file_patch(
         fr.skipped_reason = "Patch binaria non supportata in modalità CLI"
         return fr
 
-    candidates = find_file_candidates(project_root, rel_path)
+    candidates = find_file_candidates(
+        project_root,
+        rel_path,
+        exclude_dirs=session.exclude_dirs,
+    )
     if not candidates:
         fr.skipped_reason = "File non trovato nella root del progetto"
         return fr
