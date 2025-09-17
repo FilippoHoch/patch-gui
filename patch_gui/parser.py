@@ -114,11 +114,11 @@ def build_parser(
         dest="exclude_dirs",
         action="append",
         metavar="NAME",
-        help=(
-            "Directory (relative alla root) da ignorare durante la ricerca dei file. "
-            "Specificare l'opzione più volte per indicarne più di una. Predefinite: %s."
-            % ", ".join(DEFAULT_EXCLUDE_DIRS)
-        ),
+        help=_(
+            "Directory (relative to the root) to ignore while searching for files. "
+            "Specify the option multiple times to provide more than one. Defaults: %s."
+        )
+        % ", ".join(DEFAULT_EXCLUDE_DIRS),
     )
     return parser
 

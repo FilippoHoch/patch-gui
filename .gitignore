@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .fetch-client
 *.qm
+*.mo
 patch_gui/reports/
 .diff_backups/
 .venv-upgrade
