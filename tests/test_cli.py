@@ -47,6 +47,13 @@ NON_UTF8_DIFF = """--- a/sample.txt
  line2
 """
 
+ADDED_DIFF = """--- /dev/null
++++ b/docs/newfile.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -167,6 +174,28 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     assert file_result.file_type == "text"
 
 
+def test_apply_patchset_dry_run_adds_new_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(ADDED_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    target = project / "docs" / "newfile.txt"
+    assert not target.exists()
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.relative_to_root == "docs/newfile.txt"
+    assert file_result.file_path == target
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
+
+
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
 
@@ -213,6 +242,30 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
     assert utils.default_backup_base() in default_dir.parents
     assert not (default_dir / REPORT_JSON).exists()
     assert not (default_dir / REPORT_TXT).exists()
+
+
+def test_apply_patchset_real_run_adds_new_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(ADDED_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    target = project / "docs" / "newfile.txt"
+    assert target.exists()
+    assert target.read_text(encoding="utf-8") == "first line\nsecond line\n"
+    assert not (session.backup_dir / "docs" / "newfile.txt").exists()
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.relative_to_root == "docs/newfile.txt"
+    assert file_result.file_path == target
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.file_type == "text"
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:
