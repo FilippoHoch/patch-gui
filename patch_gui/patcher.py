@@ -12,6 +12,9 @@ from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Seque
 from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
 
 
+DEFAULT_EXCLUDE_DIRS: tuple[str, ...] = (".git", ".venv", "node_modules")
+
+
 class _HunkLine(Protocol):
     line_type: str
     value: str
@@ -52,6 +55,7 @@ class ApplySession:
     dry_run: bool
     threshold: float
     started_at: float
+    exclude_dirs: Sequence[str] = field(default_factory=lambda: DEFAULT_EXCLUDE_DIRS)
     results: List[FileResult] = field(default_factory=list)
     report_json_path: Optional[Path] = None
     report_txt_path: Optional[Path] = None
@@ -62,6 +66,7 @@ class ApplySession:
             "backup_dir": str(self.backup_dir),
             "dry_run": self.dry_run,
             "threshold": self.threshold,
+            "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "files": [
                 {
@@ -94,6 +99,8 @@ class ApplySession:
         lines.append(f"Backup: {self.backup_dir}")
         lines.append(f"Dry-run: {self.dry_run}")
         lines.append(f"Soglia fuzzy: {self.threshold}")
+        excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else "(nessuna)"
+        lines.append(f"Directory escluse: {excludes}")
         lines.append("")
         for fr in self.results:
             lines.append(f"File: {fr.relative_to_root}")
@@ -301,7 +308,12 @@ def apply_hunks(
     return current_lines, decisions, applied_count
 
 
-def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
+def find_file_candidates(
+    project_root: Path,
+    rel_path: str,
+    *,
+    exclude_dirs: Sequence[str] = DEFAULT_EXCLUDE_DIRS,
+) -> List[Path]:
     """Return possible file matches for ``rel_path`` relative to ``project_root``."""
 
     rel = rel_path.strip()
@@ -315,7 +327,39 @@ def find_file_candidates(project_root: Path, rel_path: str) -> List[Path]:
         return [exact]
 
     name = Path(rel).name
-    matches = [p for p in project_root.rglob(name) if p.is_file()]
+
+    normalized_excludes: List[Tuple[str, ...]] = []
+    for raw in exclude_dirs:
+        if not raw:
+            continue
+        parts = tuple(part for part in Path(raw).parts if part not in (".", ""))
+        if parts:
+            normalized_excludes.append(parts)
+
+    def should_exclude(path: Path) -> bool:
+        try:
+            relative = path.relative_to(project_root)
+        except ValueError:
+            return False
+        rel_parts = relative.parts[:-1]
+        if not rel_parts or not normalized_excludes:
+            return False
+        for pattern in normalized_excludes:
+            if len(pattern) == 1:
+                if pattern[0] in rel_parts:
+                    return True
+            else:
+                window = len(pattern)
+                for idx in range(len(rel_parts) - window + 1):
+                    if rel_parts[idx : idx + window] == pattern:
+                        return True
+        return False
+
+    matches = [
+        p
+        for p in project_root.rglob(name)
+        if p.is_file() and not should_exclude(p)
+    ]
     if not matches:
         return []
 

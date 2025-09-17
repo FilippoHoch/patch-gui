@@ -11,6 +11,7 @@ from patch_gui.patcher import (
     apply_hunk_at_position,
     apply_hunks,
     backup_file,
+    DEFAULT_EXCLUDE_DIRS,
     find_candidates,
     find_file_candidates,
     prepare_backup_dir,
@@ -99,6 +100,36 @@ def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:
 
     result = find_file_candidates(project_root, "a/src/pkg/module.py")
     assert result == [target / "module.py"]
+
+
+def test_find_file_candidates_excludes_default_directories(tmp_path: Path) -> None:
+    project_root = tmp_path
+    included_dir = project_root / "src"
+    included_dir.mkdir()
+    included_file = included_dir / "module.py"
+    included_file.write_text("print('ok')\n", encoding="utf-8")
+
+    excluded_file = project_root / DEFAULT_EXCLUDE_DIRS[0] / "module.py"
+    excluded_file.parent.mkdir(parents=True)
+    excluded_file.write_text("print('ignored')\n", encoding="utf-8")
+
+    result = find_file_candidates(project_root, "module.py")
+
+    assert result == [included_file]
+
+
+def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None:
+    project_root = tmp_path
+    hidden = project_root / ".venv" / "pkg"
+    hidden.mkdir(parents=True)
+    file_path = hidden / "module.py"
+    file_path.write_text("print('hidden')\n", encoding="utf-8")
+
+    assert find_file_candidates(project_root, "module.py") == []
+
+    custom = find_file_candidates(project_root, "module.py", exclude_dirs=())
+
+    assert custom == [file_path]
 
 
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
