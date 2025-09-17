@@ -783,33 +783,114 @@ class MainWindow(_QMainWindowBase):
 
         layout.addSpacing(6)
 
-        top = QtWidgets.QHBoxLayout()
-        layout.addLayout(top)
+        style = self.style()
+
+        self.toolbar = QtWidgets.QToolBar(_("Azioni"))
+        self.toolbar.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.root_edit = QtWidgets.QLineEdit()
         self.root_edit.setPlaceholderText("Root del progetto (seleziona cartella)")
-        self.btn_root = QtWidgets.QPushButton("Scegli root…")
-        self.btn_root.clicked.connect(self.choose_root)
+        self.root_edit.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+        root_widget_action = QtWidgets.QWidgetAction(self.toolbar)
+        root_widget_action.setDefaultWidget(self.root_edit)
+        self.toolbar.addAction(root_widget_action)
 
-        self.btn_load_file = QtWidgets.QPushButton("Apri .diff…")
-        self.btn_load_file.clicked.connect(self.load_diff_file)
+        self.action_choose_root = QtGui.QAction(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
+            _("Scegli root…"),
+            self,
+        )
+        self.action_choose_root.setToolTip(
+            _("Seleziona la cartella radice del progetto da analizzare")
+        )
+        self.action_choose_root.setStatusTip(
+            _("Scegli la directory del progetto da utilizzare come root")
+        )
+        self.action_choose_root.triggered.connect(self.choose_root)
+        self.toolbar.addAction(self.action_choose_root)
 
-        self.btn_from_clip = QtWidgets.QPushButton("Incolla da appunti")
-        self.btn_from_clip.clicked.connect(self.load_from_clipboard)
+        self.toolbar.addSeparator()
 
-        self.btn_from_text = QtWidgets.QPushButton("Analizza testo diff")
-        self.btn_from_text.clicked.connect(self.parse_from_textarea)
+        self.action_load_file = QtGui.QAction(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
+            _("Apri file diff…"),
+            self,
+        )
+        self.action_load_file.setToolTip(_("Seleziona un file .diff da aprire"))
+        self.action_load_file.setStatusTip(_("Carica un file diff dal disco"))
+        self.action_load_file.triggered.connect(self.load_diff_file)
 
-        self.btn_analyze = QtWidgets.QPushButton("Analizza diff")
-        self.btn_analyze.clicked.connect(self.analyze_diff)
+        self.action_from_clip = QtGui.QAction(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
+            _("Da appunti"),
+            self,
+        )
+        self.action_from_clip.setToolTip(_("Incolla il diff dagli appunti"))
+        self.action_from_clip.setStatusTip(
+            _("Carica il diff direttamente dagli appunti di sistema")
+        )
+        self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
-        top.addWidget(self.root_edit, 1)
-        top.addWidget(self.btn_root)
-        top.addSpacing(20)
-        top.addWidget(self.btn_load_file)
-        top.addWidget(self.btn_from_clip)
-        top.addWidget(self.btn_from_text)
-        top.addWidget(self.btn_analyze)
+        self.action_from_text = QtGui.QAction(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            _("Da testo"),
+            self,
+        )
+        self.action_from_text.setToolTip(
+            _("Analizza il diff inserito nell'editor di testo")
+        )
+        self.action_from_text.setStatusTip(
+            _("Analizza il diff incollato nell'editor interno")
+        )
+        self.action_from_text.triggered.connect(self.parse_from_textarea)
+
+        self.load_diff_menu = QtWidgets.QMenu(_("Carica diff"), self)
+        self.load_diff_menu.addAction(self.action_load_file)
+        self.load_diff_menu.addAction(self.action_from_clip)
+        self.load_diff_menu.addAction(self.action_from_text)
+
+        self.load_diff_button = QtWidgets.QToolButton()
+        self.load_diff_button.setText(_("Carica diff"))
+        self.load_diff_button.setIcon(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
+        )
+        self.load_diff_button.setToolTip(
+            _("Scegli come caricare o analizzare il diff da elaborare")
+        )
+        self.load_diff_button.setStatusTip(
+            _("Apri un menu con le opzioni di caricamento del diff")
+        )
+        self.load_diff_button.setToolButtonStyle(
+            QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        self.load_diff_button.setPopupMode(
+            QtWidgets.QToolButton.ToolButtonPopupMode.MenuButtonPopup
+        )
+        self.load_diff_button.setMenu(self.load_diff_menu)
+        self.load_diff_button.setDefaultAction(self.action_load_file)
+        load_diff_widget_action = QtWidgets.QWidgetAction(self.toolbar)
+        load_diff_widget_action.setDefaultWidget(self.load_diff_button)
+        self.toolbar.addAction(load_diff_widget_action)
+
+        self.action_analyze = QtGui.QAction(
+            style.standardIcon(QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
+            _("Analizza diff"),
+            self,
+        )
+        self.action_analyze.setToolTip(
+            _("Analizza il diff attualmente caricato o incollato")
+        )
+        self.action_analyze.setStatusTip(
+            _("Avvia l'analisi del diff selezionato")
+        )
+        self.action_analyze.triggered.connect(self.analyze_diff)
+        self.toolbar.addAction(self.action_analyze)
 
         second = QtWidgets.QHBoxLayout()
         layout.addLayout(second)
@@ -1151,16 +1232,22 @@ class MainWindow(_QMainWindowBase):
         return header + "".join(diff_lines)
 
     def _set_busy(self, busy: bool) -> None:
-        controls = [
-            self.btn_root,
-            self.btn_load_file,
-            self.btn_from_clip,
-            self.btn_from_text,
-            self.btn_analyze,
+        actions = [
+            self.action_choose_root,
+            self.action_load_file,
+            self.action_from_clip,
+            self.action_from_text,
+            self.action_analyze,
+        ]
+        for action in actions:
+            action.setEnabled(not busy)
+
+        widgets = [
+            self.load_diff_button,
             self.btn_apply,
             self.btn_restore,
         ]
-        for widget in controls:
+        for widget in widgets:
             widget.setEnabled(not busy)
         self.chk_dry.setEnabled(not busy)
         self.spin_thresh.setEnabled(not busy)
