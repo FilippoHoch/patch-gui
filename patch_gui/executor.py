@@ -18,6 +18,7 @@ from .patcher import (
     FileResult,
     HunkDecision,
     HunkView,
+    build_hunk_view,
     DEFAULT_EXCLUDE_DIRS,
     apply_hunks,
     backup_file,
@@ -199,61 +200,96 @@ def _apply_file_patch(
         fr.skipped_reason = _("Binary patches are not supported in CLI mode")
         return fr
 
+    added_file = bool(getattr(pf, "is_added_file", False))
+    source_file = getattr(pf, "source_file", "") or ""
+    target_file = getattr(pf, "target_file", "") or ""
+    if source_file.strip() == "/dev/null":
+        added_file = True
+    if target_file.strip() == "/dev/null" and not getattr(pf, "is_removed_file", False):
+        added_file = True
+
     candidates = find_file_candidates(
         project_root,
         rel_path,
         exclude_dirs=session.exclude_dirs,
     )
-    if not candidates:
-        fr.skipped_reason = _("File not found in the project root")
-        return fr
-    if len(candidates) > 1:
-        if not interactive:
-            fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
-            return fr
-        selected = _prompt_candidate_selection(project_root, candidates)
-        if selected is None:
-            fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
-            return fr
-        path = selected
+
+    path: Path
+    existing_file = False
+
+    if candidates:
+        if len(candidates) > 1:
+            if not interactive:
+                fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
+                return fr
+            selected = _prompt_candidate_selection(project_root, candidates)
+            if selected is None:
+                fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
+                return fr
+            path = selected
+        else:
+            path = candidates[0]
+        existing_file = True
     else:
-        path = candidates[0]
+        if added_file and rel_path:
+            path = project_root / rel_path
+        else:
+            fr.skipped_reason = _("File not found in the project root")
+            return fr
+
     fr.file_path = path
     fr.relative_to_root = display_relative_path(path, project_root)
 
-    try:
-        raw = path.read_bytes()
-    except Exception as exc:
-        fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
-        return fr
+    if existing_file:
+        try:
+            raw = path.read_bytes()
+        except Exception as exc:
+            fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
+            return fr
 
-    content, file_encoding, used_fallback = decode_bytes(raw)
-    if used_fallback:
-        logger.warning(
-            _(
-                "Decoded file %s using fallback UTF-8 (original encoding %s); "
-                "some characters may be substituted."
-            ),
-            path,
-            file_encoding,
+        content, file_encoding, used_fallback = decode_bytes(raw)
+        if used_fallback:
+            logger.warning(
+                _(
+                    "Decoded file %s using fallback UTF-8 (original encoding %s); "
+                    "some characters may be substituted."
+                ),
+                path,
+                file_encoding,
+            )
+        orig_eol = "\r\n" if "\r\n" in content else "\n"
+        lines = normalize_newlines(content).splitlines(keepends=True)
+
+        if not session.dry_run:
+            backup_file(project_root, path, session.backup_dir)
+
+        lines, decisions, applied = apply_hunks(
+            lines,
+            pf,
+            threshold=session.threshold,
+            manual_resolver=_cli_manual_resolver,
         )
-    orig_eol = "\r\n" if "\r\n" in content else "\n"
-    lines = normalize_newlines(content).splitlines(keepends=True)
-
-    if not session.dry_run:
-        backup_file(project_root, path, session.backup_dir)
-
-    lines, decisions, applied = apply_hunks(
-        lines,
-        pf,
-        threshold=session.threshold,
-        manual_resolver=_cli_manual_resolver,
-    )
+    else:
+        file_encoding = "utf-8"
+        orig_eol = "\n"
+        lines = []
+        decisions: List[HunkDecision] = []
+        applied = 0
+        for hunk in pf:
+            hv = build_hunk_view(hunk)
+            decision = HunkDecision(hunk_header=hv.header, strategy="exact")
+            decision.selected_pos = len(lines)
+            decision.similarity = 1.0
+            lines.extend(hv.after_lines)
+            decisions.append(decision)
+            applied += 1
 
     fr.hunks_applied = applied
     fr.decisions.extend(decisions)
 
     if not session.dry_run and applied:
+        if not existing_file:
+            path.parent.mkdir(parents=True, exist_ok=True)
         new_text = "".join(lines).replace("\n", orig_eol)
         write_text_preserving_encoding(path, new_text, file_encoding)
 
