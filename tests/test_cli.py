@@ -56,6 +56,13 @@ ADDED_DIFF = """--- /dev/null
 +second line
 """
 
+OUTSIDE_DIFF = """--- /dev/null
++++ b/../outside.txt
+@@ -0,0 +1,2 @@
++blocked line
++another line
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -197,6 +204,26 @@ def test_apply_patchset_dry_run_adds_new_file(tmp_path: Path) -> None:
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
 
+
+def test_apply_patchset_rejects_paths_outside_root(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("external\n", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(OUTSIDE_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert outside.read_text(encoding="utf-8") == "external\n"
+    assert len(session.results) == 1
+
+    file_result = session.results[0]
+    assert file_result.skipped_reason == "Patch targets a path outside the project root"
+    assert file_result.hunks_applied == 0
+    assert file_result.hunks_total == 1
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     project = _create_project(tmp_path)

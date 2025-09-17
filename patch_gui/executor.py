@@ -235,7 +235,17 @@ def _apply_file_patch(
 
     if not candidates:
         if is_added_file and rel_path:
-            path = project_root / rel_path
+            candidate = project_root / rel_path
+            resolved_candidate = candidate.resolve()
+            try:
+                resolved_candidate.relative_to(project_root)
+            except ValueError:
+                fr.skipped_reason = _(
+                    "Patch targets a path outside the project root"
+                )
+                return fr
+
+            path = resolved_candidate
             fr.file_path = path
             fr.relative_to_root = display_relative_path(path, project_root)
             is_new_file = True
