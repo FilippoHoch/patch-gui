@@ -7,7 +7,14 @@ from typing import List, Optional, Sequence
 
 from .localization import gettext as _
 from .patcher import DEFAULT_EXCLUDE_DIRS
-from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from .utils import (
+    APP_NAME,
+    BACKUP_DIR,
+    REPORT_JSON,
+    REPORT_TXT,
+    default_backup_base,
+    display_path,
+)
 
 _LOG_LEVEL_CHOICES = ("critical", "error", "warning", "info", "debug")
 
@@ -59,8 +66,9 @@ def build_parser(
     )
     parser.add_argument(
         "--backup",
-        help=_("Base directory for backups and reports; defaults to '<root>/%s'.")
-        % BACKUP_DIR,
+        help=_('Base directory for backups and reports; defaults to "{path}".').format(
+            path=display_path(default_backup_base())
+        ),
     )
     parser.add_argument(
         "--report-json",

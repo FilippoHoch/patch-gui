@@ -154,10 +154,12 @@ def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None
 
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
     project_root = tmp_path
-    dry_dir = prepare_backup_dir(project_root, dry_run=True)
+    base_dir = tmp_path / "backups"
+
+    dry_dir = prepare_backup_dir(project_root, dry_run=True, backup_base=base_dir)
     assert not dry_dir.exists()
 
-    real_dir = prepare_backup_dir(project_root, dry_run=False)
+    real_dir = prepare_backup_dir(project_root, dry_run=False, backup_base=base_dir)
     assert real_dir.exists()
 
 
