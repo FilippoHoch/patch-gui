@@ -12,6 +12,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .localization import gettext as _
 from .patcher import (
     ApplySession,
     FileResult,
@@ -56,82 +57,74 @@ class CLIError(Exception):
 def build_parser(parser: Optional[argparse.ArgumentParser] = None) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
+    description = _(
+        "{app_name}: apply a unified diff patch using the same heuristics as the GUI, "
+        "but from the command line."
+    ).format(app_name=APP_NAME)
     if parser is None:
         parser = argparse.ArgumentParser(
             prog="patch-gui apply",
-            description=(
-                f"{APP_NAME}: applica una patch unified diff usando le stesse euristiche "
-                "della GUI, ma dalla riga di comando."
-            ),
+            description=description,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         )
     else:
-        parser.description = (
-            f"{APP_NAME}: applica una patch unified diff usando le stesse euristiche "
-            "della GUI, ma dalla riga di comando."
-        )
+        parser.description = description
         parser.formatter_class = argparse.ArgumentDefaultsHelpFormatter
     parser.add_argument(
         "patch",
-        help="Percorso del file diff da applicare (usa '-' per leggere da STDIN).",
+        help=_("Path to the diff file to apply ('-' reads from STDIN)."),
     )
     parser.add_argument(
         "--root",
         required=True,
-        help="Root del progetto su cui applicare la patch.",
+        help=_("Project root where the patch should be applied."),
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Simula l'applicazione senza modificare i file o creare backup.",
+        help=_("Simulate the execution without modifying files or creating backups."),
     )
     parser.add_argument(
         "--threshold",
         type=_threshold_value,
         default=0.85,
-        help="Soglia (0-1) per il matching fuzzy del contesto.",
+        help=_("Matching threshold (0-1) for fuzzy context alignment."),
     )
     parser.add_argument(
         "--backup",
-        help=(
-            "Cartella base per backup e report; di default viene utilizzato "
-            "'<root>/%s'." % BACKUP_DIR
-        ),
+        help=_("Base directory for backups and reports; defaults to '<root>/%s'.")
+        % BACKUP_DIR,
     )
     parser.add_argument(
         "--report-json",
-        help=(
-            "Percorso del report JSON generato; di default '<backup>/%s'."
-            % REPORT_JSON
-        ),
+        help=_("Path of the generated JSON report; defaults to '<backup>/%s'.")
+        % REPORT_JSON,
     )
     parser.add_argument(
         "--report-txt",
-        help=(
-            "Percorso del report testuale generato; di default '<backup>/%s'."
-            % REPORT_TXT
-        ),
+        help=_("Path of the generated text report; defaults to '<backup>/%s'.")
+        % REPORT_TXT,
     )
     parser.add_argument(
         "--no-report",
         action="store_true",
-        help="Non creare i file di report JSON/TXT.",
+        help=_("Do not create JSON/TXT report files."),
     )
     parser.add_argument(
         "--non-interactive",
         action="store_true",
         help=(
-            "Disabilita le richieste interattive su STDIN e mantiene il "
-            "comportamento precedente in caso di ambiguità."
+            _(
+                "Disable interactive prompts on STDIN and keep the historical behaviour "
+                "when multiple matches exist."
+            )
         ),
     )
     parser.add_argument(
         "--log-level",
         default="warning",
         choices=_LOG_LEVEL_CHOICES,
-        help=(
-            "Livello di logging da inviare su stdout (debug, info, warning, error, critical)."
-        ),
+        help=_("Logging level to emit on stdout (debug, info, warning, error, critical)."),
     )
     parser.add_argument(
         "--exclude-dir",
@@ -155,27 +148,29 @@ def load_patch(source: str) -> PatchSet:
     else:
         path = Path(source)
         if not path.exists():
-            raise CLIError(f"File diff non trovato: {path}")
+            raise CLIError(_("Diff file not found: {path}").format(path=path))
         try:
             raw = path.read_bytes()
             text, encoding, used_fallback = decode_bytes(raw)
             if used_fallback:
                 logger.warning(
-                    "Decodifica del diff %s eseguita con fallback UTF-8 (encoding %s); "
-                    "il contenuto potrebbe contenere caratteri sostituiti.",
+                    _(
+                        "Decoded diff %s using fallback UTF-8 (original encoding %s); "
+                        "the content may contain substituted characters."
+                    ),
                     path,
                     encoding,
                 )
         except Exception as exc:  # pragma: no cover - extremely rare I/O error types
-            raise CLIError(f"Impossibile leggere {path}: {exc}") from exc
+            raise CLIError(_("Cannot read {path}: {error}").format(path=path, error=exc)) from exc
 
     processed = preprocess_patch_text(text)
     try:
         patch = PatchSet(processed)
     except UnidiffParseError as exc:
-        raise CLIError(f"Diff non valido: {exc}") from exc
+        raise CLIError(_("Invalid diff: {error}").format(error=exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard for unexpected errors
-        raise CLIError(f"Errore imprevisto nel parsing del diff: {exc}") from exc
+        raise CLIError(_("Unexpected error while parsing the diff: {error}").format(error=exc)) from exc
     return patch
 
 
@@ -196,7 +191,7 @@ def apply_patchset(
 
     root = project_root.expanduser().resolve()
     if not root.exists() or not root.is_dir():
-        raise CLIError(f"Root del progetto non valida: {project_root}")
+        raise CLIError(_("Invalid project root: {path}").format(path=project_root))
 
     backup_dir = prepare_backup_dir(root, dry_run=dry_run, backup_base=backup_base)
     resolved_excludes = tuple(exclude_dirs) if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
@@ -233,7 +228,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
     if args.no_report and (args.report_json or args.report_txt):
         parser.error(
-            "Le opzioni --report-json/--report-txt non sono compatibili con --no-report."
+            _("The --report-json/--report-txt options are incompatible with --no-report.")
         )
 
     level_name = args.log_level.upper()
@@ -264,22 +259,24 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             exclude_dirs=exclude_dirs,
         )
     except CLIError as exc:
-        parser.exit(1, f"Errore: {exc}\n")
+        parser.exit(1, _("Error: {message}\n").format(message=exc))
 
     print(session.to_txt())
     if args.dry_run:
-        print("\nModalità dry-run: nessun file è stato modificato e non sono stati creati backup.")
+        print(_("\nDry-run mode: no files were modified and no backups were created."))
     else:
-        print(f"\nBackup salvati in: {session.backup_dir}")
+        print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
         if session.report_json_path or session.report_txt_path:
             details = []
             if session.report_json_path:
-                details.append(f"JSON: {session.report_json_path}")
+                details.append(
+                    _("JSON: {path}").format(path=session.report_json_path)
+                )
             if session.report_txt_path:
-                details.append(f"Testo: {session.report_txt_path}")
-            print("Report salvati in: " + ", ".join(details))
+                details.append(_("Text: {path}").format(path=session.report_txt_path))
+            print(_("Reports saved to: {details}").format(details=", ".join(details)))
         else:
-            print("Report disattivati (--no-report)")
+            print(_("Reports disabled (--no-report)"))
 
     return 0 if _session_completed(session) else 1
 
@@ -288,9 +285,11 @@ def _threshold_value(value: str) -> float:
     try:
         parsed = float(value)
     except ValueError as exc:  # pragma: no cover - argparse already handles typical errors
-        raise argparse.ArgumentTypeError("La soglia deve essere un numero decimale.") from exc
+        raise argparse.ArgumentTypeError(_("Threshold must be a decimal number.")) from exc
     if not 0 < parsed <= 1:
-        raise argparse.ArgumentTypeError("La soglia deve essere compresa tra 0 (escluso) e 1 (incluso).")
+        raise argparse.ArgumentTypeError(
+            _("Threshold must be between 0 (exclusive) and 1 (inclusive).")
+        )
     return parsed
 
 
@@ -326,7 +325,7 @@ def _apply_file_patch(
     fr.hunks_total = len(pf)
 
     if getattr(pf, "is_binary_file", False):
-        fr.skipped_reason = "Patch binaria non supportata in modalità CLI"
+        fr.skipped_reason = _("Binary patches are not supported in CLI mode")
         return fr
 
     candidates = find_file_candidates(
@@ -335,7 +334,7 @@ def _apply_file_patch(
         exclude_dirs=session.exclude_dirs,
     )
     if not candidates:
-        fr.skipped_reason = "File non trovato nella root del progetto"
+        fr.skipped_reason = _("File not found in the project root")
         return fr
     if len(candidates) > 1:
         if not interactive:
@@ -357,14 +356,16 @@ def _apply_file_patch(
     try:
         raw = path.read_bytes()
     except Exception as exc:
-        fr.skipped_reason = f"Impossibile leggere il file: {exc}"
+        fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
         return fr
 
     content, file_encoding, used_fallback = decode_bytes(raw)
     if used_fallback:
         logger.warning(
-            "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-            "alcuni caratteri potrebbero essere sostituiti.",
+            _(
+                "Decoded file %s using fallback UTF-8 (original encoding %s); "
+                "some characters may be substituted."
+            ),
             path,
             file_encoding,
         )
@@ -399,13 +400,12 @@ def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) 
         except ValueError:
             display_paths.append(str(path))
 
-    print("Sono stati trovati più file che corrispondono al percorso della patch:")
+    print(_("Multiple files match the patch path:"))
     for idx, value in enumerate(display_paths, start=1):
         print(f"  {idx}) {value}")
-    prompt = (
-        f"Seleziona il numero del file da utilizzare (1-{len(candidates)}). "
-        "Premi Invio o digita 's' per saltare: "
-    )
+    prompt = _(
+        "Select the number of the file to use (1-{count}). Press Enter or type 's' to skip: "
+    ).format(count=len(candidates))
 
     while True:
         try:
@@ -422,13 +422,13 @@ def _prompt_candidate_selection(project_root: Path, candidates: Sequence[Path]) 
         try:
             index = int(choice)
         except ValueError:
-            print("Input non valido. Inserire un numero o lasciare vuoto per annullare.")
+            print(_("Invalid input. Enter a number or leave empty to cancel."))
             continue
 
         if 1 <= index <= len(candidates):
             return candidates[index - 1]
 
-        print("Numero fuori dall'intervallo indicato. Riprova.")
+        print(_("Number out of range. Try again."))
 
 
 def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> str:
@@ -441,12 +441,12 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
             shown.append(str(path))
     remaining = len(candidates) - max_display
     if remaining > 0:
-        shown.append(f"… (+{remaining} altri)")
+        shown.append(_("… (+{count} more)").format(count=remaining))
     joined = ", ".join(shown)
-    return (
-        "Più file trovati per il percorso indicato; risolvi l'ambiguità manualmente. "
-      f"Candidati: {joined}"
-  )
+    return _(
+        "Multiple files found for the provided path; resolve the ambiguity manually. "
+        "Candidates: {candidates}"
+    ).format(candidates=joined)
 
 
 def _cli_manual_resolver(
@@ -460,12 +460,14 @@ def _cli_manual_resolver(
     decision.candidates = candidates
     decision.strategy = "ambiguous"
     if reason == "fuzzy":
-        decision.message = (
-            "Più posizioni trovate sopra la soglia. La CLI non può scegliere automaticamente."
+        decision.message = _(
+            "Multiple candidate positions scored above the threshold. The CLI cannot "
+            "choose automatically."
         )
     else:
-        decision.message = (
-            "Solo il contesto coincide. Usa la GUI o regola la soglia per applicare questo hunk."
+        decision.message = _(
+            "Only the context matches. Use the GUI or adjust the threshold to apply this "
+            "hunk."
         )
     return None
 
