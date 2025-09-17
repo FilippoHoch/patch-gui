@@ -52,7 +52,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             if isinstance(raw_backup, str) and raw_backup
             else None
         )
-        exclude_dirs = parse_exclude_dirs(args.exclude_dirs)
+        exclude_dirs = parse_exclude_dirs(
+            args.exclude_dirs, ignore_default=args.no_default_exclude
+        )
         session = apply_patchset(
             patch,
             Path(args.root),

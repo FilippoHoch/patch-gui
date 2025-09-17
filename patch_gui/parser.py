@@ -130,6 +130,15 @@ def build_parser(
         )
         % ", ".join(DEFAULT_EXCLUDE_DIRS),
     )
+    parser.add_argument(
+        "--no-default-exclude",
+        action="store_true",
+        help=_(
+            "Do not ignore the default directories (e.g. %s). Use together with "
+            "--exclude-dir to specify an explicit allowlist."
+        )
+        % ", ".join(DEFAULT_EXCLUDE_DIRS),
+    )
     return parser
 
 
@@ -149,9 +158,13 @@ def threshold_value(value: str) -> float:
     return parsed
 
 
-def parse_exclude_dirs(values: Sequence[str] | None) -> tuple[str, ...]:
+def parse_exclude_dirs(
+    values: Sequence[str] | None,
+    *,
+    ignore_default: bool = False,
+) -> tuple[str, ...]:
     if not values:
-        return DEFAULT_EXCLUDE_DIRS
+        return tuple() if ignore_default else DEFAULT_EXCLUDE_DIRS
     parsed: List[str] = []
     for raw in values:
         for item in raw.split(","):
@@ -159,6 +172,6 @@ def parse_exclude_dirs(values: Sequence[str] | None) -> tuple[str, ...]:
             if normalized:
                 parsed.append(normalized)
     if not parsed:
-        return DEFAULT_EXCLUDE_DIRS
+        return tuple() if ignore_default else DEFAULT_EXCLUDE_DIRS
     # Remove duplicates preserving order
     return tuple(dict.fromkeys(parsed))

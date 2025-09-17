@@ -54,3 +54,16 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 - Per diff molto grandi l'analisi può richiedere tempo; attendi il completamento prima di chiudere la finestra.
 
 Per una panoramica delle opzioni tecniche e delle dipendenze consulta il [README](README.md).
+
+## Suggerimento CLI: includere directory normalmente escluse
+
+Quando usi la modalità `patch-gui apply`, per impostazione predefinita vengono ignorate directory come `.git`, `.venv`, `node_modules` e `.diff_backups`. Se devi patchare file posizionati lì dentro:
+
+- aggiungi `--no-default-exclude` per disabilitare la lista automatica di esclusioni;
+- opzionalmente specifica `--exclude-dir` più volte (o con valori separati da virgole) per costruire un elenco personalizzato di directory da ignorare.
+
+Esempio:
+
+```bash
+patch-gui apply --root . --no-default-exclude fix.diff
+```
