@@ -19,6 +19,7 @@ from PySide6.QtCore import QObject, QThread
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
+from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
 from .i18n import install_translators
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
@@ -586,8 +587,9 @@ class PatchApplyWorker(_QThreadBase):
 
 
 class MainWindow(_QMainWindowBase):
-    def __init__(self) -> None:
+    def __init__(self, *, app_config: AppConfig | None = None) -> None:
         super().__init__()
+        self.app_config: AppConfig = app_config or load_config()
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
 
@@ -602,8 +604,8 @@ class MainWindow(_QMainWindowBase):
         self.diff_text: str = ""
         self.patch: Optional[PatchSet] = None
 
-        self.threshold: float = 0.85
-        self.exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
+        self.threshold: float = self.app_config.threshold
+        self.exclude_dirs: tuple[str, ...] = self.app_config.exclude_dirs
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
 
@@ -680,7 +682,8 @@ class MainWindow(_QMainWindowBase):
 
         second.addSpacing(20)
         second.addWidget(QtWidgets.QLabel("Ignora directory"))
-        self.exclude_edit = QtWidgets.QLineEdit(", ".join(DEFAULT_EXCLUDE_DIRS))
+        initial_excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
+        self.exclude_edit = QtWidgets.QLineEdit(initial_excludes)
         self.exclude_edit.setPlaceholderText("es. .git,.venv,node_modules")
         self.exclude_edit.setToolTip(
             "Elenco di directory da ignorare (relative alla root), separate da virgola."
@@ -741,6 +744,7 @@ class MainWindow(_QMainWindowBase):
         status_bar.addPermanentWidget(self.progress_bar)
 
         self.restore_last_project_root()
+        save_config(self.app_config)
 
     def _setup_gui_logging(self) -> None:
         handler = GuiLogHandler(self._handle_log_message)
@@ -768,6 +772,7 @@ class MainWindow(_QMainWindowBase):
             )
             event.ignore()
             return
+        self._persist_config()
         if self._qt_log_handler is not None:
             logging.getLogger().removeHandler(self._qt_log_handler)
             self._qt_log_handler.close()
@@ -802,19 +807,30 @@ class MainWindow(_QMainWindowBase):
     def _current_exclude_dirs(self) -> tuple[str, ...]:
         text = self.exclude_edit.text() if hasattr(self, "exclude_edit") else ""
         if not text:
-            return DEFAULT_EXCLUDE_DIRS
+            return tuple()
         parsed: list[str] = []
         for item in text.split(","):
             normalized = item.strip()
             if normalized:
                 parsed.append(normalized)
         if not parsed:
-            return DEFAULT_EXCLUDE_DIRS
+            return tuple()
         unique: list[str] = []
         for value in parsed:
             if value not in unique:
                 unique.append(value)
         return tuple(unique)
+
+    def _persist_config(self) -> None:
+        self.app_config.threshold = float(self.spin_thresh.value())
+        self.app_config.exclude_dirs = self._current_exclude_dirs()
+        root_logger = logging.getLogger()
+        level_name = logging.getLevelName(root_logger.level)
+        if isinstance(level_name, str):
+            self.app_config.log_level = level_name.lower()
+        self.threshold = self.app_config.threshold
+        self.exclude_dirs = self.app_config.exclude_dirs
+        save_config(self.app_config)
 
     def choose_root(self) -> None:
         d = QtWidgets.QFileDialog.getExistingDirectory(
@@ -934,10 +950,12 @@ class MainWindow(_QMainWindowBase):
         thr = float(self.spin_thresh.value())
         excludes = self._current_exclude_dirs()
         self.exclude_dirs = excludes
+        self._persist_config()
         started_at = time.time()
         backup_dir = prepare_backup_dir(
             self.project_root,
             dry_run=dry,
+            backup_base=self.app_config.backup_base,
             started_at=started_at,
         )
         session = ApplySession(
@@ -1180,13 +1198,14 @@ class MainWindow(_QMainWindowBase):
 
 
 def main() -> None:
-    configure_logging()
+    app_config = load_config()
+    configure_logging(level=app_config.log_level)
     _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     translators = install_translators(app)
     setattr(app, "_installed_translators", translators)
-    w = MainWindow()
+    w = MainWindow(app_config=app_config)
     w.show()
     sys.exit(app.exec())
 
