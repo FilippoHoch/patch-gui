@@ -547,9 +547,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
 
-        icon_pixmap = create_logo_pixmap(256)
-        self._window_icon = QtGui.QIcon(icon_pixmap)
-        self.setWindowIcon(self._window_icon)
+        self._window_icon: Optional[QtGui.QIcon] = None
+        if not running_under_wsl():
+            icon_pixmap = create_logo_pixmap(256)
+            self._window_icon = QtGui.QIcon(icon_pixmap)
+            self.setWindowIcon(self._window_icon)
 
         self.project_root: Optional[Path] = None
         self.settings: QtCore.QSettings = QtCore.QSettings("Work", "PatchDiffApplier")
@@ -570,13 +572,22 @@ class MainWindow(QtWidgets.QMainWindow):
         banner.setSpacing(12)
         layout.addLayout(banner)
 
-        self.logo_widget = LogoWidget()
-        banner.addWidget(self.logo_widget)
-        banner.addSpacing(12)
+        if running_under_wsl():
+            wsl_heading = QtWidgets.QLabel("Patch GUI – Diff Applier")
+            font = QtGui.QFont(wsl_heading.font())
+            font.setPointSize(20)
+            font.setBold(True)
+            wsl_heading.setFont(font)
+            banner.addWidget(wsl_heading)
+            banner.addStretch(1)
+        else:
+            self.logo_widget = LogoWidget()
+            banner.addWidget(self.logo_widget)
+            banner.addSpacing(12)
 
-        self.wordmark_widget = WordmarkWidget()
-        banner.addWidget(self.wordmark_widget)
-        banner.addStretch(1)
+            self.wordmark_widget = WordmarkWidget()
+            banner.addWidget(self.wordmark_widget)
+            banner.addStretch(1)
 
         layout.addSpacing(6)
 
