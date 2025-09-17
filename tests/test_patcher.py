@@ -95,6 +95,48 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
     assert len(calls[0][2]) > 1
 
 
+def test_apply_hunks_context_fallback_uses_context_lines() -> None:
+    diff = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,3 +1,3 @@
+ line keep
+-line old
++line new
+ line end
+"""
+    patch = PatchSet(diff)
+    pf = patch[0]
+    file_lines = ["line keep\n", "line end\n"]
+
+    captured: list[tuple[str, list[tuple[int, float]], HunkView]] = []
+
+    def resolver(
+        hv: HunkView,
+        lines: list[str],
+        candidates: list[tuple[int, float]],
+        decision: HunkDecision,
+        reason: str,
+    ) -> None:
+        captured.append((reason, list(candidates), hv))
+        decision.strategy = "manual"
+        decision.message = "context review"
+        return None
+
+    new_lines, decisions, applied = apply_hunks(
+        file_lines, pf, threshold=0.9, manual_resolver=resolver
+    )
+
+    assert new_lines == file_lines
+    assert applied == 0
+    assert captured and captured[0][0] == "context"
+    hv = captured[0][2]
+    assert hv.context_lines == ["line keep\n", "line end\n"]
+    expected_candidates = find_candidates(file_lines, hv.context_lines, threshold=0.9)
+    assert captured[0][1] == expected_candidates
+    assert decisions[0].candidates == expected_candidates
+    assert decisions[0].message == "context review"
+
+
 def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:
     project_root = tmp_path
     target = project_root / "src" / "pkg"
