@@ -17,7 +17,7 @@ from tests._pytest_typing import typed_parametrize
 
 import patch_gui
 from patch_gui import cli, localization
-from patch_gui.config import AppConfig
+from patch_gui.config import AppConfig, load_config, save_config
 import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
@@ -920,6 +920,108 @@ def test_run_cli_defaults_to_auto_encoding(
 
     assert exit_code == 0
     assert captured["encoding"] is None
+
+
+def test_config_show_outputs_json(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.toml"
+    config = AppConfig(
+        threshold=0.93,
+        exclude_dirs=("one", "two"),
+        backup_base=tmp_path / "backups",
+        log_level="debug",
+    )
+    save_config(config, path=config_path)
+
+    buffer = io.StringIO()
+    exit_code = cli.config_show(path=config_path, stream=buffer)
+
+    assert exit_code == 0
+    payload = json.loads(buffer.getvalue())
+    assert payload["threshold"] == pytest.approx(config.threshold)
+    assert payload["exclude_dirs"] == list(config.exclude_dirs)
+    assert payload["backup_base"] == str(config.backup_base)
+    assert payload["log_level"] == config.log_level
+
+
+def test_config_set_updates_values(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.toml"
+
+    message = io.StringIO()
+    result = cli.config_set("threshold", ["0.9"], path=config_path, stream=message)
+
+    assert result == 0
+    assert message.getvalue() == "threshold updated.\n"
+
+    loaded = load_config(config_path)
+    assert loaded.threshold == pytest.approx(0.9)
+
+    cli.config_set(
+        "exclude_dirs",
+        ["foo", "bar,baz"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    loaded = load_config(config_path)
+    assert loaded.exclude_dirs == ("foo", "bar", "baz")
+
+    cli.config_set(
+        "log_level",
+        ["info"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).log_level == "info"
+
+    cli.config_set(
+        "backup_base",
+        [str(tmp_path / "custom")],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).backup_base == (tmp_path / "custom").expanduser()
+
+
+def test_config_reset_values(tmp_path: Path) -> None:
+    config_path = tmp_path / "settings.toml"
+    cli.config_set("threshold", ["0.92"], path=config_path, stream=io.StringIO())
+    cli.config_set("log_level", ["debug"], path=config_path, stream=io.StringIO())
+
+    cli.config_reset("threshold", path=config_path, stream=io.StringIO())
+    loaded = load_config(config_path)
+    assert loaded.threshold == pytest.approx(AppConfig().threshold)
+    assert loaded.log_level == "debug"
+
+    buffer = io.StringIO()
+    cli.config_reset(path=config_path, stream=buffer)
+    assert "Configuration reset to defaults." in buffer.getvalue()
+
+    defaults = AppConfig()
+    reset = load_config(config_path)
+    assert reset.threshold == defaults.threshold
+    assert reset.log_level == defaults.log_level
+    assert reset.exclude_dirs == defaults.exclude_dirs
+    assert reset.backup_base == defaults.backup_base
+
+
+def test_run_config_reports_invalid_log_level(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config_path = tmp_path / "settings.toml"
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_config(
+            [
+                "set",
+                "log_level",
+                "verbose",
+                "--config-path",
+                str(config_path),
+            ]
+        )
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "Unsupported log level" in captured.err
 
 
 @typed_parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])

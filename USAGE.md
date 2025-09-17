@@ -67,3 +67,13 @@ Esempio:
 ```bash
 patch-gui apply --root . --no-default-exclude fix.diff
 ```
+
+## Gestione della configurazione via CLI
+
+Oltre a usare la GUI, puoi ispezionare e modificare le impostazioni persistenti tramite il sottocomando `patch-gui config`:
+
+- `patch-gui config show` stampa la configurazione corrente in formato JSON;
+- `patch-gui config set <chiave> <valori…>` aggiorna un parametro (ad esempio `threshold`, `exclude_dirs`, `backup_base`, `log_level`);
+- `patch-gui config reset [chiave]` ripristina un singolo valore o l'intera configurazione ai default.
+
+Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi `--config-path /percorso/custom/settings.toml` dopo il nome del sottocomando.
