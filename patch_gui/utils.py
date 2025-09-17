@@ -208,6 +208,52 @@ def _normalize_hunk_line_counts(text: str) -> str:
     return result
 
 
+def _normalize_nonstandard_file_headers(text: str) -> str:
+    """Rewrite non-standard ``***``/``---`` headers into unified diff headers.
+
+    Some tools emit diffs whose file headers use ``***`` for the source file and
+    ``---`` for the target file instead of the standard ``---``/``+++`` pair.
+    The ``unidiff`` parser treats such patches as invalid and therefore returns
+    an empty ``PatchSet``. To keep compatibility with these diffs we rewrite the
+    header pair whenever both lines start with the expected ``a/`` or ``b/``
+    prefixes.
+    """
+
+    lines = text.splitlines()
+    if not lines:
+        return text
+
+    changed = False
+    limit = len(lines) - 1
+    for idx in range(limit):
+        line = lines[idx]
+        if not line.startswith("*** "):
+            continue
+        if " Begin Patch" in line or " End Patch" in line:
+            continue
+        source = line[4:]
+        if not source.startswith(("a/", "b/")):
+            continue
+        target_line = lines[idx + 1]
+        if not target_line.startswith("--- "):
+            continue
+        target = target_line[4:]
+        if not target.startswith(("a/", "b/")):
+            continue
+
+        lines[idx] = f"--- {source}"
+        lines[idx + 1] = f"+++ {target}"
+        changed = True
+
+    if not changed:
+        return text
+
+    normalized = "\n".join(lines)
+    if text.endswith("\n"):
+        normalized += "\n"
+    return normalized
+
+
 def preprocess_patch_text(raw_text: str) -> str:
     """Normalize ``raw_text`` and extract diff content from known patch formats.
 
@@ -219,6 +265,7 @@ def preprocess_patch_text(raw_text: str) -> str:
     """
 
     text = normalize_newlines(raw_text)
+    text = _normalize_nonstandard_file_headers(text)
 
     if not BEGIN_PATCH_RE.search(text):
         return _normalize_hunk_line_counts(text)
