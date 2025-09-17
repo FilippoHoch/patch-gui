@@ -9,7 +9,6 @@ from .localization import gettext as _
 from .patcher import DEFAULT_EXCLUDE_DIRS
 from .utils import (
     APP_NAME,
-    BACKUP_DIR,
     REPORT_JSON,
     REPORT_TXT,
     default_backup_base,
