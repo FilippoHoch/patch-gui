@@ -60,6 +60,7 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     target = project / "sample.txt"
     assert target.read_text(encoding="utf-8") == "old line\nline2\n"
     assert session.dry_run is True
+    assert session.backup_dir.parent == utils.default_backup_base()
     assert session.backup_dir.exists()
     assert session.report_json_path is not None
     assert session.report_txt_path is not None
@@ -107,6 +108,7 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
 
     assert target.read_text(encoding="utf-8") == "new line\nline2\n"
     assert session.backup_dir.parent.name == BACKUP_DIR
+    assert session.backup_dir.parent == utils.default_backup_base()
     assert session.backup_dir.exists()
 
     backup_copy = session.backup_dir / "sample.txt"

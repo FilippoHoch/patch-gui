@@ -25,6 +25,7 @@ from .utils import (
     BACKUP_DIR,
     REPORT_JSON,
     REPORT_TXT,
+    default_backup_base,
     default_session_report_dir,
 )
 
@@ -535,7 +536,7 @@ def prepare_backup_dir(
     base = (
         backup_base.expanduser()
         if backup_base is not None
-        else project_root / BACKUP_DIR
+        else default_backup_base()
     )
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_dir = base / timestamp
