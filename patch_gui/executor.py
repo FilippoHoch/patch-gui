@@ -216,12 +216,13 @@ def _apply_file_patch(
         return fr
 
     is_added_file = bool(getattr(pf, "is_added_file", False))
+    is_removed_file = bool(getattr(pf, "is_removed_file", False))
     source_file = getattr(pf, "source_file", None)
     target_file = getattr(pf, "target_file", None)
     if isinstance(source_file, str) and source_file.strip() == "/dev/null":
         is_added_file = True
     if isinstance(target_file, str) and target_file.strip() == "/dev/null":
-        is_added_file = True
+        is_removed_file = True
 
     candidates = find_file_candidates(
         project_root,
@@ -311,12 +312,33 @@ def _apply_file_patch(
     fr.decisions.extend(decisions)
 
     if not session.dry_run and applied:
-        if is_new_file:
-            path.parent.mkdir(parents=True, exist_ok=True)
-        new_text = "".join(lines)
-        if not is_new_file:
-            new_text = new_text.replace("\n", orig_eol)
-        write_text_preserving_encoding(path, new_text, file_encoding)
+        should_remove = (
+            is_removed_file and fr.hunks_total and applied == fr.hunks_total
+        )
+        if should_remove:
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError as exc:
+                message = _("Failed to delete file after applying patch: {error}").format(
+                    error=exc
+                )
+                fr.skipped_reason = message
+                hunk_header = pf[0].header if len(pf) else rel_path
+                fr.decisions.append(
+                    HunkDecision(
+                        hunk_header=hunk_header,
+                        strategy="failed",
+                        message=message,
+                    )
+                )
+        else:
+            if is_new_file:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            new_text = "".join(lines)
+            if not is_new_file:
+                new_text = new_text.replace("\n", orig_eol)
+            write_text_preserving_encoding(path, new_text, file_encoding)
 
     return fr
 

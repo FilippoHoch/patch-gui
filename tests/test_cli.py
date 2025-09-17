@@ -57,6 +57,13 @@ ADDED_DIFF = """--- /dev/null
 +second line
 """
 
+REMOVED_DIFF = """--- a/sample.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-old line
+-line2
+"""
+
 EXISTING_EMPTY_DIFF = """--- a/docs/empty.txt
 +++ b/docs/empty.txt
 @@ -0,0 +1,2 @@
@@ -197,6 +204,24 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     data = json.loads(json_report.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
     assert data["files"][0]["file_type"] == "text"
+
+
+def test_apply_patchset_removes_file_and_preserves_backup(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    target = project / "sample.txt"
+    original = target.read_text(encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(REMOVED_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert not target.exists()
+    backup_copy = session.backup_dir / "sample.txt"
+    assert backup_copy.exists()
+    assert backup_copy.read_text(encoding="utf-8") == original
 
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
