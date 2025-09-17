@@ -215,13 +215,12 @@ def apply_patchset(
         fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
-    if not dry_run:
-        _write_reports(
-            session,
-            report_json=report_json,
-            report_txt=report_txt,
-            enable_reports=write_report_files,
-        )
+    _write_reports(
+        session,
+        report_json=report_json,
+        report_txt=report_txt,
+        enable_reports=write_report_files,
+    )
 
     return session
 
