@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CLIError",
+    "ApplySession",
     "apply_patchset",
     "load_patch",
     "session_completed",
@@ -61,9 +62,9 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                     text = str(data)
             except (LookupError, UnicodeDecodeError) as exc:
                 raise CLIError(
-                    _("Cannot decode diff from STDIN using encoding {encoding}: {error}").format(
-                        encoding=encoding, error=exc
-                    )
+                    _(
+                        "Cannot decode diff from STDIN using encoding {encoding}: {error}"
+                    ).format(encoding=encoding, error=exc)
                 ) from exc
         else:
             text = sys.stdin.read()
@@ -80,14 +81,18 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                         encoding=encoding, error=exc
                     )
                 ) from exc
-            except Exception as exc:  # pragma: no cover - extremely rare I/O error types
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - extremely rare I/O error types
                 raise CLIError(
                     _("Cannot read {path}: {error}").format(path=path, error=exc)
                 ) from exc
         else:
             try:
                 raw = path.read_bytes()
-            except Exception as exc:  # pragma: no cover - extremely rare I/O error types
+            except (
+                Exception
+            ) as exc:  # pragma: no cover - extremely rare I/O error types
                 raise CLIError(
                     _("Cannot read {path}: {error}").format(path=path, error=exc)
                 ) from exc

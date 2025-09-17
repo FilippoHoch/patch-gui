@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from unidiff import PatchSet
 
+from tests._pytest_typing import typed_parametrize
+
 from patch_gui import cli
 import patch_gui.executor as executor
 import patch_gui.utils as utils
@@ -461,20 +463,21 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         configured_logger.setLevel(previous_level)
 
 
-def _create_dummy_session(tmp_path: Path):
-    class DummySession:
-        def __init__(self) -> None:
-            self.dry_run = True
-            self.report_json_path = None
-            self.report_txt_path = None
-            self.results = []
-            self.backup_dir = tmp_path / "backups"
-            self.backup_dir.mkdir(exist_ok=True)
+class _DummySession:
+    def __init__(self, tmp_path: Path) -> None:
+        self.dry_run = True
+        self.report_json_path: Path | None = None
+        self.report_txt_path: Path | None = None
+        self.results: list[object] = []
+        self.backup_dir: Path = tmp_path / "backups"
+        self.backup_dir.mkdir(exist_ok=True)
 
-        def to_txt(self) -> str:
-            return "Summary"
+    def to_txt(self) -> str:
+        return "Summary"
 
-    return DummySession()
+
+def _create_dummy_session(tmp_path: Path) -> _DummySession:
+    return _DummySession(tmp_path)
 
 
 def test_run_cli_passes_explicit_encoding(
@@ -534,20 +537,18 @@ def test_run_cli_defaults_to_auto_encoding(
     monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
     monkeypatch.setattr(cli, "session_completed", lambda session: True)
 
-    exit_code = cli.run_cli(
-        ["--root", str(project), "--dry-run", str(patch_path)]
-    )
+    exit_code = cli.run_cli(["--root", str(project), "--dry-run", str(patch_path)])
 
     assert exit_code == 0
     assert captured["encoding"] is None
 
 
-@pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
+@typed_parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
 def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None:
     assert parser.threshold_value(raw) == expected
 
 
-@pytest.mark.parametrize(
+@typed_parametrize(
     "raw, expected_message",
     [
         ("0", "Threshold must be between 0 (exclusive) and 1 (inclusive)."),

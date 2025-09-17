@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence, cast
 
 try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
     from PySide6 import QtCore
 except ImportError:  # pragma: no cover - executed when PySide6 is not installed
-    QtCore = None  # type: ignore[assignment]
+    QtCore = cast(Any, None)
 
 from . import cli
 from .i18n import install_translators

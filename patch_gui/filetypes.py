@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Protocol
+from typing import Iterable, Iterator, Protocol
 
 
 class _HunkLine(Protocol):
     line_type: str
     value: str
+
+
+class _Hunk(Protocol):
+    def __iter__(self) -> Iterator[_HunkLine]: ...
 
 
 class _PatchLike(Protocol):
@@ -18,7 +22,7 @@ class _PatchLike(Protocol):
     target_file: str | None
     is_binary_file: bool | None
 
-    def __iter__(self) -> Iterable[_HunkLine]: ...
+    def __iter__(self) -> Iterator[_Hunk]: ...
 
 
 @dataclass(frozen=True)
@@ -175,9 +179,13 @@ def _infer_from_sample(sample: list[str]) -> str:
         return "c"
     if any(line.startswith("def ") or line.startswith("class ") for line in sample):
         return "python"
-    if any(line.startswith("function ") or line.startswith("const ") for line in sample):
+    if any(
+        line.startswith("function ") or line.startswith("const ") for line in sample
+    ):
         return "javascript"
-    if any(line.startswith("SELECT ") or line.startswith("CREATE TABLE") for line in sample):
+    if any(
+        line.startswith("SELECT ") or line.startswith("CREATE TABLE") for line in sample
+    ):
         return "sql"
 
     if joined.count("=") >= 2 and all("=" in line for line in sample[:5]):
@@ -189,4 +197,3 @@ def _infer_from_sample(sample: list[str]) -> str:
 
 
 __all__ = ["FileTypeInfo", "inspect_file_type"]
-

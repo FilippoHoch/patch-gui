@@ -8,11 +8,12 @@ from typing import Any, cast
 import pytest
 
 from patch_gui import platform
+from tests._pytest_typing import typed_parametrize
 
 MODULE_PLATFORM = cast(Any, platform)
 
 
-@pytest.mark.parametrize("env_value", ["Ubuntu", "Debian"])
+@typed_parametrize("env_value", ["Ubuntu", "Debian"])
 def test_running_under_wsl_detects_env(
     monkeypatch: pytest.MonkeyPatch, env_value: str
 ) -> None:

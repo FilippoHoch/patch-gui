@@ -7,7 +7,16 @@ produce stylised graphics so that the project can ship without raster images.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6 import QtCore, QtGui, QtWidgets
+
+if TYPE_CHECKING:
+    from PySide6 import QtWidgets as _QtWidgetsModule
+
+    _BaseWidget = _QtWidgetsModule.QWidget
+else:
+    _BaseWidget = QtWidgets.QWidget
 
 __all__ = ["LogoWidget", "WordmarkWidget", "create_logo_pixmap"]
 
@@ -141,7 +150,7 @@ def create_logo_pixmap(size: int = 128) -> QtGui.QPixmap:
     return pixmap
 
 
-class LogoWidget(QtWidgets.QWidget):
+class LogoWidget(_BaseWidget):
     """Widget that paints the square logo procedurally."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
@@ -167,7 +176,7 @@ class LogoWidget(QtWidgets.QWidget):
         painter.end()
 
 
-class WordmarkWidget(QtWidgets.QWidget):
+class WordmarkWidget(_BaseWidget):
     """Widget that draws a wordmark banner for the application."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:

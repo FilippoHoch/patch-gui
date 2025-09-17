@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import logging
-from pathlib import Path
 import importlib
 import importlib.util
+import logging
 import sys
 import types
+from pathlib import Path
 from typing import Iterator
 
 import pytest
 from logging.handlers import RotatingFileHandler
+
+from tests._pytest_typing import typed_fixture
 
 
 class _DummyAttr:
@@ -127,7 +129,7 @@ def _cleanup_file_handlers() -> None:
                 pass
 
 
-@pytest.fixture
+@typed_fixture()
 def clean_file_handlers() -> Iterator[None]:
     _cleanup_file_handlers()
     try:
@@ -151,8 +153,8 @@ def test_configure_logging_uses_rotating_handler(
     handler = handlers[0]
     assert isinstance(handler, RotatingFileHandler)
     assert handler.baseFilename == str(log_path)
-    assert handler.maxBytes == 1234
-    assert handler.backupCount == 3
+    assert int(handler.maxBytes) == 1234
+    assert int(handler.backupCount) == 3
 
 
 def test_configure_logging_reads_environment(
@@ -170,8 +172,8 @@ def test_configure_logging_reads_environment(
         h for h in logging.getLogger().handlers if isinstance(h, RotatingFileHandler)
     )
     assert handler.baseFilename == str(log_path)
-    assert handler.maxBytes == 50
-    assert handler.backupCount == 2
+    assert int(handler.maxBytes) == 50
+    assert int(handler.backupCount) == 2
 
 
 def test_configure_logging_rotates_files(

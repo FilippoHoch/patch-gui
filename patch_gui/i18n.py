@@ -8,12 +8,15 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
     from PySide6 import QtCore
 except ImportError:  # pragma: no cover - executed when PySide6 is not installed
-    QtCore = None  # type: ignore[assignment]
+    QtCore = cast(Any, None)
+
+if TYPE_CHECKING:  # pragma: no cover - typing helper
+    from PySide6.QtCore import QCoreApplication, QLocale, QTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +26,8 @@ TRANSLATIONS_DIR = Path(__file__).resolve().parent / "translations"
 
 
 def install_translators(
-    app: QtCore.QCoreApplication, locale: str | QtCore.QLocale | None = None
-) -> List[QtCore.QTranslator]:
+    app: "QCoreApplication", locale: str | "QLocale" | None = None
+) -> List["QTranslator"]:
     """Compile and install translations for ``app``.
 
     The target locale is determined by ``locale`` or ``PATCH_GUI_LANG``; when both are
@@ -43,7 +46,7 @@ def install_translators(
         return []
 
     requested_locale = _resolve_locale(locale)
-    translators: List[QtCore.QTranslator] = []
+    translators: List["QTranslator"] = []
 
     cache_dir = _compiled_dir(app)
     candidates = _candidate_codes(requested_locale)
@@ -70,7 +73,7 @@ def install_translators(
     return translators
 
 
-def _resolve_locale(locale: str | QtCore.QLocale | None) -> QtCore.QLocale:
+def _resolve_locale(locale: str | "QLocale" | None) -> "QLocale":
     if locale:
         return QtCore.QLocale(locale)
 
@@ -98,7 +101,7 @@ def _translation_sources() -> Dict[str, Path]:
     return sources
 
 
-def _candidate_codes(locale: QtCore.QLocale) -> List[str]:
+def _candidate_codes(locale: "QLocale") -> List[str]:
     name = locale.name().replace("-", "_")
     language_code = QtCore.QLocale.languageToCode(locale.language()).lower()
 
@@ -122,7 +125,7 @@ def _pick_source(sources: Dict[str, Path], code: str) -> Optional[Path]:
     return None
 
 
-def _compiled_dir(app: QtCore.QCoreApplication) -> Path:
+def _compiled_dir(app: "QCoreApplication") -> Path:
     cache_location = QtCore.QStandardPaths.StandardLocation.CacheLocation
     location = QtCore.QStandardPaths.writableLocation(cache_location)
     if not location:
@@ -211,8 +214,8 @@ def _find_lrelease() -> Optional[Path]:
 
 
 def _load_qt_base_translation(
-    app: QtCore.QCoreApplication, locale: QtCore.QLocale
-) -> Optional[QtCore.QTranslator]:
+    app: "QCoreApplication", locale: "QLocale"
+) -> Optional["QTranslator"]:
     translations_path = QtCore.QLibraryInfo.path(
         QtCore.QLibraryInfo.LibraryPath.TranslationsPath
     )
