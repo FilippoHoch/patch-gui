@@ -52,9 +52,22 @@ class CLIError(Exception):
 def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     """Load and parse a diff/patch file from ``source`` (path or ``'-'`` for stdin)."""
 
+    def _log_decoding_details(
+        source_label: str, detected_encoding: str, used_fallback: bool
+    ) -> None:
+        if used_fallback:
+            logger.warning(
+                _(
+                    "Decoded diff %s using fallback UTF-8 (original encoding %s); "
+                    "the content may contain substituted characters."
+                ),
+                source_label,
+                detected_encoding,
+            )
+
     if source == "-":
+        stream = getattr(sys.stdin, "buffer", None)
         if encoding:
-            stream = getattr(sys.stdin, "buffer", None)
             data = stream.read() if stream is not None else sys.stdin.read()
             try:
                 if isinstance(data, bytes):
@@ -68,7 +81,12 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                     ).format(encoding=encoding, error=exc)
                 ) from exc
         else:
-            text = sys.stdin.read()
+            if stream is not None:
+                raw = stream.read()
+                text, detected_encoding, used_fallback = decode_bytes(raw)
+                _log_decoding_details("STDIN", detected_encoding, used_fallback)
+            else:
+                text = sys.stdin.read()
     else:
         path = Path(source).expanduser()
         if not path.exists():
@@ -98,15 +116,7 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
                     _("Cannot read {path}: {error}").format(path=path, error=exc)
                 ) from exc
             text, detected_encoding, used_fallback = decode_bytes(raw)
-            if used_fallback:
-                logger.warning(
-                    _(
-                        "Decoded diff %s using fallback UTF-8 (original encoding %s); "
-                        "the content may contain substituted characters."
-                    ),
-                    path,
-                    detected_encoding,
-                )
+            _log_decoding_details(str(path), detected_encoding, used_fallback)
 
     processed = preprocess_patch_text(text)
     try:
