@@ -499,6 +499,32 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
+        if not hv.before_lines and not context_candidates:
+            fallback_pos: Optional[int] = None
+            target_start = getattr(hunk, "target_start", None)
+            source_start = getattr(hunk, "source_start", None)
+            if isinstance(target_start, int):
+                fallback_pos = max(0, min(len(current_lines), target_start - 1))
+            elif isinstance(source_start, int):
+                fallback_pos = max(0, min(len(current_lines), source_start - 1))
+            if fallback_pos is not None:
+                logger.debug(
+                    "Uso metadati del hunk per determinare la posizione di inserimento: %d",
+                    fallback_pos,
+                )
+                current_lines, success = _apply(
+                    current_lines,
+                    hv,
+                    decision,
+                    fallback_pos,
+                    None,
+                    "metadata",
+                )
+                if success:
+                    applied_count += 1
+                decisions.append(decision)
+                continue
+
         decision.strategy = "failed"
         if not decision.message:
             decision.message = (

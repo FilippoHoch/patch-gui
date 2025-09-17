@@ -57,6 +57,13 @@ ADDED_DIFF = """--- /dev/null
 +second line
 """
 
+EXISTING_EMPTY_DIFF = """--- a/docs/empty.txt
++++ b/docs/empty.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+"""
+
 OUTSIDE_DIFF = """--- /dev/null
 +++ b/../outside.txt
 @@ -0,0 +1,2 @@
@@ -194,6 +201,52 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     file_result = session.results[0]
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
+
+
+def test_apply_patchset_dry_run_updates_existing_empty_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    target = project / "docs" / "empty.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(EXISTING_EMPTY_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.85,
+    )
+
+    assert target.read_text(encoding="utf-8") == ""
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.decisions and file_result.decisions[0].selected_pos == 0
+
+
+def test_apply_patchset_real_run_updates_existing_empty_file(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    target = project / "docs" / "empty.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("", encoding="utf-8")
+
+    session = cli.apply_patchset(
+        PatchSet(EXISTING_EMPTY_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert target.read_text(encoding="utf-8") == "first line\nsecond line\n"
+    assert session.backup_dir.exists()
+    backup_file_path = session.backup_dir / "docs" / "empty.txt"
+    assert backup_file_path.exists()
+    assert backup_file_path.read_text(encoding="utf-8") == ""
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.decisions and file_result.decisions[0].selected_pos == 0
 
 
 def test_apply_patchset_dry_run_adds_new_file(tmp_path: Path) -> None:

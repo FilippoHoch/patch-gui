@@ -138,6 +138,27 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     assert decisions[0].message == "context review"
 
 
+def test_apply_hunks_metadata_fallback_for_insertions_without_context() -> None:
+    diff = """--- a/sample.txt
++++ b/sample.txt
+@@ -0,0 +1,2 @@
++first line
++second line
+"""
+    patch = PatchSet(diff)
+    pf = patch[0]
+    file_lines = ["original\n"]
+
+    new_lines, decisions, applied = apply_hunks(
+        file_lines, pf, threshold=0.5, manual_resolver=None
+    )
+
+    assert applied == 1
+    assert new_lines == ["first line\n", "second line\n", "original\n"]
+    assert decisions[0].strategy == "metadata"
+    assert decisions[0].selected_pos == 0
+
+
 def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:
     project_root = tmp_path
     target = project_root / "src" / "pkg"
