@@ -219,14 +219,17 @@ class ApplySession:
                         )
                     )
                 if d.candidates:
-                    cand_str = ", ".join(
-                        [
-                            _(
-                                "(position {position}, similarity {similarity:.3f})"
-                            ).format(position=p, similarity=s)
-                            for p, s in d.candidates
-                        ]
-                    )
+                    max_display = 5
+                    displayed = [
+                        _(
+                            "(position {position}, similarity {similarity:.3f})"
+                        ).format(position=p, similarity=s)
+                        for p, s in d.candidates[:max_display]
+                    ]
+                    remaining = len(d.candidates) - max_display
+                    if remaining > 0:
+                        displayed.append(_("… (+{count} more)").format(count=remaining))
+                    cand_str = ", ".join(displayed)
                     lines.append(
                         _("      Candidates: {candidates}").format(candidates=cand_str)
                     )
