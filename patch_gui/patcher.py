@@ -221,9 +221,9 @@ class ApplySession:
                 if d.candidates:
                     max_display = 5
                     displayed = [
-                        _(
-                            "(position {position}, similarity {similarity:.3f})"
-                        ).format(position=p, similarity=s)
+                        _("(position {position}, similarity {similarity:.3f})").format(
+                            position=p, similarity=s
+                        )
                         for p, s in d.candidates[:max_display]
                     ]
                     remaining = len(d.candidates) - max_display
@@ -396,7 +396,9 @@ def apply_hunks(
         logger.debug("Processo hunk: %s", hv.header)
 
         if not current_lines and not hv.before_lines:
-            logger.debug("File vuoto: applico l'hunk %s come nuova creazione", hv.header)
+            logger.debug(
+                "File vuoto: applico l'hunk %s come nuova creazione", hv.header
+            )
             current_lines, success = _apply(
                 current_lines,
                 hv,
