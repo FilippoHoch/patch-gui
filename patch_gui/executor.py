@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -41,6 +42,7 @@ __all__ = [
     "apply_patchset",
     "load_patch",
     "session_completed",
+    "sys",
 ]
 
 
@@ -87,7 +89,8 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
             else:
                 text = sys.stdin.read()
     else:
-        path = Path(source).expanduser()
+        expanded_source = os.path.expanduser(source)
+        path = Path(expanded_source)
         if not path.exists():
             raise CLIError(_("Diff file not found: {path}").format(path=path))
         if encoding:
@@ -240,9 +243,7 @@ def _apply_file_patch(
             try:
                 resolved_candidate.relative_to(project_root)
             except ValueError:
-                fr.skipped_reason = _(
-                    "Patch targets a path outside the project root"
-                )
+                fr.skipped_reason = _("Patch targets a path outside the project root")
                 return fr
 
             path = resolved_candidate
@@ -312,17 +313,15 @@ def _apply_file_patch(
     fr.decisions.extend(decisions)
 
     if not session.dry_run and applied:
-        should_remove = (
-            is_removed_file and fr.hunks_total and applied == fr.hunks_total
-        )
+        should_remove = is_removed_file and fr.hunks_total and applied == fr.hunks_total
         if should_remove:
             try:
                 if path.exists():
                     path.unlink()
             except OSError as exc:
-                message = _("Failed to delete file after applying patch: {error}").format(
-                    error=exc
-                )
+                message = _(
+                    "Failed to delete file after applying patch: {error}"
+                ).format(error=exc)
                 fr.skipped_reason = message
                 hunk_header = pf[0].header if len(pf) else rel_path
                 fr.decisions.append(
