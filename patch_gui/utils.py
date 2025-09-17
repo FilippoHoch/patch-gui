@@ -1,6 +1,7 @@
 """Utility helpers for patch processing and shared configuration."""
 from __future__ import annotations
 
+from datetime import datetime
 import re
 from pathlib import Path
 from typing import Callable, List, Optional, Protocol, Tuple, cast
@@ -27,6 +28,10 @@ APP_NAME = "Patch GUI – Diff Applier"
 BACKUP_DIR = ".diff_backups"
 REPORT_JSON = "apply-report.json"
 REPORT_TXT = "apply-report.txt"
+
+_PACKAGE_ROOT = Path(__file__).resolve().parent
+REPORTS_SUBDIR = "reports"
+DEFAULT_REPORTS_DIR = _PACKAGE_ROOT / REPORTS_SUBDIR
 
 
 def display_path(path: Path) -> str:
@@ -252,11 +257,29 @@ def preprocess_patch_text(raw_text: str) -> str:
     return _normalize_hunk_line_counts("".join(parts))
 
 
+def format_session_timestamp(started_at: float) -> str:
+    """Return a filesystem-friendly timestamp label for ``started_at``."""
+
+    dt = datetime.fromtimestamp(started_at)
+    fractional = int((started_at - int(started_at)) * 1000)
+    return f"{dt.strftime('%Y%m%d-%H%M%S')}-{fractional:03d}"
+
+
+def default_session_report_dir(started_at: float) -> Path:
+    """Return the default directory where reports for ``started_at`` should be saved."""
+
+    return DEFAULT_REPORTS_DIR / format_session_timestamp(started_at)
+
+
 __all__ = [
     "APP_NAME",
     "BACKUP_DIR",
     "REPORT_JSON",
     "REPORT_TXT",
+    "DEFAULT_REPORTS_DIR",
+    "REPORTS_SUBDIR",
+    "default_session_report_dir",
+    "format_session_timestamp",
     "decode_bytes",
     "detect_encoding",
     "display_path",
