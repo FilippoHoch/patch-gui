@@ -127,6 +127,12 @@ Per eseguire la suite automatizzata del progetto:
 pytest
 ```
 
+### Verifica manuale barra di avanzamento
+
+1. Avvia la GUI (`patch-gui`) e analizza un diff contenente più file/hunk.
+2. Premi **Applica patch** (anche in modalità Dry‑run): la barra di stato mostrerà la **QProgressBar** con la percentuale di avanzamento.
+3. Attendi il completamento per verificare che la barra raggiunga il 100 % e scompaia automaticamente.
+
 ---
 
 ## Guida all'uso
@@ -150,6 +156,7 @@ pytest
 5. **Applica realmente**: disabilita Dry‑run → **Applica patch**.
 
    * Matching: **esatto** → **fuzzy**.
+   * Durante l'esecuzione la barra di stato mostra una barra di avanzamento con la percentuale di file/hunk elaborati.
    * **Ambiguità**: se esistono più posizioni plausibili, si apre un dialog con **tutte** le opzioni e contesto; scegli manualmente.
    * File mancanti: se non trovati sotto la root, **vengono saltati** (come da preferenza).
 6. **Backup & Report**: ogni run reale crea `./.diff_backups/<timestamp>/` con copie originali e genera:
