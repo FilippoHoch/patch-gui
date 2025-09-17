@@ -22,6 +22,7 @@ from unidiff import PatchSet
 from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
 from .i18n import install_translators
+from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_under_wsl
 from .patcher import (
@@ -35,8 +36,8 @@ from .patcher import (
     build_hunk_view as patcher_build_hunk_view,
     find_file_candidates,
     prepare_backup_dir,
-    write_reports,
 )
+from .reporting import write_session_reports
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
@@ -93,6 +94,15 @@ def _qt_slot(
     else:
         slot = QtCore.Slot(*types, name=name, result=result)
     return cast("Callable[[_F], _F]", slot)
+
+
+_GUI_LOG_LEVEL_CHOICES: tuple[str, ...] = (
+    "critical",
+    "error",
+    "warning",
+    "info",
+    "debug",
+)
 
 
 LOG_FILE_ENV_VAR: str = "PATCH_GUI_LOG_FILE"
@@ -264,6 +274,19 @@ def _apply_platform_workarounds() -> None:
             )
 
 
+def _parse_exclude_text(text: str) -> tuple[str, ...]:
+    if not text:
+        return tuple()
+    parsed: list[str] = []
+    for item in text.split(","):
+        normalized = item.strip()
+        if not normalized:
+            continue
+        if normalized not in parsed:
+            parsed.append(normalized)
+    return tuple(parsed)
+
+
 class CandidateDialog(_QDialogBase):
     def __init__(
         self,
@@ -394,13 +417,128 @@ class FileChoiceDialog(_QDialogBase):
         row = self.list.currentRow()
         if row >= 0:
             item = self.list.item(row)
-            if item is not None:
-                data = item.data(QtCore.Qt.ItemDataRole.UserRole)
-                if isinstance(data, Path):
-                    self.chosen = data
-                elif data is not None:
-                    self.chosen = Path(str(data))
+        if item is not None:
+            data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if isinstance(data, Path):
+                self.chosen = data
+            elif data is not None:
+                self.chosen = Path(str(data))
         super().accept()
+
+
+class SettingsDialog(_QDialogBase):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None,
+        *,
+        config: AppConfig | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(_("Impostazioni"))
+        self.setModal(True)
+        self.resize(480, 320)
+        self._original_config = config or load_config()
+        self.result_config: AppConfig | None = None
+
+        layout = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+        layout.addLayout(form)
+
+        self.threshold_spin = QtWidgets.QDoubleSpinBox()
+        self.threshold_spin.setRange(0.5, 1.0)
+        self.threshold_spin.setSingleStep(0.01)
+        self.threshold_spin.setDecimals(2)
+        self.threshold_spin.setValue(self._original_config.threshold)
+        form.addRow(_("Soglia fuzzy"), self.threshold_spin)
+
+        self.exclude_edit = QtWidgets.QLineEdit(
+            ", ".join(self._original_config.exclude_dirs)
+        )
+        self.exclude_edit.setPlaceholderText(
+            _("Directory escluse (separate da virgola)")
+        )
+        form.addRow(_("Directory escluse"), self.exclude_edit)
+
+        self.backup_edit = QtWidgets.QLineEdit(
+            str(self._original_config.backup_base)
+        )
+        self.backup_edit.setPlaceholderText(
+            _("Percorso base per i backup")
+        )
+        backup_layout = QtWidgets.QHBoxLayout()
+        backup_layout.setContentsMargins(0, 0, 0, 0)
+        backup_layout.addWidget(self.backup_edit, 1)
+        self.backup_button = QtWidgets.QPushButton(_("Sfoglia…"))
+        self.backup_button.clicked.connect(self._on_choose_backup)
+        backup_layout.addWidget(self.backup_button)
+        backup_widget = QtWidgets.QWidget()
+        backup_widget.setLayout(backup_layout)
+        form.addRow(_("Directory backup"), backup_widget)
+
+        self.log_combo = QtWidgets.QComboBox()
+        for level in _GUI_LOG_LEVEL_CHOICES:
+            self.log_combo.addItem(level.upper(), level)
+        current_index = self.log_combo.findData(self._original_config.log_level)
+        if current_index >= 0:
+            self.log_combo.setCurrentIndex(current_index)
+        form.addRow(_("Livello log"), self.log_combo)
+
+        self.dry_run_check = QtWidgets.QCheckBox(
+            _("Esegui sempre in dry-run inizialmente")
+        )
+        self.dry_run_check.setChecked(self._original_config.dry_run_default)
+        form.addRow("", self.dry_run_check)
+
+        self.reports_check = QtWidgets.QCheckBox(
+            _("Genera report al termine (JSON + testo)")
+        )
+        self.reports_check.setChecked(self._original_config.write_reports)
+        form.addRow("", self.reports_check)
+
+        self.buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        layout.addWidget(self.buttons)
+        self.buttons.accepted.connect(self._on_accept)
+        self.buttons.rejected.connect(self.reject)
+
+    def _on_choose_backup(self) -> None:  # pragma: no cover - user interaction
+        directory = QtWidgets.QFileDialog.getExistingDirectory(
+            self,
+            _("Seleziona directory di backup"),
+            str(self._original_config.backup_base),
+        )
+        if directory:
+            self.backup_edit.setText(directory)
+
+    def _on_accept(self) -> None:
+        self.result_config = self._gather_config()
+        self.accept()
+
+    def _gather_config(self) -> AppConfig:
+        threshold = float(self.threshold_spin.value())
+        excludes = _parse_exclude_text(self.exclude_edit.text())
+        backup_text = self.backup_edit.text().strip()
+        if backup_text:
+            backup_base = Path(backup_text).expanduser()
+        else:
+            backup_base = self._original_config.backup_base
+        log_level_data = self.log_combo.currentData()
+        log_level = (
+            str(log_level_data)
+            if isinstance(log_level_data, str)
+            else self._original_config.log_level
+        )
+
+        return AppConfig(
+            threshold=threshold,
+            exclude_dirs=excludes,
+            backup_base=backup_base,
+            log_level=log_level,
+            dry_run_default=self.dry_run_check.isChecked(),
+            write_reports=self.reports_check.isChecked(),
+        )
 
 
 class PatchApplyWorker(_QThreadBase):
@@ -606,12 +744,17 @@ class MainWindow(_QMainWindowBase):
 
         self.threshold: float = self.app_config.threshold
         self.exclude_dirs: tuple[str, ...] = self.app_config.exclude_dirs
+        self.reports_enabled: bool = self.app_config.write_reports
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
+
+        settings_menu = self.menuBar().addMenu(_("Impostazioni"))
+        self.action_open_settings = settings_menu.addAction(_("Preferenze…"))
+        self.action_open_settings.triggered.connect(self.open_settings_dialog)
 
         banner = QtWidgets.QHBoxLayout()
         banner.setContentsMargins(0, 0, 0, 0)
@@ -668,7 +811,6 @@ class MainWindow(_QMainWindowBase):
         second = QtWidgets.QHBoxLayout()
         layout.addLayout(second)
         self.chk_dry = QtWidgets.QCheckBox("Dry-run / anteprima")
-        self.chk_dry.setChecked(True)
         second.addWidget(self.chk_dry)
 
         second.addSpacing(20)
@@ -682,8 +824,7 @@ class MainWindow(_QMainWindowBase):
 
         second.addSpacing(20)
         second.addWidget(QtWidgets.QLabel("Ignora directory"))
-        initial_excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
-        self.exclude_edit = QtWidgets.QLineEdit(initial_excludes)
+        self.exclude_edit = QtWidgets.QLineEdit()
         self.exclude_edit.setPlaceholderText("es. .git,.venv,node_modules")
         self.exclude_edit.setToolTip(
             "Elenco di directory da ignorare (relative alla root), separate da virgola."
@@ -731,6 +872,7 @@ class MainWindow(_QMainWindowBase):
         splitter.addWidget(right)
         splitter.setSizes([400, 800])
 
+        self._apply_config_to_widgets()
         self._setup_gui_logging()
 
         status_bar = self.statusBar()
@@ -779,6 +921,31 @@ class MainWindow(_QMainWindowBase):
             self._qt_log_handler = None
         super().closeEvent(event)
 
+    def _apply_config_to_widgets(self) -> None:
+        self.threshold = float(self.app_config.threshold)
+        self.exclude_dirs = tuple(self.app_config.exclude_dirs)
+        self.reports_enabled = bool(self.app_config.write_reports)
+        self.spin_thresh.setValue(self.threshold)
+        excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
+        self.exclude_edit.setText(excludes_text)
+        self.chk_dry.setChecked(self.app_config.dry_run_default)
+
+    def _create_settings_dialog(self) -> SettingsDialog:
+        return SettingsDialog(self, config=self.app_config)
+
+    def open_settings_dialog(self) -> None:
+        dialog = self._create_settings_dialog()
+        result = dialog.exec()
+        if result != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        if dialog.result_config is None:
+            return
+        self.app_config = dialog.result_config
+        configure_logging(level=self.app_config.log_level)
+        self._apply_config_to_widgets()
+        save_config(self.app_config)
+        self.statusBar().showMessage(_("Impostazioni salvate"), 5000)
+
     def set_project_root(self, path: Path, persist: bool = True) -> bool:
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists() or not resolved.is_dir():
@@ -806,20 +973,7 @@ class MainWindow(_QMainWindowBase):
 
     def _current_exclude_dirs(self) -> tuple[str, ...]:
         text = self.exclude_edit.text() if hasattr(self, "exclude_edit") else ""
-        if not text:
-            return tuple()
-        parsed: list[str] = []
-        for item in text.split(","):
-            normalized = item.strip()
-            if normalized:
-                parsed.append(normalized)
-        if not parsed:
-            return tuple()
-        unique: list[str] = []
-        for value in parsed:
-            if value not in unique:
-                unique.append(value)
-        return tuple(unique)
+        return _parse_exclude_text(text)
 
     def _persist_config(self) -> None:
         self.app_config.threshold = float(self.spin_thresh.value())
@@ -828,8 +982,11 @@ class MainWindow(_QMainWindowBase):
         level_name = logging.getLevelName(root_logger.level)
         if isinstance(level_name, str):
             self.app_config.log_level = level_name.lower()
+        self.app_config.dry_run_default = self.chk_dry.isChecked()
+        self.app_config.write_reports = self.reports_enabled
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
+        self.reports_enabled = self.app_config.write_reports
         save_config(self.app_config)
 
     def choose_root(self) -> None:
@@ -1000,18 +1157,31 @@ class MainWindow(_QMainWindowBase):
         self, session: ApplySession
     ) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
-        write_reports(session)
+        write_session_reports(
+            session,
+            report_json=None,
+            report_txt=None,
+            enable_reports=self.app_config.write_reports,
+        )
         logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
         self._set_busy(False)
         self.progress_bar.setValue(100)
         self.progress_bar.setVisible(False)
         self.progress_bar.setToolTip("")
+        if self.app_config.write_reports:
+            completion_message = _(
+                "Operazione terminata. Vedi log e report nella cartella di backup."
+            )
+        else:
+            completion_message = _(
+                "Operazione terminata. Report disabilitati nelle impostazioni."
+            )
         QtWidgets.QMessageBox.information(
             self,
             "Completato",
-            "Operazione terminata. Vedi log e report nella cartella di backup.",
+            completion_message,
         )
-        self.statusBar().showMessage("Operazione completata")
+        self.statusBar().showMessage(_("Operazione completata"))
 
     @_qt_slot(str)
     def _on_worker_error(self, message: str) -> None:  # pragma: no cover - UI feedback
@@ -1213,6 +1383,7 @@ def main() -> None:
 __all__ = [
     "CandidateDialog",
     "FileChoiceDialog",
+    "SettingsDialog",
     "GuiLogHandler",
     "MainWindow",
     "PatchApplyWorker",

@@ -980,6 +980,22 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
     )
     assert load_config(config_path).backup_base == (tmp_path / "custom").expanduser()
 
+    cli.config_set(
+        "dry_run_default",
+        ["false"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).dry_run_default is False
+
+    cli.config_set(
+        "write_reports",
+        ["no"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).write_reports is False
+
 
 def test_config_reset_values(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
@@ -1001,6 +1017,8 @@ def test_config_reset_values(tmp_path: Path) -> None:
     assert reset.log_level == defaults.log_level
     assert reset.exclude_dirs == defaults.exclude_dirs
     assert reset.backup_base == defaults.backup_base
+    assert reset.dry_run_default == defaults.dry_run_default
+    assert reset.write_reports == defaults.write_reports
 
 
 def test_run_config_reports_invalid_log_level(

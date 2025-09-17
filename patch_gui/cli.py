@@ -40,7 +40,14 @@ class ConfigCommandError(Exception):
     """Raised when a configuration sub-command cannot be completed."""
 
 
-_CONFIG_KEYS = ("threshold", "exclude_dirs", "backup_base", "log_level")
+_CONFIG_KEYS = (
+    "threshold",
+    "exclude_dirs",
+    "backup_base",
+    "log_level",
+    "dry_run_default",
+    "write_reports",
+)
 
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
@@ -248,6 +255,10 @@ def config_reset(
             config.backup_base = defaults.backup_base
         elif key == "exclude_dirs":
             config.exclude_dirs = defaults.exclude_dirs
+        elif key == "dry_run_default":
+            config.dry_run_default = defaults.dry_run_default
+        elif key == "write_reports":
+            config.write_reports = defaults.write_reports
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -310,4 +321,27 @@ def _apply_config_value(
         config.exclude_dirs = parsed
         return
 
+    if key in {"dry_run_default", "write_reports"}:
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The {key} key expects exactly one value.").format(key=key),
+            )
+        config_value = _parse_bool(values[0])
+        if key == "dry_run_default":
+            config.dry_run_default = config_value
+        else:
+            config.write_reports = config_value
+        return
+
     raise ValueError(_("Unknown configuration key: {key}").format(key=key))
+
+
+def _parse_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    raise ConfigCommandError(
+        _("Unsupported boolean value: {value}.").format(value=value)
+    )

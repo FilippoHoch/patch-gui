@@ -24,6 +24,80 @@ msgid ""
 "but from the command line."
 msgstr ""
 
+#: patch_gui/app.py:437 patch_gui/app.py:755
+msgid "Impostazioni"
+msgstr "Impostazioni"
+
+#: patch_gui/app.py:756
+msgid "Preferenze…"
+msgstr "Preferenze…"
+
+#: patch_gui/app.py:452
+msgid "Soglia fuzzy"
+msgstr "Soglia fuzzy"
+
+#: patch_gui/app.py:458
+msgid "Directory escluse (separate da virgola)"
+msgstr "Directory escluse (separate da virgola)"
+
+#: patch_gui/app.py:460
+msgid "Directory escluse"
+msgstr "Directory escluse"
+
+#: patch_gui/app.py:466
+msgid "Percorso base per i backup"
+msgstr "Percorso base per i backup"
+
+#: patch_gui/app.py:471
+msgid "Sfoglia…"
+msgstr "Sfoglia…"
+
+#: patch_gui/app.py:476
+msgid "Directory backup"
+msgstr "Directory backup"
+
+#: patch_gui/app.py:484
+msgid "Livello log"
+msgstr "Livello log"
+
+#: patch_gui/app.py:487
+msgid "Esegui sempre in dry-run inizialmente"
+msgstr "Esegui sempre in dry-run inizialmente"
+
+#: patch_gui/app.py:493
+msgid "Genera report al termine (JSON + testo)"
+msgstr "Genera report al termine (JSON + testo)"
+
+#: patch_gui/app.py:509
+msgid "Seleziona directory di backup"
+msgstr "Seleziona directory di backup"
+
+#: patch_gui/app.py:947
+msgid "Impostazioni salvate"
+msgstr "Impostazioni salvate"
+
+#: patch_gui/app.py:1173
+msgid "Operazione terminata. Vedi log e report nella cartella di backup."
+msgstr "Operazione terminata. Vedi log e report nella cartella di backup."
+
+#: patch_gui/app.py:1177
+msgid "Operazione terminata. Report disabilitati nelle impostazioni."
+msgstr "Operazione terminata. Report disabilitati nelle impostazioni."
+
+#: patch_gui/app.py:1184
+msgid "Operazione completata"
+msgstr "Operazione completata"
+
+#: patch_gui/cli.py:327
+#, python-brace-format
+msgid "The {key} key expects exactly one value."
+msgstr "La chiave {key} richiede esattamente un valore."
+
+#: patch_gui/cli.py:346
+#, python-brace-format
+msgid "Unsupported boolean value: {value}."
+msgstr "Valore booleano non supportato: {value}."
+
 #: patch_gui/parser.py:48
 msgid "Path to the diff file to apply ('-' reads from STDIN)."
 msgstr ""
