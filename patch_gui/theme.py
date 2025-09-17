@@ -91,7 +91,7 @@ _RESOURCE_DIR = Path(__file__).resolve().parent / "resources"
 
 def _resource_url(name: str) -> str:
     path = (_RESOURCE_DIR / name).resolve()
-    return QtCore.QUrl.fromLocalFile(str(path)).toString()
+    return str(QtCore.QUrl.fromLocalFile(str(path)).toString())
 
 
 def _build_stylesheet() -> str:
