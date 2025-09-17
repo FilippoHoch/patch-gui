@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional, Sequence
-
-try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
-    from PySide6 import QtCore
-except ImportError:  # pragma: no cover - executed when PySide6 is not installed
-    QtCore = None  # type: ignore[assignment]
-
 from . import cli
 from .i18n import install_translators
 from .localization import gettext as _
 from .utils import APP_NAME
+
+from types import ModuleType
+from typing import Optional, Sequence, cast
+
+QtCore: ModuleType | None
+
+try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
+    from PySide6 import QtCore as _QtCore
+except ImportError:  # pragma: no cover - executed when PySide6 is not installed
+    QtCore = None
+else:
+    QtCore = cast(ModuleType, _QtCore)
 
 __all__ = ["main"]
 
@@ -26,9 +31,11 @@ def _tr(text: str) -> str:
     """Translate ``text`` using the ``diff_applier_gui`` context."""
 
     if QtCore is not None:
-        translated = QtCore.QCoreApplication.translate("diff_applier_gui", text)
-        if translated != text:
-            return translated
+        translated_text = cast(
+            str, QtCore.QCoreApplication.translate("diff_applier_gui", text)
+        )
+        if translated_text != text:
+            return translated_text
     return _(text)
 
 

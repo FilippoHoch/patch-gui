@@ -15,6 +15,17 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 from logging.handlers import RotatingFileHandler
 
 from PySide6 import QtCore, QtGui, QtWidgets
+
+if TYPE_CHECKING:
+    from PySide6.QtCore import QObject, QThread, Slot
+    from PySide6.QtWidgets import QDialog, QMainWindow, QWidget
+else:  # pragma: no cover - provides runtime aliases when type checking is disabled
+    QObject = QtCore.QObject
+    QThread = QtCore.QThread
+    Slot = QtCore.Slot
+    QDialog = QtWidgets.QDialog
+    QMainWindow = QtWidgets.QMainWindow
+    QWidget = QtWidgets.QWidget
 from unidiff import PatchSet
 
 from .filetypes import inspect_file_type
@@ -162,7 +173,7 @@ def configure_logging(
     return file_path
 
 
-class _QtLogEmitter(QtCore.QObject):
+class _QtLogEmitter(QObject):
     """Helper ``QObject`` used to forward log messages to the GUI thread."""
 
     message = QtCore.Signal(str, int)
@@ -219,10 +230,10 @@ def _apply_platform_workarounds() -> None:
             )
 
 
-class CandidateDialog(QtWidgets.QDialog):
+class CandidateDialog(QDialog):
     def __init__(
         self,
-        parent: QtWidgets.QWidget | None,
+        parent: QWidget | None,
         file_text: str,
         candidates: List[Tuple[int, float]],
         hv: HunkView,
@@ -306,10 +317,10 @@ class CandidateDialog(QtWidgets.QDialog):
         super().accept()
 
 
-class FileChoiceDialog(QtWidgets.QDialog):
+class FileChoiceDialog(QDialog):
     def __init__(
         self,
-        parent: QtWidgets.QWidget | None,
+        parent: QWidget | None,
         title: str,
         choices: List[Path],
         base: Path | None = None,
@@ -358,7 +369,7 @@ class FileChoiceDialog(QtWidgets.QDialog):
         super().accept()
 
 
-class PatchApplyWorker(QtCore.QThread):
+class PatchApplyWorker(QThread):
     progress = QtCore.Signal(str, int)
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
@@ -541,7 +552,7 @@ class PatchApplyWorker(QtCore.QThread):
         return pos
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
@@ -694,7 +705,7 @@ class MainWindow(QtWidgets.QMainWindow):
         logging.getLogger().addHandler(handler)
         self._qt_log_handler = handler
 
-    @QtCore.Slot(str, int)
+    @Slot(str, int)
     def _handle_log_message(
         self, message: str, level: int
     ) -> None:  # pragma: no cover - UI feedback
@@ -895,7 +906,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage("Applicazione diff in corso…")
         worker.start()
 
-    @QtCore.Slot(str, int)
+    @Slot(str, int)
     def _on_worker_progress(
         self, message: str, percent: int
     ) -> None:  # pragma: no cover - UI feedback
@@ -908,7 +919,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar.setValue(clamped)
         self.progress_bar.setToolTip(message)
 
-    @QtCore.Slot(object)
+    @Slot(object)
     def _on_worker_finished(
         self, session: ApplySession
     ) -> None:  # pragma: no cover - UI feedback
@@ -926,7 +937,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.statusBar().showMessage("Operazione completata")
 
-    @QtCore.Slot(str)
+    @Slot(str)
     def _on_worker_error(self, message: str) -> None:  # pragma: no cover - UI feedback
         logger.error("Errore durante l'applicazione della patch: %s", message)
         self._set_busy(False)
@@ -936,7 +947,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.critical(self, "Errore", message)
         self.statusBar().showMessage("Errore durante l'applicazione della patch")
 
-    @QtCore.Slot(str, object)
+    @Slot(str, object)
     def _on_worker_request_file_choice(
         self, rel_path: str, candidates: List[Path]
     ) -> None:  # pragma: no cover - UI feedback
@@ -954,7 +965,7 @@ class MainWindow(QtWidgets.QMainWindow):
             choice = dlg.chosen
         worker.provide_file_choice(choice)
 
-    @QtCore.Slot(str, object, object)
+    @Slot(str, object, object)
     def _on_worker_request_hunk_choice(
         self, file_text: str, candidates: List[Tuple[int, float]], hv: HunkView
     ) -> None:  # pragma: no cover - UI feedback

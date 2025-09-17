@@ -15,6 +15,7 @@ import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
 from patch_gui.utils import BACKUP_DIR, REPORT_JSON, REPORT_TXT
+from tests.typing_helpers import parametrize
 
 SAMPLE_DIFF = """--- a/sample.txt
 +++ b/sample.txt
@@ -461,20 +462,16 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         configured_logger.setLevel(previous_level)
 
 
-def _create_dummy_session(tmp_path: Path):
-    class DummySession:
-        def __init__(self) -> None:
-            self.dry_run = True
-            self.report_json_path = None
-            self.report_txt_path = None
-            self.results = []
-            self.backup_dir = tmp_path / "backups"
-            self.backup_dir.mkdir(exist_ok=True)
-
-        def to_txt(self) -> str:
-            return "Summary"
-
-    return DummySession()
+def _create_dummy_session(tmp_path: Path) -> executor.ApplySession:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir(exist_ok=True)
+    return executor.ApplySession(
+        project_root=tmp_path,
+        backup_dir=backup_dir,
+        dry_run=True,
+        threshold=0.85,
+        started_at=time.time(),
+    )
 
 
 def test_run_cli_passes_explicit_encoding(
@@ -534,20 +531,18 @@ def test_run_cli_defaults_to_auto_encoding(
     monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
     monkeypatch.setattr(cli, "session_completed", lambda session: True)
 
-    exit_code = cli.run_cli(
-        ["--root", str(project), "--dry-run", str(patch_path)]
-    )
+    exit_code = cli.run_cli(["--root", str(project), "--dry-run", str(patch_path)])
 
     assert exit_code == 0
     assert captured["encoding"] is None
 
 
-@pytest.mark.parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
+@parametrize("raw, expected", [("0.5", 0.5), ("1.0", 1.0)])
 def test_threshold_value_accepts_valid_inputs(raw: str, expected: float) -> None:
     assert parser.threshold_value(raw) == expected
 
 
-@pytest.mark.parametrize(
+@parametrize(
     "raw, expected_message",
     [
         ("0", "Threshold must be between 0 (exclusive) and 1 (inclusive)."),

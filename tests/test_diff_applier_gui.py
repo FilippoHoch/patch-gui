@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-import pytest
 from typing import Any, cast
 
+import pytest
+
 from patch_gui import diff_applier_gui
+from tests.typing_helpers import parametrize
 
 
 GUI_RESULT = 42
 CLI_RESULT = 17
 
 
-@pytest.mark.parametrize(
+@parametrize(
     "argv, expected_calls, expected_result",
     [
         ([], [("gui", ())], GUI_RESULT),

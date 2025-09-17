@@ -8,12 +8,20 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from types import ModuleType
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
+
+if TYPE_CHECKING:
+    from PySide6.QtCore import QCoreApplication, QLocale, QTranslator
+
+QtCore: ModuleType | None
 
 try:  # pragma: no cover - optional dependency may be missing in CLI-only installations
-    from PySide6 import QtCore
+    from PySide6 import QtCore as _QtCore
 except ImportError:  # pragma: no cover - executed when PySide6 is not installed
-    QtCore = None  # type: ignore[assignment]
+    QtCore = None
+else:
+    QtCore = _QtCore
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +31,8 @@ TRANSLATIONS_DIR = Path(__file__).resolve().parent / "translations"
 
 
 def install_translators(
-    app: QtCore.QCoreApplication, locale: str | QtCore.QLocale | None = None
-) -> List[QtCore.QTranslator]:
+    app: QCoreApplication, locale: str | QLocale | None = None
+) -> List[QTranslator]:
     """Compile and install translations for ``app``.
 
     The target locale is determined by ``locale`` or ``PATCH_GUI_LANG``; when both are
@@ -36,6 +44,7 @@ def install_translators(
         raise RuntimeError(
             "PySide6 non è installato: le traduzioni della GUI richiedono l'extra 'gui'."
         )
+    assert QtCore is not None
 
     sources = _translation_sources()
     if not sources:
@@ -43,7 +52,7 @@ def install_translators(
         return []
 
     requested_locale = _resolve_locale(locale)
-    translators: List[QtCore.QTranslator] = []
+    translators: List[QTranslator] = []
 
     cache_dir = _compiled_dir(app)
     candidates = _candidate_codes(requested_locale)
@@ -70,15 +79,18 @@ def install_translators(
     return translators
 
 
-def _resolve_locale(locale: str | QtCore.QLocale | None) -> QtCore.QLocale:
+def _resolve_locale(locale: str | QLocale | None) -> QLocale:
+    if QtCore is None:
+        raise RuntimeError("PySide6 is required to resolve locales.")
+    assert QtCore is not None
     if locale:
-        return QtCore.QLocale(locale)
+        return cast(QLocale, QtCore.QLocale(locale))
 
     env_locale = os.getenv(LANG_ENV_VAR)
     if env_locale:
-        return QtCore.QLocale(env_locale)
+        return cast(QLocale, QtCore.QLocale(env_locale))
 
-    return QtCore.QLocale.system()
+    return cast(QLocale, QtCore.QLocale.system())
 
 
 def _translation_sources() -> Dict[str, Path]:
@@ -98,7 +110,10 @@ def _translation_sources() -> Dict[str, Path]:
     return sources
 
 
-def _candidate_codes(locale: QtCore.QLocale) -> List[str]:
+def _candidate_codes(locale: QLocale) -> List[str]:
+    if QtCore is None:
+        raise RuntimeError("PySide6 is required to determine locale codes.")
+    assert QtCore is not None
     name = locale.name().replace("-", "_")
     language_code = QtCore.QLocale.languageToCode(locale.language()).lower()
 
@@ -122,7 +137,10 @@ def _pick_source(sources: Dict[str, Path], code: str) -> Optional[Path]:
     return None
 
 
-def _compiled_dir(app: QtCore.QCoreApplication) -> Path:
+def _compiled_dir(app: QCoreApplication) -> Path:
+    if QtCore is None:
+        raise RuntimeError("PySide6 is required to determine cache directories.")
+    assert QtCore is not None
     cache_location = QtCore.QStandardPaths.StandardLocation.CacheLocation
     location = QtCore.QStandardPaths.writableLocation(cache_location)
     if not location:
@@ -211,15 +229,18 @@ def _find_lrelease() -> Optional[Path]:
 
 
 def _load_qt_base_translation(
-    app: QtCore.QCoreApplication, locale: QtCore.QLocale
-) -> Optional[QtCore.QTranslator]:
+    app: QCoreApplication, locale: QLocale
+) -> Optional[QTranslator]:
+    if QtCore is None:
+        raise RuntimeError("PySide6 is required to load Qt base translations.")
+    assert QtCore is not None
     translations_path = QtCore.QLibraryInfo.path(
         QtCore.QLibraryInfo.LibraryPath.TranslationsPath
     )
     if not translations_path:
         return None
 
-    qt_translator = QtCore.QTranslator()
+    qt_translator = cast(QTranslator, QtCore.QTranslator())
     for code in _candidate_codes(locale):
         if qt_translator.load(f"qtbase_{code}", translations_path):
             app.installTranslator(qt_translator)

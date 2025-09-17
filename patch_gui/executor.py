@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CLIError",
+    "ApplySession",
     "apply_patchset",
     "load_patch",
     "session_completed",

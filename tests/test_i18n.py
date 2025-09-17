@@ -8,6 +8,7 @@ from typing import Any, Iterator, cast
 import pytest
 
 from patch_gui import i18n
+from tests.typing_helpers import fixture
 
 MODULE_I18N = cast(Any, i18n)
 
@@ -36,7 +37,7 @@ class DummyQLocale:
         return DummyQLocale.language_map[language]
 
 
-@pytest.fixture
+@fixture
 def dummy_qtcore(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(MODULE_I18N, "QtCore", SimpleNamespace(QLocale=DummyQLocale))
     yield None

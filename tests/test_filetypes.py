@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Iterable, Iterator
+
 from unidiff import PatchSet
+from unidiff.patch import PatchedFile
 
 from patch_gui.filetypes import FileTypeInfo, inspect_file_type
 
 
-def _first_file(diff: str):
+def _first_file(diff: str) -> PatchedFile:
     patch = PatchSet(diff)
     return patch[0]
 
@@ -29,14 +32,19 @@ def test_inspect_special_filename() -> None:
     assert info.name == "makefile"
 
 
+class _EmptyLine:
+    line_type: str = ""
+    value: str = ""
+
+
 def test_inspect_binary_stub() -> None:
     class DummyBinary:
-        path = "image.png"
-        source_file = "image.png"
-        target_file = "image.png"
-        is_binary_file = True
+        path: str | None = "image.png"
+        source_file: str | None = "image.png"
+        target_file: str | None = "image.png"
+        is_binary_file: bool | None = True
 
-        def __iter__(self):  # pragma: no cover - protocol requirement
+        def __iter__(self) -> Iterator[Iterable[_EmptyLine]]:  # pragma: no cover - protocol requirement
             return iter(())
 
     info = inspect_file_type(DummyBinary())

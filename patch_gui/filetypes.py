@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Protocol
+from typing import Iterable, Iterator, Protocol
 
 
 class _HunkLine(Protocol):
@@ -18,7 +18,7 @@ class _PatchLike(Protocol):
     target_file: str | None
     is_binary_file: bool | None
 
-    def __iter__(self) -> Iterable[_HunkLine]: ...
+    def __iter__(self) -> Iterator[Iterable[_HunkLine]]: ...
 
 
 @dataclass(frozen=True)
