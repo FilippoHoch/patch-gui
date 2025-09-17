@@ -53,3 +53,10 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "patch_gui.app",
+    "patch_gui.logo_widgets",
+]
+allow_subclassing_any = true
+
