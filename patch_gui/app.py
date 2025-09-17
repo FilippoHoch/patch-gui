@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, TypeVar, cast
 from logging.handlers import RotatingFileHandler
 
 from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtCore import QObject, QThread
+from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
 from .filetypes import inspect_file_type
@@ -180,7 +182,7 @@ def configure_logging(
     return file_path
 
 
-class _QtLogEmitter(QtCore.QObject):
+class _QtLogEmitter(QObject):
     """Helper ``QObject`` used to forward log messages to the GUI thread."""
 
     message = QtCore.Signal(str, int)
@@ -237,7 +239,7 @@ def _apply_platform_workarounds() -> None:
             )
 
 
-class CandidateDialog(QtWidgets.QDialog):
+class CandidateDialog(QDialog):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -324,7 +326,7 @@ class CandidateDialog(QtWidgets.QDialog):
         super().accept()
 
 
-class FileChoiceDialog(QtWidgets.QDialog):
+class FileChoiceDialog(QDialog):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -376,7 +378,7 @@ class FileChoiceDialog(QtWidgets.QDialog):
         super().accept()
 
 
-class PatchApplyWorker(QtCore.QThread):
+class PatchApplyWorker(QThread):
     progress = QtCore.Signal(str, int)
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
@@ -559,7 +561,7 @@ class PatchApplyWorker(QtCore.QThread):
         return pos
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
