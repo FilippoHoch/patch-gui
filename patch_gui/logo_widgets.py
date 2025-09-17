@@ -7,14 +7,24 @@ produce stylised graphics so that the project can ship without raster images.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
 __all__ = ["LogoWidget", "WordmarkWidget", "create_logo_pixmap"]
 
 
-class _QWidgetBase(QtWidgets.QWidget):
-    """Concrete ``QWidget`` subclass with a stable static type for mypy."""
+if TYPE_CHECKING:
+    # ``PySide6`` does not ship typing-friendly base classes, so mypy sees them
+    # as ``Any``. Defining the class in the ``TYPE_CHECKING`` branch gives the
+    # type checker something concrete to work with, while the assignment keeps
+    # the runtime behaviour identical.
 
+    class _QWidgetBase(QtWidgets.QWidget):
+        """Concrete ``QWidget`` subclass with a stable static type for mypy."""
+
+else:
+    _QWidgetBase = QtWidgets.QWidget
 
 
 def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
