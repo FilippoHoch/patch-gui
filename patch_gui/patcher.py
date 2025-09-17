@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -10,6 +11,9 @@ from pathlib import Path
 from typing import Callable, Iterable, Iterator, List, Optional, Protocol, Sequence, Tuple
 
 from .utils import APP_NAME, BACKUP_DIR, REPORT_JSON, REPORT_TXT
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_EXCLUDE_DIRS: tuple[str, ...] = (".git", ".venv", "node_modules")
@@ -197,11 +201,18 @@ def find_candidates(
 
     candidates: List[Tuple[int, float]] = []
     if not before_lines:
+        logger.debug("Nessuna linea 'before' fornita, nessun candidato generato")
         return candidates
     window_len = len(before_lines)
     target_text = "".join(before_lines)
 
     file_text = "".join(file_lines)
+    logger.debug(
+        "Ricerca candidati: window_len=%d, threshold=%.3f, testo_target=%d char",
+        window_len,
+        threshold,
+        len(target_text),
+    )
     idx = file_text.find(target_text)
     if idx != -1:
         cumulative = 0
@@ -211,6 +222,7 @@ def find_candidates(
                 break
             cumulative += len(line)
         if candidates:
+            logger.debug("Candidato esatto trovato in posizione %d", candidates[0][0])
             return candidates
 
     for i in range(0, len(file_lines) - window_len + 1):
@@ -220,6 +232,7 @@ def find_candidates(
             candidates.append((i, score))
 
     candidates.sort(key=lambda x: x[1], reverse=True)
+    logger.debug("Trovati %d candidati con soglia %.3f", len(candidates), threshold)
     return candidates
 
 
@@ -248,6 +261,13 @@ def apply_hunks(
     decisions: List[HunkDecision] = []
     applied_count = 0
 
+    hunks = list(hunks)
+    logger.debug(
+        "Inizio applicazione hunk: totale=%d, soglia=%.3f",
+        len(hunks),
+        threshold,
+    )
+
     def _apply(
         lines: List[str],
         hv: HunkView,
@@ -261,21 +281,31 @@ def apply_hunks(
         except Exception as exc:
             decision.strategy = "failed"
             decision.message = f"Errore durante l'applicazione del hunk: {exc}"
+            logger.exception("Errore applicando l'hunk %s in pos %d", hv.header, pos)
             return lines, False
         if strategy:
             decision.strategy = strategy
         decision.selected_pos = pos
         if similarity is not None:
             decision.similarity = similarity
+        logger.debug(
+            "Hunk %s applicato con strategia %s (pos=%d, sim=%s)",
+            hv.header,
+            decision.strategy,
+            pos,
+            f"{similarity:.3f}" if similarity is not None else "-",
+        )
         return new_lines, True
 
     for hunk in hunks:
         hv = build_hunk_view(hunk)
         decision = HunkDecision(hunk_header=hv.header, strategy="")
+        logger.debug("Processo hunk: %s", hv.header)
 
         exact_candidates = find_candidates(current_lines, hv.before_lines, threshold=1.0)
         if exact_candidates:
             pos, score = exact_candidates[0]
+            logger.debug("Match esatto trovato (pos=%d)", pos)
             current_lines, success = _apply(current_lines, hv, decision, pos, score, "exact")
             if success:
                 applied_count += 1
@@ -285,6 +315,7 @@ def apply_hunks(
         fuzzy_candidates = find_candidates(current_lines, hv.before_lines, threshold=threshold)
         if len(fuzzy_candidates) == 1:
             pos, score = fuzzy_candidates[0]
+            logger.debug("Match fuzzy singolo trovato (pos=%d, score=%.3f)", pos, score)
             current_lines, success = _apply(current_lines, hv, decision, pos, score, "fuzzy")
             if success:
                 applied_count += 1
@@ -293,6 +324,11 @@ def apply_hunks(
         if len(fuzzy_candidates) > 1:
             decision.strategy = "manual"
             decision.candidates = fuzzy_candidates
+            logger.info(
+                "Ambiguità fuzzy per hunk %s: %d candidati",
+                hv.header,
+                len(fuzzy_candidates),
+            )
             chosen: Optional[int] = None
             if manual_resolver is not None:
                 chosen = manual_resolver(hv, current_lines, fuzzy_candidates, decision, "fuzzy")
@@ -329,14 +365,17 @@ def apply_hunks(
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
                 decision.message = "Applicazione annullata (solo contesto)."
+                logger.info("Applicazione annullata per hunk %s: solo contesto", hv.header)
             decisions.append(decision)
             continue
 
         decision.strategy = "failed"
         if not decision.message:
             decision.message = "Nessun candidato compatibile trovato sopra la soglia impostata."
+        logger.info("Hunk %s fallito: %s", hv.header, decision.message)
         decisions.append(decision)
 
+    logger.debug("Applicazione hunk completata: %d/%d applicati", applied_count, len(hunks))
     return current_lines, decisions, applied_count
 
 
@@ -352,10 +391,12 @@ def find_file_candidates(
     if rel.startswith("a/") or rel.startswith("b/"):
         rel = rel[2:]
     if not rel:
+        logger.debug("Percorso relativo vuoto, nessun candidato")
         return []
 
     exact = project_root / rel
     if exact.exists():
+        logger.debug("Corrispondenza esatta trovata per %s", rel)
         return [exact]
 
     name = Path(rel).name
@@ -393,6 +434,7 @@ def find_file_candidates(
         if p.is_file() and not should_exclude(p)
     ]
     if not matches:
+        logger.info("Nessun file trovato per %s", rel)
         return []
 
     suffix_matches = []
@@ -404,8 +446,10 @@ def find_file_candidates(
         if str(relative).endswith(rel):
             suffix_matches.append(path)
     if len(suffix_matches) == 1:
+        logger.debug("Match per suffisso unico trovato: %s", suffix_matches[0])
         return suffix_matches
 
+    logger.debug("Trovati %d candidati per %s", len(matches), rel)
     return sorted(matches)
 
 
