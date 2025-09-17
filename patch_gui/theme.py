@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -21,6 +22,14 @@ _TEXT_SECONDARY = QtGui.QColor("#c7cad4")
 _TEXT_DISABLED = QtGui.QColor("#7a7d8a")
 _SELECTION_BG = _ACCENT_COLOR
 _SELECTION_FG = QtGui.QColor("#ffffff")
+
+_ICON_DIR = Path(__file__).with_name("icons")
+_SPIN_UP_ICON = QtCore.QUrl.fromLocalFile(
+    str((_ICON_DIR / "spin_up.svg").resolve())
+).toString()
+_SPIN_DOWN_ICON = QtCore.QUrl.fromLocalFile(
+    str((_ICON_DIR / "spin_down.svg").resolve())
+).toString()
 
 
 def _build_palette() -> QtGui.QPalette:
@@ -150,11 +159,97 @@ def _build_stylesheet() -> str:
             _TEXT_PRIMARY.name(),
         )
         + "\n"
+        "QSpinBox, QDoubleSpinBox {"
+        "    padding-right: 32px;"
+        "}"
+        + "\n"
         "QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QComboBox:focus,"
         " QSpinBox:focus, QDoubleSpinBox:focus {"
         "    border: 1px solid %s;"
         "    background-color: %s;"
         "}" % (_BORDER_FOCUS.name(), _BACKGROUND_ELEVATED.name()) + "\n"
+        "QSpinBox::up-button, QDoubleSpinBox::up-button {"
+        "    subcontrol-origin: border;"
+        "    subcontrol-position: top right;"
+        "    width: 26px;"
+        "    border-left: 1px solid %s;"
+        "    border-bottom: 1px solid %s;"
+        "    border-top-right-radius: 6px;"
+        "    background-color: %s;"
+        "    padding: 0;"
+        "    margin: 0;"
+        "}"
+        % (
+            _BORDER_COLOR.name(),
+            _BORDER_COLOR.name(),
+            _BACKGROUND_ELEVATED.name(),
+        )
+        + "\n"
+        "QSpinBox::down-button, QDoubleSpinBox::down-button {"
+        "    subcontrol-origin: border;"
+        "    subcontrol-position: bottom right;"
+        "    width: 26px;"
+        "    border-left: 1px solid %s;"
+        "    border-top: 1px solid %s;"
+        "    border-bottom-right-radius: 6px;"
+        "    background-color: %s;"
+        "    padding: 0;"
+        "    margin: 0;"
+        "}"
+        % (
+            _BORDER_COLOR.name(),
+            _BORDER_COLOR.name(),
+            _BACKGROUND_ELEVATED.name(),
+        )
+        + "\n"
+        "QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,"
+        " QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {"
+        "    background-color: %s;"
+        "    border-color: %s;"
+        "}"
+        % (_ACCENT_COLOR.lighter(130).name(), _ACCENT_COLOR.name())
+        + "\n"
+        "QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,"
+        " QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {"
+        "    background-color: %s;"
+        "    border-color: %s;"
+        "}"
+        % (_ACCENT_DARK.name(), _ACCENT_DARK.darker(115).name())
+        + "\n"
+        "QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,"
+        " QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {"
+        "    background-color: %s;"
+        "    border-color: %s;"
+        "}"
+        % (
+            _BACKGROUND_ELEVATED.darker(110).name(),
+            _BACKGROUND_ELEVATED.darker(125).name(),
+        )
+        + "\n"
+        "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {"
+        "    image: url(%s);"
+        "    width: 12px;"
+        "    height: 12px;"
+        "}"
+        % (_SPIN_UP_ICON,)
+        + "\n"
+        "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {"
+        "    image: url(%s);"
+        "    width: 12px;"
+        "    height: 12px;"
+        "}"
+        % (_SPIN_DOWN_ICON,)
+        + "\n"
+        "QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {"
+        "    image: url(%s);"
+        "}"
+        % (_SPIN_UP_ICON,)
+        + "\n"
+        "QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {"
+        "    image: url(%s);"
+        "}"
+        % (_SPIN_DOWN_ICON,)
+        + "\n"
         "QTreeWidget, QTreeView, QListWidget, QListView {"
         "    background-color: %s;"
         "    border: 1px solid %s;"
