@@ -84,6 +84,28 @@ def test_preprocess_patch_text_rewrites_triple_asterisk_headers_without_prefixes
     assert patch[0].path == "js/eventReview.js"
 
 
+def test_preprocess_patch_text_fills_missing_hunk_metadata() -> None:
+    raw = (
+        "*** a/EN/js/eventReview.js\n"
+        "--- b/EN/js/eventReview.js\n"
+        "@@\n"
+        "-old\n"
+        "+new\n"
+    )
+
+    processed = preprocess_patch_text(raw)
+    lines = processed.splitlines()
+    assert lines[0] == "--- a/EN/js/eventReview.js"
+    assert lines[1] == "+++ b/EN/js/eventReview.js"
+    assert lines[2] == "@@ -1,1 +1,1 @@"
+
+    patch = PatchSet(processed)
+    assert len(patch) == 1
+    hunk = patch[0][0]
+    assert hunk.source_length == 1
+    assert hunk.target_length == 1
+
+
 def test_preprocess_patch_text_extracts_begin_patch_blocks() -> None:
     raw = (
         "*** Begin Patch\n"
