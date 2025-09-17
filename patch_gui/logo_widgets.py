@@ -8,9 +8,13 @@ produce stylised graphics so that the project can ship without raster images.
 from __future__ import annotations
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtWidgets import QWidget
 
 __all__ = ["LogoWidget", "WordmarkWidget", "create_logo_pixmap"]
+
+
+class _QWidgetBase(QtWidgets.QWidget):
+    """Concrete ``QWidget`` subclass with a stable static type for mypy."""
+
 
 
 def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
@@ -142,7 +146,7 @@ def create_logo_pixmap(size: int = 128) -> QtGui.QPixmap:
     return pixmap
 
 
-class LogoWidget(QWidget):
+class LogoWidget(_QWidgetBase):
     """Widget that paints the square logo procedurally."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
@@ -168,7 +172,7 @@ class LogoWidget(QWidget):
         painter.end()
 
 
-class WordmarkWidget(QWidget):
+class WordmarkWidget(_QWidgetBase):
     """Widget that draws a wordmark banner for the application."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:

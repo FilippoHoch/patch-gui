@@ -53,6 +53,21 @@ if TYPE_CHECKING:
 
 _F = TypeVar("_F", bound=Callable[..., object])
 
+class _QObjectBase(QObject):
+    """Concrete ``QObject`` subclass with a stable static type for mypy."""
+
+
+class _QDialogBase(QDialog):
+    """Concrete ``QDialog`` subclass with a stable static type for mypy."""
+
+
+class _QThreadBase(QThread):
+    """Concrete ``QThread`` subclass with a stable static type for mypy."""
+
+
+class _QMainWindowBase(QMainWindow):
+    """Concrete ``QMainWindow`` subclass with a stable static type for mypy."""
+
 
 def _qt_slot(
     *types: type[object], name: str | None = None, result: type[object] | None = None
@@ -182,7 +197,7 @@ def configure_logging(
     return file_path
 
 
-class _QtLogEmitter(QObject):
+class _QtLogEmitter(_QObjectBase):
     """Helper ``QObject`` used to forward log messages to the GUI thread."""
 
     message = QtCore.Signal(str, int)
@@ -239,7 +254,7 @@ def _apply_platform_workarounds() -> None:
             )
 
 
-class CandidateDialog(QDialog):
+class CandidateDialog(_QDialogBase):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -326,7 +341,7 @@ class CandidateDialog(QDialog):
         super().accept()
 
 
-class FileChoiceDialog(QDialog):
+class FileChoiceDialog(_QDialogBase):
     def __init__(
         self,
         parent: QtWidgets.QWidget | None,
@@ -378,7 +393,7 @@ class FileChoiceDialog(QDialog):
         super().accept()
 
 
-class PatchApplyWorker(QThread):
+class PatchApplyWorker(_QThreadBase):
     progress = QtCore.Signal(str, int)
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
@@ -561,7 +576,7 @@ class PatchApplyWorker(QThread):
         return pos
 
 
-class MainWindow(QMainWindow):
+class MainWindow(_QMainWindowBase):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
