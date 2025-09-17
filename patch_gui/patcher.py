@@ -27,6 +27,16 @@ class _HunkLike(Protocol):
 
 @dataclass
 class HunkDecision:
+    """Record how a single hunk was resolved.
+
+    Attributes:
+        hunk_header: The header line that identifies the hunk inside the diff.
+        strategy: The approach used to apply the hunk (exact, context, fuzzy, etc.).
+        selected_pos: Index of the chosen insertion point in the target file, if any.
+        similarity: Similarity score for the selected position when a fuzzy match was used.
+        candidates: Possible target positions with their similarity scores for review.
+        message: Additional notes describing manual adjustments or failure details.
+    """
     hunk_header: str
     strategy: str  # exact | context | fuzzy | manual | failed | skipped
     selected_pos: Optional[int] = None
@@ -37,6 +47,16 @@ class HunkDecision:
 
 @dataclass
 class FileResult:
+    """Track the application result for a single file.
+
+    Attributes:
+        file_path: Absolute path to the file that was processed.
+        relative_to_root: Path to display relative to the project root for reporting.
+        hunks_applied: Number of hunks successfully written to the file.
+        hunks_total: Total number of hunks that were attempted on the file.
+        decisions: Detailed decision records for each hunk that was processed.
+        skipped_reason: Explanation when the file is skipped instead of being patched.
+    """
     file_path: Path
     relative_to_root: str
     hunks_applied: int = 0
@@ -47,6 +67,18 @@ class FileResult:
 
 @dataclass
 class ApplySession:
+    """Aggregate the patch application run across all files.
+
+    Attributes:
+        project_root: Root directory in which the patch is being applied.
+        backup_dir: Location where backups are stored before modification.
+        dry_run: Flag indicating whether changes were only simulated.
+        threshold: Similarity threshold used for fuzzy hunk matching.
+        started_at: UNIX timestamp for when the session began.
+        results: Per-file records describing how each hunk was handled.
+        report_json_path: Location of the generated JSON report, if written.
+        report_txt_path: Location of the generated text report, if written.
+    """
     project_root: Path
     backup_dir: Path
     dry_run: bool
