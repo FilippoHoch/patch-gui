@@ -7,7 +7,7 @@ name = "patch-gui"
 version = "0.1.0"
 description = "PySide6 desktop application for applying unified diffs interactively."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "charset-normalizer>=3.3.2",
     "unidiff",
@@ -36,7 +36,7 @@ build_py = "build_translations.BuildPy"
 sdist = "build_translations.SDist"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = true
 files = ["patch_gui", "tests"]
 
