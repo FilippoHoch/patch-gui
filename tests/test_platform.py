@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 from patch_gui import platform
+
+MODULE_PLATFORM = cast(Any, platform)
 
 
 @pytest.mark.parametrize("env_value", ["Ubuntu", "Debian"])
@@ -19,20 +22,20 @@ def test_running_under_wsl_detects_env(monkeypatch: pytest.MonkeyPatch, env_valu
 def test_running_under_wsl_detects_kernel_release(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
-    def fake_read_text(self: Path, *args, **kwargs) -> str:
+    def fake_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
         if str(self) == "/proc/sys/kernel/osrelease":
             return "5.15.133.1-microsoft-standard-WSL2"
         raise OSError
 
-    monkeypatch.setattr(platform.Path, "read_text", fake_read_text)
+    monkeypatch.setattr(MODULE_PLATFORM.Path, "read_text", fake_read_text)
     assert platform.running_under_wsl()
 
 
 def test_running_under_wsl_returns_false_when_no_markers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
 
-    def fake_read_text(self: Path, *args, **kwargs) -> str:
+    def fake_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
         raise OSError
 
-    monkeypatch.setattr(platform.Path, "read_text", fake_read_text)
+    monkeypatch.setattr(MODULE_PLATFORM.Path, "read_text", fake_read_text)
     assert not platform.running_under_wsl()

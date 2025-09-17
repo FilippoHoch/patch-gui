@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import sys
 import types
+from typing import Any, Iterator
 
 import pytest
 from logging.handlers import RotatingFileHandler
@@ -62,6 +63,12 @@ class _DummyQtModule(types.ModuleType):
         return _DummyQtClass
 
 
+class _DummyQtPackage(types.ModuleType):
+    QtCore: _DummyQtModule
+    QtGui: _DummyQtModule
+    QtWidgets: _DummyQtModule
+
+
 _py_side_spec = importlib.util.find_spec("PySide6")
 _needs_stub = _py_side_spec is None
 
@@ -77,11 +84,11 @@ if not _needs_stub:
             sys.modules.pop(name, None)
 
 if _needs_stub:  # pragma: no cover - environment-dependent
-    qt_module = types.ModuleType("PySide6")
-    qt_module.__path__ = []  # type: ignore[attr-defined]
-    qt_core = _DummyQtModule("PySide6.QtCore")
-    qt_gui = _DummyQtModule("PySide6.QtGui")
-    qt_widgets = _DummyQtModule("PySide6.QtWidgets")
+    qt_module = _DummyQtPackage("PySide6")
+    setattr(qt_module, "__path__", [])
+    qt_core: _DummyQtModule = _DummyQtModule("PySide6.QtCore")
+    qt_gui: _DummyQtModule = _DummyQtModule("PySide6.QtGui")
+    qt_widgets: _DummyQtModule = _DummyQtModule("PySide6.QtWidgets")
 
     qt_module.QtCore = qt_core
     qt_module.QtGui = qt_gui
@@ -113,10 +120,10 @@ def _cleanup_file_handlers() -> None:
 
 
 @pytest.fixture
-def clean_file_handlers() -> None:
+def clean_file_handlers() -> Iterator[None]:
     _cleanup_file_handlers()
     try:
-        yield
+        yield None
     finally:
         _cleanup_file_handlers()
 
