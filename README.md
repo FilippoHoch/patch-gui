@@ -64,8 +64,7 @@ Pacchetti utili in ambiente Ubuntu/WSL:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip git \
-                    libgl1 libegl1 libxkbcommon-x11-0 libxcb-xinerama0
+sudo apt install -y python3 python3-venv python3-pip git libgl1 libegl1 libxkbcommon-x11-0 libxcb-xinerama0
 ```
 
 > ℹ️ I pacchetti `libgl1`/`libegl1`/`libxkbcommon-x11-0`/`libxcb-xinerama0` risolvono i tipici errori Qt (`plugin xcb`) in WSL.
