@@ -108,7 +108,9 @@ def test_parser_help_uses_english_by_default(monkeypatch: pytest.MonkeyPatch) ->
     )
 
 
-def test_parser_version_reports_package_version(capsys: pytest.CaptureFixture[str]) -> None:
+def test_parser_version_reports_package_version(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     parser_obj = parser.build_parser()
 
     with pytest.raises(SystemExit) as excinfo:
@@ -314,6 +316,7 @@ def test_apply_patchset_real_run_adds_new_file(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "first line\nsecond line\n"
     assert session.backup_dir.exists()
     assert not any(session.backup_dir.iterdir())
+    assert not (session.backup_dir / "docs" / "newfile.txt").exists()
     assert len(session.results) == 1
 
     file_result = session.results[0]
@@ -345,6 +348,7 @@ def test_apply_patchset_rejects_paths_outside_root(tmp_path: Path) -> None:
     assert file_result.skipped_reason == "Patch targets a path outside the project root"
     assert file_result.hunks_applied == 0
     assert file_result.hunks_total == 1
+
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
@@ -392,30 +396,6 @@ def test_apply_patchset_no_report(tmp_path: Path) -> None:
     assert utils.default_backup_base() in default_dir.parents
     assert not (default_dir / REPORT_JSON).exists()
     assert not (default_dir / REPORT_TXT).exists()
-
-
-def test_apply_patchset_real_run_adds_new_file(tmp_path: Path) -> None:
-    project = _create_project(tmp_path)
-
-    session = cli.apply_patchset(
-        PatchSet(ADDED_DIFF),
-        project,
-        dry_run=False,
-        threshold=0.85,
-    )
-
-    target = project / "docs" / "newfile.txt"
-    assert target.exists()
-    assert target.read_text(encoding="utf-8") == "first line\nsecond line\n"
-    assert not (session.backup_dir / "docs" / "newfile.txt").exists()
-
-    assert len(session.results) == 1
-    file_result = session.results[0]
-    assert file_result.skipped_reason is None
-    assert file_result.relative_to_root == "docs/newfile.txt"
-    assert file_result.file_path == target
-    assert file_result.hunks_applied == file_result.hunks_total == 1
-    assert file_result.file_type == "text"
 
 
 def test_apply_patchset_reports_ambiguous_candidates(tmp_path: Path) -> None:

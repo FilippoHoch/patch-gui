@@ -11,7 +11,7 @@ __all__ = ["main", "__version__"]
 __version__ = _version.__version__
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> str:
     if name == "__version__":
         return _version.__version__
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
