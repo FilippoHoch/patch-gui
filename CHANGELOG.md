@@ -5,6 +5,8 @@ Il formato segue le convenzioni di [Keep a Changelog](https://keepachangelog.com
 e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
+
+## [0.2.0] - 2025-09-18
 ### Aggiunto
 - Sottocomando `patch-gui download-exe` per scaricare rapidamente l'eseguibile
   Windows pubblicato nelle release ufficiali.
