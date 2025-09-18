@@ -86,6 +86,7 @@ class FileResult:
     hunks_total: int = 0
     decisions: list[HunkDecision] = field(default_factory=list)
     skipped_reason: Optional[str] = None
+    ai_summary: Optional[str] = None
 
 
 @dataclass
@@ -112,6 +113,9 @@ class ApplySession:
     results: list[FileResult] = field(default_factory=list)
     report_json_path: Optional[Path] = None
     report_txt_path: Optional[Path] = None
+    ai_summary: Optional[str] = None
+    ai_summary_provider: Optional[str] = None
+    ai_summary_error: Optional[str] = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -121,6 +125,9 @@ class ApplySession:
             "threshold": self.threshold,
             "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
+            "ai_summary": self.ai_summary,
+            "ai_summary_provider": self.ai_summary_provider,
+            "ai_summary_error": self.ai_summary_error,
             "files": [
                 {
                     "file": fr.relative_to_root,
@@ -129,6 +136,7 @@ class ApplySession:
                     "hunks_applied": fr.hunks_applied,
                     "hunks_total": fr.hunks_total,
                     "skipped_reason": fr.skipped_reason,
+                    "ai_summary": fr.ai_summary,
                     "decisions": [
                         {
                             "hunk": d.hunk_header,
@@ -165,6 +173,18 @@ class ApplySession:
         lines.append(
             _("Excluded directories: {directories}").format(directories=excludes)
         )
+        if self.ai_summary:
+            provider = self.ai_summary_provider or _("sconosciuto")
+            lines.append(
+                _("AI summary ({provider}):").format(provider=provider)
+            )
+            lines.extend(f"  {line}" for line in self.ai_summary.splitlines())
+        elif self.ai_summary_error:
+            lines.append(
+                _("AI summary unavailable: {error}").format(
+                    error=self.ai_summary_error
+                )
+            )
         total_files = len(self.results)
         total_hunks = sum(fr.hunks_total for fr in self.results)
         applied_hunks = sum(fr.hunks_applied for fr in self.results)

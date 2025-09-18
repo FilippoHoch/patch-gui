@@ -239,6 +239,11 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert file_result.skipped_reason is None
     assert file_result.hunks_applied == file_result.hunks_total == 1
     assert file_result.file_type == "text"
+    assert session.ai_summary is not None
+    assert session.ai_summary_provider == "local-fallback"
+    assert session.ai_summary_error is not None
+    report_text = session.to_txt()
+    assert "AI summary" in report_text
 
 
 def test_apply_patchset_invalid_threshold(tmp_path: Path) -> None:
@@ -303,6 +308,8 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     data = json.loads(json_report.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
     assert data["files"][0]["file_type"] == "text"
+    assert data["ai_summary"] == session.ai_summary
+    assert data["ai_summary_provider"] == session.ai_summary_provider
 
 
 def test_apply_patchset_removes_file_and_preserves_backup(tmp_path: Path) -> None:
