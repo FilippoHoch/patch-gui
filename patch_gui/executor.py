@@ -15,6 +15,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .ai_summaries import generate_ai_summary
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -230,6 +231,20 @@ def apply_patchset(
             auto_accept=auto_accept,
         )
         session.results.append(fr)
+
+    summary = generate_ai_summary(session.results)
+    session.ai_summary = summary.summary
+    session.ai_summary_provider = summary.provider
+    session.ai_summary_error = summary.error
+    if summary.summary:
+        logger.info(
+            _("\n=== SINTESI ({provider}) ===\n{summary}").format(
+                provider=summary.provider or _("sconosciuto"),
+                summary=summary.summary,
+            )
+        )
+    elif summary.error:
+        logger.info(_("Sintesi AI non disponibile: %s"), summary.error)
 
     try:
         write_session_reports(

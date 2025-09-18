@@ -21,6 +21,7 @@ from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPol
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
+from .ai_summaries import AISummaryResult, generate_ai_summary
 from .config import (
     AppConfig,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -1910,6 +1911,26 @@ class MainWindow(_QMainWindowBase):
         self, session: ApplySession
     ) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
+        if session.ai_summary is None and session.ai_summary_error is None:
+            summary_result = generate_ai_summary(session.results)
+            session.ai_summary = summary_result.summary
+            session.ai_summary_provider = summary_result.provider
+            session.ai_summary_error = summary_result.error
+        else:
+            summary_result = AISummaryResult(
+                summary=session.ai_summary,
+                provider=session.ai_summary_provider,
+                error=session.ai_summary_error,
+            )
+        if summary_result.summary:
+            logger.info(
+                _("\n=== SINTESI ({provider}) ===\n{summary}").format(
+                    provider=summary_result.provider or _("sconosciuto"),
+                    summary=summary_result.summary,
+                )
+            )
+        elif summary_result.error:
+            logger.info(_("Sintesi AI non disponibile: %s"), summary_result.error)
         write_session_reports(
             session,
             report_json=None,
@@ -1928,6 +1949,19 @@ class MainWindow(_QMainWindowBase):
         else:
             completion_message = _(
                 "Operazione terminata. Report disabilitati nelle impostazioni."
+            )
+        if summary_result.summary:
+            completion_message = "\n\n".join(
+                [completion_message, summary_result.summary]
+            )
+        elif summary_result.error:
+            completion_message = "\n\n".join(
+                [
+                    completion_message,
+                    _("Sintesi AI non disponibile: {error}").format(
+                        error=summary_result.error
+                    ),
+                ]
             )
         QtWidgets.QMessageBox.information(
             self,

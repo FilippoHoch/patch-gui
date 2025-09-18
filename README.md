@@ -29,9 +29,10 @@ mantenere l'automazione nei flussi di lavoro Git.
 6. [GUI in breve](#gui-in-breve)
 7. [Backup e report](#backup-e-report)
 8. [Configurazione persistente](#configurazione-persistente)
-9. [Sviluppo e test](#sviluppo-e-test)
-10. [Risoluzione problemi](#risoluzione-problemi)
-11. [Licenza](#licenza)
+9. [Integrazione AI](#integrazione-ai)
+10. [Sviluppo e test](#sviluppo-e-test)
+11. [Risoluzione problemi](#risoluzione-problemi)
+12. [Licenza](#licenza)
 
 ## Panoramica
 
@@ -198,6 +199,31 @@ Le impostazioni vengono salvate in `settings.toml` sotto:
 La configurazione include soglia fuzzy, directory escluse, percorsi di backup,
 livello di log, gestione dei report e parametri di rotazione del file di log.
 Puoi modificarla dalla GUI o tramite `patch-gui config`.
+
+## Integrazione AI
+
+Patch GUI può chiedere a un modello linguistico un riepilogo delle modifiche
+applicate. La funzionalità è opzionale e disabilitata finché non viene
+configurato un provider compatibile.
+
+- Installa la dipendenza extra:
+
+  ```bash
+  pip install openai
+  ```
+
+- Esporta una API key valida e, facoltativamente, il modello da usare:
+
+  ```bash
+  export OPENAI_API_KEY="sk-..."
+  export PATCH_GUI_OPENAI_MODEL="gpt-4o-mini"  # opzionale
+  ```
+
+Al termine di ogni esecuzione, CLI e GUI proveranno a generare un riassunto con
+OpenAI. Se l'integrazione non è disponibile viene creato un riepilogo locale
+basato sui risultati, con un avviso nel log. I report `json` e `txt` includono
+i nuovi campi `ai_summary`, `ai_summary_provider` e `ai_summary_error` per una
+tracciabilità completa.
 
 ## Sviluppo e test
 
