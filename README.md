@@ -11,6 +11,9 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-00b894" alt="MIT License" />
   </a>
+  <a href="https://github.com/patch-gui/patch-gui/releases">
+    <img src="https://img.shields.io/github/v/release/patch-gui/patch-gui?display_name=tag&color=ff7675" alt="Ultima release" />
+  </a>
   <a href="USAGE.md">
     <img src="https://img.shields.io/badge/docs-uso%20avanzato-6c5ce7" alt="Guida all'uso" />
   </a>
@@ -38,17 +41,48 @@ Patch GUI riprende la pulizia dell'interfaccia per accompagnarti dal caricamento
 
 ## 📚 Indice
 
-1. [Requisiti e dipendenze](#-requisiti-e-dipendenze)
-2. [Installazione passo-passo](#-installazione-passo-passo)
-3. [Primo avvio](#-primo-avvio)
-4. [Modalità CLI](#-modalità-cli)
-5. [Feature tour della GUI](#-feature-tour-della-gui)
-6. [Test e pre-commit](#-test-e-pre-commit)
-7. [Internazionalizzazione](#-internazionalizzazione)
-8. [Opzioni tecniche](#-opzioni-tecniche)
-9. [Risoluzione problemi](#-risoluzione-problemi)
-10. [Backup & report](#-backup--report)
-11. [Note sulla manutenzione](#-note-sulla-manutenzione)
+1. [Distribuzioni e release](#-distribuzioni-e-release)
+2. [Requisiti e dipendenze](#-requisiti-e-dipendenze)
+3. [Installazione passo-passo](#-installazione-passo-passo)
+4. [Primo avvio](#-primo-avvio)
+5. [Modalità CLI](#-modalità-cli)
+6. [Feature tour della GUI](#-feature-tour-della-gui)
+7. [Test e pre-commit](#-test-e-pre-commit)
+8. [Internazionalizzazione](#-internazionalizzazione)
+9. [Opzioni tecniche](#-opzioni-tecniche)
+10. [Risoluzione problemi](#-risoluzione-problemi)
+11. [Backup & report](#-backup--report)
+12. [Note sulla manutenzione](#-note-sulla-manutenzione)
+
+---
+
+## 🚀 Distribuzioni e release
+
+Patch GUI viene distribuito sia come pacchetto Python sia come eseguibile
+precompilato per Windows. Tutti gli artifact condividono la stessa cura grafica
+e il medesimo changelog.
+
+| Canale | Formato | Cosa include | Ideale per |
+| --- | --- | --- | --- |
+| **PyPI** | `patch_gui-<version>.whl` / `patch_gui-<version>.tar.gz` | CLI, GUI (extra `gui`), traduzioni e risorse | Dev con Python 3.10+ |
+| **GitHub Releases** | `patch-gui.exe` | Applicazione GUI standalone firmata | Utenti Windows senza ambiente Python |
+| **Codice sorgente** | archivio Git (`git clone` / `git archive`) | Tutte le risorse, script e test | Contributori e audit |
+
+> Il comando `patch-gui download-exe` recupera automaticamente l'ultima
+> `patch-gui.exe` pubblicata nella sezione release.
+
+### Workflow rapido di packaging
+
+1. Assicurati di avere l'ambiente pulito (`python -m pip install --upgrade build twine`).
+2. Compila le traduzioni Qt: `python -m build_translations`.
+3. Genera i pacchetti: `python -m build`.
+4. Verifica gli artifact con `python -m twine check dist/*` e installa il wheel
+   in un virtualenv di prova.
+
+### Documentazione completa
+
+La checklist dettagliata per pubblicare una release, con suggerimenti per PyPI e
+per GitHub, è raccolta in [RELEASE.md](RELEASE.md).
 
 ---
 
