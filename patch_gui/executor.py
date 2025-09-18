@@ -146,11 +146,19 @@ def apply_patchset(
     exclude_dirs: Sequence[str] | None = None,
     config: AppConfig | None = None,
 ) -> ApplySession:
-    """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`."""
+    """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`.
+
+    ``threshold`` must be within the range ``(0, 1]`` to match CLI validation.
+    """
 
     root = project_root.expanduser().resolve()
     if not root.exists() or not root.is_dir():
         raise CLIError(_("Invalid project root: {path}").format(path=project_root))
+
+    if not 0 < threshold <= 1:
+        raise CLIError(
+            _("Threshold must be between 0 (exclusive) and 1 (inclusive).")
+        )
 
     resolved_config = config or load_config()
     started_at = time.time()
