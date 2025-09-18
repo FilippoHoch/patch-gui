@@ -9,6 +9,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 - Sezione iniziale del changelog pronta per essere aggiornata con le prossime modifiche.
 - Migliorata l'esperienza del diff interattivo con badge e colori più leggibili per le aggiunte e le rimozioni.
 - Ampliate le impostazioni persistenti: ora è possibile configurare percorso del file di log, rotazione e numero di backup direttamente da CLI e GUI.
+- Suggerimento automatico tramite IA durante la risoluzione manuale in CLI per evidenziare la posizione candidata più promettente con l'intervallo di righe coinvolte.
 - Pulizia automatica dei backup più vecchi dopo un numero configurabile di giorni, impostabile sia da interfaccia grafica sia da CLI.
 
 ### Modificato

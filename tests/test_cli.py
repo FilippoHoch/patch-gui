@@ -1557,6 +1557,7 @@ def test_threshold_value_rejects_invalid_inputs(
 def test_cli_manual_resolver_handles_fuzzy_candidates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     user_input: str,
     expected_applied: int,
     expected_completed: bool,
@@ -1588,6 +1589,9 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
         write_report_files=False,
     )
 
+    captured = capsys.readouterr()
+    assert "AI suggestion: candidate" in captured.out
+
     assert len(session.results) == 1
     result = session.results[0]
     assert result.hunks_total == 1
@@ -1613,6 +1617,7 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
 def test_cli_manual_resolver_handles_context_candidates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     user_input: str,
     expected_applied: int,
     expected_completed: bool,
@@ -1649,6 +1654,9 @@ def test_cli_manual_resolver_handles_context_candidates(
         threshold=0.7,
         write_report_files=False,
     )
+
+    captured = capsys.readouterr()
+    assert "AI suggestion: candidate" in captured.out
 
     assert len(session.results) == 1
     result = session.results[0]
