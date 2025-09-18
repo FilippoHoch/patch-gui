@@ -25,6 +25,7 @@ from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
 from .i18n import install_translators
+from .interactive_diff import InteractiveDiffWidget
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
@@ -1338,6 +1339,10 @@ class MainWindow(_QMainWindowBase):
         self._preview_highlighter = DiffHighlighter(self.preview_view.document())
         self.diff_tabs.addTab(self.preview_view, _("Anteprima"))
 
+        self.interactive_diff = InteractiveDiffWidget()
+        self.interactive_diff.diffReordered.connect(self._on_diff_reordered)
+        self.diff_tabs.addTab(self.interactive_diff, _("Diff interattivo"))
+
         right_layout.addWidget(self.diff_tabs, 1)
 
         right_layout.addWidget(QtWidgets.QLabel(_("Log:")))
@@ -1535,6 +1540,8 @@ class MainWindow(_QMainWindowBase):
             return
         self.threshold = float(self.spin_thresh.value())
 
+        self.interactive_diff.clear()
+
         preprocessed = preprocess_patch_text(self.diff_text)
         try:
             patch = PatchSet(preprocessed.splitlines(True))
@@ -1565,6 +1572,7 @@ class MainWindow(_QMainWindowBase):
                 node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, file_hunks)
         self.tree.expandAll()
         self._update_preview_from_selection()
+        self.interactive_diff.set_patch(patch)
         logger.info(_("Analisi completata. File nel diff: %s"), len(self.patch))
 
     @_qt_slot()
@@ -1617,6 +1625,15 @@ class MainWindow(_QMainWindowBase):
                 header = _("File: {name}").format(name=item.text(0))
                 return item.text(0), f"{header}\n\n" + "\n\n".join(formatted)
         return item.text(0), ""
+
+    @_qt_slot(str)
+    def _on_diff_reordered(self, new_diff: str) -> None:
+        self.diff_text = new_diff
+        self.text_diff.setPlainText(new_diff)
+        logger.info(_("Diff riordinato tramite la vista interattiva."))
+        self.statusBar().showMessage(
+            _("Editor diff aggiornato dall'ordinamento interattivo"), 5000
+        )
 
     def _format_hunk_for_preview(self, hv: HunkView) -> str:
         diff_lines = []
