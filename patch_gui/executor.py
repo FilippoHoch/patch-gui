@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
@@ -204,6 +204,42 @@ def _relative_path_from_patch(pf: Any) -> str:
     return rel.strip()
 
 
+def _normalize_patch_path(value: str | None) -> str:
+    if not value:
+        return ""
+    cleaned = value.strip()
+    if cleaned.startswith("a/") or cleaned.startswith("b/"):
+        cleaned = cleaned[2:]
+    if cleaned == "/dev/null":
+        return ""
+    return cleaned
+
+
+def _resolve_within_project(project_root: Path, relative: str) -> Optional[Path]:
+    if not relative:
+        return None
+    candidate = project_root / relative
+    try:
+        resolved = candidate.resolve()
+    except FileNotFoundError:
+        resolved = candidate.resolve(strict=False)
+    root = project_root.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None
+    return resolved
+
+
+def _iter_unique(values: Iterable[str]) -> Iterable[str]:
+    seen: set[str] = set()
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        yield value
+
+
 def _apply_file_patch(
     project_root: Path,
     pf: Any,
@@ -231,11 +267,33 @@ def _apply_file_patch(
     if isinstance(target_file, str) and target_file.strip() == "/dev/null":
         is_removed_file = True
 
-    candidates = find_file_candidates(
-        project_root,
-        rel_path,
-        exclude_dirs=session.exclude_dirs,
+    normalized_rel_path = _normalize_patch_path(rel_path)
+    rename_source = _normalize_patch_path(source_file)
+    rename_target = _normalize_patch_path(target_file)
+    rename_flag = bool(getattr(pf, "is_rename", False))
+    is_rename = (
+        not is_added_file
+        and not is_removed_file
+        and rename_source
+        and rename_target
+        and (rename_source != rename_target or rename_flag)
     )
+
+    candidates: list[Path] = []
+    for candidate_path in _iter_unique(
+        (
+            [rename_source, normalized_rel_path]
+            if is_rename
+            else [normalized_rel_path]
+        )
+    ):
+        candidates = find_file_candidates(
+            project_root,
+            candidate_path,
+            exclude_dirs=session.exclude_dirs,
+        )
+        if candidates:
+            break
 
     path: Optional[Path] = None
     is_new_file = False
@@ -276,6 +334,66 @@ def _apply_file_patch(
     fr.file_path = path
     fr.relative_to_root = display_relative_path(path, project_root)
 
+    rename_target_path: Optional[Path] = None
+    rename_decision: Optional[HunkDecision] = None
+    if is_rename and rename_target:
+        rename_target_path = _resolve_within_project(project_root, rename_target)
+        if rename_target_path is None:
+            fr.skipped_reason = _("Patch targets a path outside the project root")
+            return fr
+        try:
+            current_resolved = path.resolve()
+        except FileNotFoundError:
+            current_resolved = path
+        if rename_target_path == current_resolved:
+            rename_target_path = None
+        else:
+            rename_decision = HunkDecision(
+                hunk_header="rename",
+                strategy="rename",
+                message=_("Renamed file from {source} to {target}").format(
+                    source=display_relative_path(path, project_root),
+                    target=display_relative_path(rename_target_path, project_root),
+                ),
+            )
+
+    if rename_decision and fr.hunks_total == 0:
+        if session.dry_run:
+            fr.file_path = rename_target_path or fr.file_path
+            if rename_target_path is not None:
+                fr.relative_to_root = display_relative_path(
+                    rename_target_path, project_root
+                )
+            fr.decisions.append(rename_decision)
+            return fr
+
+        try:
+            backup_file(project_root, path, session.backup_dir)
+        except Exception as exc:  # pragma: no cover - defensive
+            fr.skipped_reason = _(
+                "Failed to back up file before rename: {error}"
+            ).format(error=exc)
+            return fr
+
+        try:
+            if rename_target_path is not None:
+                rename_target_path.parent.mkdir(parents=True, exist_ok=True)
+                path.rename(rename_target_path)
+                fr.file_path = rename_target_path
+                fr.relative_to_root = display_relative_path(
+                    rename_target_path, project_root
+                )
+        except OSError as exc:
+            message = _("Failed to rename file: {error}").format(error=exc)
+            fr.skipped_reason = message
+            rename_decision.strategy = "failed"
+            rename_decision.message = message
+            fr.decisions.append(rename_decision)
+            return fr
+
+        fr.decisions.append(rename_decision)
+        return fr
+
     lines: List[str]
     file_encoding = "utf-8"
     orig_eol = "\n"
@@ -314,7 +432,35 @@ def _apply_file_patch(
     )
 
     fr.hunks_applied = applied
+    if rename_decision is not None:
+        fr.decisions.append(rename_decision)
     fr.decisions.extend(decisions)
+
+    if rename_target_path is not None:
+        if session.dry_run:
+            fr.file_path = rename_target_path
+            fr.relative_to_root = display_relative_path(rename_target_path, project_root)
+        elif applied == fr.hunks_total:
+            try:
+                rename_target_path.parent.mkdir(parents=True, exist_ok=True)
+                path.rename(rename_target_path)
+                path = rename_target_path
+                fr.file_path = rename_target_path
+                fr.relative_to_root = display_relative_path(
+                    rename_target_path, project_root
+                )
+            except OSError as exc:
+                message = _("Failed to rename file: {error}").format(error=exc)
+                fr.skipped_reason = message
+                rename_decision = rename_decision or HunkDecision(
+                    hunk_header="rename",
+                    strategy="failed",
+                )
+                rename_decision.strategy = "failed"
+                rename_decision.message = message
+                if rename_decision not in fr.decisions:
+                    fr.decisions.append(rename_decision)
+                return fr
 
     if not session.dry_run and applied:
         should_remove = is_removed_file and fr.hunks_total and applied == fr.hunks_total

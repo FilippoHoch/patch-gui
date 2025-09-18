@@ -79,6 +79,24 @@ OUTSIDE_DIFF = """--- /dev/null
 +another line
 """
 
+RENAME_ONLY_DIFF = """diff --git a/sample.txt b/docs/renamed.txt
+similarity index 100%
+rename from sample.txt
+rename to docs/renamed.txt
+"""
+
+RENAME_WITH_EDIT_DIFF = """diff --git a/sample.txt b/docs/renamed.txt
+similarity index 91%
+rename from sample.txt
+rename to docs/renamed.txt
+--- a/sample.txt
++++ b/docs/renamed.txt
+@@ -1,2 +1,2 @@
+-old line
++new line
+ line2
+"""
+
 
 def _create_project(tmp_path: Path) -> Path:
     project = tmp_path / "project"
@@ -370,6 +388,65 @@ def test_apply_patchset_rejects_paths_outside_root(tmp_path: Path) -> None:
     assert file_result.skipped_reason == "Patch targets a path outside the project root"
     assert file_result.hunks_applied == 0
     assert file_result.hunks_total == 1
+
+
+def test_apply_patchset_handles_rename_only(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(RENAME_ONLY_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    old_path = project / "sample.txt"
+    new_path = project / "docs" / "renamed.txt"
+    backup_path = session.backup_dir / "sample.txt"
+
+    assert not old_path.exists()
+    assert new_path.exists()
+    assert new_path.read_text(encoding="utf-8") == "old line\nline2\n"
+    assert backup_path.exists()
+    assert backup_path.read_text(encoding="utf-8") == "old line\nline2\n"
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.decisions
+    assert file_result.decisions[0].strategy == "rename"
+    assert "docs/renamed.txt" in file_result.decisions[0].message
+    assert file_result.relative_to_root == "docs/renamed.txt"
+    assert file_result.file_path == new_path
+
+
+def test_apply_patchset_handles_rename_with_modification(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(RENAME_WITH_EDIT_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    old_path = project / "sample.txt"
+    new_path = project / "docs" / "renamed.txt"
+    backup_path = session.backup_dir / "sample.txt"
+
+    assert not old_path.exists()
+    assert new_path.exists()
+    assert new_path.read_text(encoding="utf-8") == "new line\nline2\n"
+    assert backup_path.exists()
+    assert backup_path.read_text(encoding="utf-8") == "old line\nline2\n"
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.decisions
+    assert file_result.decisions[0].strategy == "rename"
+    assert any(d.strategy != "rename" for d in file_result.decisions)
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.relative_to_root == "docs/renamed.txt"
+    assert file_result.file_path == new_path
 
 
 def test_apply_patchset_custom_report_paths(tmp_path: Path) -> None:
