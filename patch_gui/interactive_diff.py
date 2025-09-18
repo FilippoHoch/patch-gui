@@ -10,6 +10,7 @@ from PySide6 import QtCore, QtWidgets
 
 from .highlighter import DiffHighlighter
 from .localization import gettext as _
+from .diff_formatting import format_diff_with_line_numbers
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,7 @@ class FileDiffEntry:
 
     file_label: str
     diff_text: str
+    annotated_diff_text: str
     additions: int
     deletions: int
 
@@ -181,10 +183,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             if not diff_text.endswith("\n"):
                 diff_text += "\n"
             additions, deletions = _count_changes(diff_text)
+            annotated_text = format_diff_with_line_numbers(patched_file, diff_text)
             entries.append(
                 FileDiffEntry(
                     file_label=file_label,
                     diff_text=diff_text,
+                    annotated_diff_text=annotated_text,
                     additions=additions,
                     deletions=deletions,
                 )
@@ -258,7 +262,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             return
         entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
         if isinstance(entry, FileDiffEntry):
-            self._preview.setPlainText(entry.diff_text)
+            self._preview.setPlainText(entry.annotated_diff_text)
         self._refresh_item_selection()
 
     def _apply_reordered_diff(self) -> None:
@@ -448,3 +452,4 @@ def _join_diff_entries(entries: Iterable[FileDiffEntry]) -> str:
             text += "\n"
         parts.append(text)
     return "".join(parts)
+

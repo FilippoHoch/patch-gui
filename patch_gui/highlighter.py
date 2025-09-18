@@ -54,7 +54,8 @@ class DiffHighlighter(_QSyntaxHighlighter):
         if not text:
             return
 
-        first = text[0]
+        marker_text = _extract_marker_text(text)
+        first = marker_text[0] if marker_text else text[0]
         fmt: QtGui.QTextCharFormat | None
 
         if (
@@ -65,16 +66,34 @@ class DiffHighlighter(_QSyntaxHighlighter):
             fmt = self._header_format
         elif text.startswith("---") or text.startswith("+++"):
             fmt = self._header_format
+        elif marker_text.startswith("\\ No newline"):
+            fmt = self._meta_format
         elif first == "+":
             fmt = self._addition_format
         elif first == "-":
             fmt = self._removal_format
         elif first == " " or first == "\t":
             fmt = self._context_format
-        elif text.startswith("\\ No newline"):
-            fmt = self._meta_format
         else:
             fmt = None
 
         if fmt is not None:
             self.setFormat(0, len(text), fmt)
+
+
+def _extract_marker_text(text: str) -> str:
+    """Return the portion of ``text`` containing the diff marker."""
+
+    if "│" in text:
+        parts = text.split("│", 2)
+        if len(parts) == 3:
+            candidate = parts[2]
+            stripped_candidate = candidate.lstrip()
+            if stripped_candidate:
+                return stripped_candidate
+            if candidate:
+                return candidate
+    stripped = text.lstrip()
+    if stripped:
+        return stripped
+    return text
