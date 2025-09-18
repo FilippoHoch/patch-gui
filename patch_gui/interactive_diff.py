@@ -7,13 +7,17 @@ from html import escape
 from typing import Iterable, List
 
 from PySide6 import QtCore, QtGui, QtWidgets
+from unidiff import PatchSet
 
 from .highlighter import DiffHighlighter
 from .localization import gettext as _
-from .diff_formatting import format_diff_with_line_numbers
+from .diff_formatting import (
+    format_diff_side_by_side,
+    format_diff_with_line_numbers,
+)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class FileDiffEntry:
     """Store information about a file diff block."""
 
@@ -22,6 +26,8 @@ class FileDiffEntry:
     annotated_diff_text: str
     additions: int
     deletions: int
+    source_preview_text: str
+    target_preview_text: str
 
     @property
     def display_text(self) -> str:
@@ -166,6 +172,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         super().__init__(parent)
         self._original_entries: list[FileDiffEntry] = []
         self._colors = _build_diff_palette(self)
+        self._is_updating_editor = False
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -380,12 +387,57 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         splitter.addWidget(upper)
 
-        self._preview = QtWidgets.QPlainTextEdit()
-        self._preview.setReadOnly(True)
-        self._preview.setPlaceholderText(
-            _("Seleziona un file dall'elenco per vederne il diff completo.")
+        preview_container = QtWidgets.QWidget()
+        preview_layout = QtWidgets.QVBoxLayout(preview_container)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(8)
+
+        labels_row = QtWidgets.QHBoxLayout()
+        labels_row.setContentsMargins(4, 0, 4, 0)
+        source_label = QtWidgets.QLabel(_("Versione originale"))
+        source_label.setStyleSheet(
+            "font-weight: 600; color: {color};".format(
+                color=self._colors.text_secondary
+            )
         )
-        self._preview.setStyleSheet(
+        labels_row.addWidget(source_label)
+        modified_label = QtWidgets.QLabel(_("Versione modificata"))
+        modified_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
+        modified_label.setStyleSheet(
+            "font-weight: 600; color: {color};".format(
+                color=self._colors.text_secondary
+            )
+        )
+        labels_row.addWidget(modified_label)
+        preview_layout.addLayout(labels_row)
+
+        comparison_splitter = QtWidgets.QSplitter()
+        comparison_splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
+        comparison_splitter.setStyleSheet(
+            """
+            QSplitter::handle {
+                background-color: %(border_subtle)s;
+                margin: 0 6px;
+            }
+            QSplitter::handle:hover {
+                background-color: %(accent)s;
+            }
+            """
+            % {
+                "border_subtle": self._colors.border_subtle,
+                "accent": self._colors.accent,
+            }
+        )
+
+        self._source_view = QtWidgets.QPlainTextEdit()
+        self._source_view.setReadOnly(True)
+        self._source_view.setLineWrapMode(
+            QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap
+        )
+        self._source_view.setPlaceholderText(
+            _("Seleziona un file per vedere la versione di partenza.")
+        )
+        self._source_view.setStyleSheet(
             """
             QPlainTextEdit {
                 background-color: %(background)s;
@@ -412,9 +464,137 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 "border_subtle": self._colors.border_subtle,
             }
         )
-        self._highlighter = DiffHighlighter(self._preview.document())
-        splitter.addWidget(self._preview)
-        splitter.setSizes([180, 320])
+        self._source_highlighter = DiffHighlighter(self._source_view.document())
+        comparison_splitter.addWidget(self._source_view)
+
+        self._target_view = QtWidgets.QPlainTextEdit()
+        self._target_view.setReadOnly(True)
+        self._target_view.setLineWrapMode(
+            QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap
+        )
+        self._target_view.setPlaceholderText(
+            _("Le modifiche proposte verranno mostrate qui.")
+        )
+        self._target_view.setStyleSheet(
+            """
+            QPlainTextEdit {
+                background-color: %(background)s;
+                color: %(text)s;
+                border: 1px solid %(border)s;
+                border-radius: 10px;
+                selection-background-color: %(selection_bg)s;
+                selection-color: %(selection_fg)s;
+            }
+            QPlainTextEdit[enabled="false"] {
+                background-color: %(disabled_bg)s;
+                color: %(disabled_fg)s;
+                border-color: %(border_subtle)s;
+            }
+            """
+            % {
+                "background": self._colors.preview_background,
+                "text": self._colors.text_primary,
+                "border": self._colors.preview_border,
+                "selection_bg": self._colors.accent,
+                "selection_fg": self._colors.on_accent,
+                "disabled_bg": self._colors.preview_disabled_bg,
+                "disabled_fg": self._colors.preview_disabled_fg,
+                "border_subtle": self._colors.border_subtle,
+            }
+        )
+        self._target_highlighter = DiffHighlighter(self._target_view.document())
+        comparison_splitter.addWidget(self._target_view)
+        comparison_splitter.setSizes([320, 320])
+
+        preview_layout.addWidget(comparison_splitter, 1)
+
+        editor_container = QtWidgets.QFrame()
+        editor_container.setObjectName("interactiveDiffEditorContainer")
+        editor_container.setStyleSheet(
+            """
+            QFrame#interactiveDiffEditorContainer {
+                background-color: %(surface)s;
+                border: 1px solid %(border)s;
+                border-radius: 10px;
+            }
+            """
+            % {
+                "surface": self._colors.surface,
+                "border": self._colors.border,
+            }
+        )
+        editor_layout = QtWidgets.QVBoxLayout(editor_container)
+        editor_layout.setContentsMargins(12, 10, 12, 12)
+        editor_layout.setSpacing(6)
+
+        editor_label = QtWidgets.QLabel(_("Editor diff (testo modificabile)"))
+        editor_label.setStyleSheet(
+            "font-weight: 600; color: {color};".format(
+                color=self._colors.text_primary
+            )
+        )
+        editor_layout.addWidget(editor_label)
+
+        editor_help = QtWidgets.QLabel(
+            _(
+                "Puoi modificare il testo della patch e vedere subito l'anteprima "
+                "aggiornata."
+            )
+        )
+        editor_help.setWordWrap(True)
+        editor_help.setStyleSheet(
+            "color: {color};".format(color=self._colors.text_secondary)
+        )
+        editor_layout.addWidget(editor_help)
+
+        self._editable_diff = QtWidgets.QPlainTextEdit()
+        self._editable_diff.setPlaceholderText(
+            _("Modifica qui il diff selezionato…")
+        )
+        self._editable_diff.setLineWrapMode(
+            QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap
+        )
+        self._editable_diff.setStyleSheet(
+            """
+            QPlainTextEdit {
+                background-color: %(background)s;
+                color: %(text)s;
+                border: 1px solid %(border)s;
+                border-radius: 8px;
+                selection-background-color: %(selection_bg)s;
+                selection-color: %(selection_fg)s;
+            }
+            QPlainTextEdit[enabled="false"] {
+                background-color: %(disabled_bg)s;
+                color: %(disabled_fg)s;
+                border-color: %(border_subtle)s;
+            }
+            """
+            % {
+                "background": self._colors.preview_background,
+                "text": self._colors.text_primary,
+                "border": self._colors.preview_border,
+                "selection_bg": self._colors.accent,
+                "selection_fg": self._colors.on_accent,
+                "disabled_bg": self._colors.preview_disabled_bg,
+                "disabled_fg": self._colors.preview_disabled_fg,
+                "border_subtle": self._colors.border_subtle,
+            }
+        )
+        self._editable_diff.setTabChangesFocus(False)
+        self._editable_diff.document().setDefaultFont(self.font())
+        self._editor_highlighter = DiffHighlighter(self._editable_diff.document())
+        editor_layout.addWidget(self._editable_diff, 1)
+
+        self._validation_label = QtWidgets.QLabel("")
+        self._validation_label.setStyleSheet("color: #dc2626; font-weight: 600;")
+        self._validation_label.setVisible(False)
+        editor_layout.addWidget(self._validation_label)
+
+        preview_layout.addWidget(editor_container, 1)
+
+        splitter.addWidget(preview_container)
+        splitter.setSizes([180, 420])
 
         buttons = QtWidgets.QHBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
@@ -500,6 +680,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._list_widget.model().rowsMoved.connect(self._on_rows_moved)
         self._list_widget.itemSelectionChanged.connect(self._refresh_item_selection)
 
+        self._diff_editor_timer = QtCore.QTimer(self)
+        self._diff_editor_timer.setSingleShot(True)
+        self._diff_editor_timer.setInterval(300)
+        self._diff_editor_timer.timeout.connect(self._apply_editor_changes)
+        self._editable_diff.textChanged.connect(self._on_diff_editor_text_changed)
+
         self._update_enabled_state()
 
     def clear(self) -> None:
@@ -507,8 +693,13 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         self._original_entries = []
         self._list_widget.clear()
-        self._preview.clear()
+        self._diff_editor_timer.stop()
+        self._source_view.clear()
+        self._target_view.clear()
+        self._editable_diff.clear()
         self._order_label.clear()
+        self._validation_label.clear()
+        self._validation_label.setVisible(False)
         self._update_enabled_state()
 
     def set_patch(self, patch: Iterable[object]) -> None:
@@ -527,6 +718,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 diff_text += "\n"
             additions, deletions = _count_changes(diff_text)
             annotated_text = format_diff_with_line_numbers(patched_file, diff_text)
+            source_preview, target_preview = format_diff_side_by_side(
+                patched_file, annotated_text
+            )
             entries.append(
                 FileDiffEntry(
                     file_label=file_label,
@@ -534,6 +728,8 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                     annotated_diff_text=annotated_text,
                     additions=additions,
                     deletions=deletions,
+                    source_preview_text=source_preview,
+                    target_preview_text=target_preview,
                 )
             )
 
@@ -582,7 +778,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         has_entries = self._list_widget.count() > 0
         self._btn_apply.setEnabled(has_entries)
         self._btn_reset.setEnabled(has_entries)
-        self._preview.setEnabled(has_entries)
+        self._source_view.setEnabled(has_entries)
+        self._target_view.setEnabled(has_entries)
+        self._editable_diff.setEnabled(has_entries)
         self._list_widget.setEnabled(has_entries)
 
     def _current_entries(self) -> list[FileDiffEntry]:
@@ -601,11 +799,17 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
     ) -> None:
         del previous
         if current is None:
-            self._preview.clear()
+            self._source_view.clear()
+            self._target_view.clear()
+            self._editable_diff.clear()
+            self._validation_label.clear()
+            self._validation_label.setVisible(False)
             return
         entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
         if isinstance(entry, FileDiffEntry):
-            self._preview.setPlainText(entry.annotated_diff_text)
+            self._update_editor_from_entry(entry)
+            self._validation_label.clear()
+            self._validation_label.setVisible(False)
         self._refresh_item_selection()
 
     def _apply_reordered_diff(self) -> None:
@@ -617,7 +821,11 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
     def _reset_order(self) -> None:
         self._populate(list(self._original_entries))
-        self._preview.clear()
+        self._source_view.clear()
+        self._target_view.clear()
+        self._editable_diff.clear()
+        self._validation_label.clear()
+        self._validation_label.setVisible(False)
         self._refresh_item_selection()
 
     def _on_rows_moved(
@@ -640,12 +848,60 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 widget.setSelected(item.isSelected())
                 widget.updateGeometry()
 
+    def _on_diff_editor_text_changed(self) -> None:
+        if self._is_updating_editor:
+            return
+        self._diff_editor_timer.start()
+
+    def _apply_editor_changes(self) -> None:
+        current_item = self._list_widget.currentItem()
+        if current_item is None:
+            return
+        entry = current_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not isinstance(entry, FileDiffEntry):
+            return
+
+        text = self._editable_diff.toPlainText()
+        if text and not text.endswith("\n"):
+            text = f"{text}\n"
+            self._is_updating_editor = True
+            cursor = self._editable_diff.textCursor()
+            self._editable_diff.setPlainText(text)
+            cursor.movePosition(QtGui.QTextCursor.MoveOperation.End)
+            self._editable_diff.setTextCursor(cursor)
+            self._is_updating_editor = False
+
+        updated_entry, error = _rebuild_entry(entry, text or "")
+        current_item.setData(QtCore.Qt.ItemDataRole.UserRole, updated_entry)
+        widget = self._list_widget.itemWidget(current_item)
+        if isinstance(widget, _DiffListItemWidget):
+            widget.update_entry(updated_entry)
+
+        self._update_editor_from_entry(updated_entry)
+        self._update_order_label()
+
+        if error is None:
+            self._validation_label.clear()
+            self._validation_label.setVisible(False)
+        else:
+            self._validation_label.setText(error)
+            self._validation_label.setVisible(True)
+
+    def _update_editor_from_entry(self, entry: FileDiffEntry) -> None:
+        self._is_updating_editor = True
+        self._source_view.setPlainText(entry.source_preview_text)
+        self._target_view.setPlainText(entry.target_preview_text)
+        self._editable_diff.setPlainText(entry.diff_text)
+        self._is_updating_editor = False
+
 
 class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
     """Custom widget for list items with colourful diff statistics."""
 
     def __init__(self, entry: FileDiffEntry, colors: _DiffPalette) -> None:
         super().__init__()
+        self._entry = entry
+        self._colors = colors
         self.setObjectName("diffListItem")
         self.setProperty("selected", False)
         self.setStyleSheet(
@@ -720,15 +976,15 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
         )
         layout.addWidget(self._path_label, 1)
 
-        badges_container = QtWidgets.QWidget()
-        badges_layout = QtWidgets.QHBoxLayout(badges_container)
-        badges_layout.setContentsMargins(0, 0, 0, 0)
-        badges_layout.setSpacing(6)
-        for badge in _create_badge_widgets(entry, colors):
-            badges_layout.addWidget(badge)
-        layout.addWidget(badges_container, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        self._badges_container = QtWidgets.QWidget()
+        self._badges_layout = QtWidgets.QHBoxLayout(self._badges_container)
+        self._badges_layout.setContentsMargins(0, 0, 0, 0)
+        self._badges_layout.setSpacing(6)
+        layout.addWidget(
+            self._badges_container, 0, QtCore.Qt.AlignmentFlag.AlignRight
+        )
 
-        self.setToolTip(entry.display_text)
+        self.update_entry(entry)
 
     def setSelected(self, selected: bool) -> None:
         self.setProperty("selected", selected)
@@ -738,6 +994,20 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
         self._path_label.style().unpolish(self._path_label)
         self._path_label.style().polish(self._path_label)
         self.update()
+
+    def update_entry(self, entry: FileDiffEntry) -> None:
+        self._entry = entry
+        self._path_label.setText(entry.file_label)
+        self.setToolTip(entry.display_text)
+
+        while self._badges_layout.count():
+            child = self._badges_layout.takeAt(0)
+            widget = child.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        for badge in _create_badge_widgets(entry, self._colors):
+            self._badges_layout.addWidget(badge)
 
 
 def _create_badge_widgets(
@@ -804,6 +1074,46 @@ def _make_badge(text: str, badge_type: str, colors: _DiffPalette) -> QtWidgets.Q
         }
     )
     return badge
+
+
+def _rebuild_entry(
+    original: FileDiffEntry, new_diff_text: str
+) -> tuple[FileDiffEntry, str | None]:
+    text = new_diff_text
+    patched_file = None
+    error: str | None = None
+
+    try:
+        patch_set = PatchSet(text)
+        patched_file = patch_set[0] if patch_set else None
+    except Exception as exc:  # pragma: no cover - defensive parsing guard
+        patched_file = None
+        error = _("Diff non valido: {error}").format(error=str(exc))
+
+    if patched_file is not None:
+        annotated = format_diff_with_line_numbers(patched_file, text)
+        source_preview, target_preview = format_diff_side_by_side(
+            patched_file, annotated
+        )
+    else:
+        annotated = text
+        source_preview = text
+        target_preview = text
+        if error is None:
+            error = _("Impossibile analizzare il diff, controlla la sintassi.")
+
+    additions, deletions = _count_changes(text)
+
+    rebuilt = FileDiffEntry(
+        file_label=original.file_label,
+        diff_text=text,
+        annotated_diff_text=annotated,
+        additions=additions,
+        deletions=deletions,
+        source_preview_text=source_preview,
+        target_preview_text=target_preview,
+    )
+    return rebuilt, error
 
 
 def _format_badges(entry: FileDiffEntry, colors: _DiffPalette) -> str:
