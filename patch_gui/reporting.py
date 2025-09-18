@@ -16,8 +16,10 @@ def write_session_reports(
     report_json: Path | str | None,
     report_txt: Path | str | None,
     enable_reports: bool,
+    write_json: bool = True,
+    write_txt: bool = True,
 ) -> Tuple[Optional[Path], Optional[Path]]:
-    if not enable_reports:
+    if not enable_reports or (not write_json and not write_txt):
         session.report_json_path = None
         session.report_txt_path = None
         return None, None
@@ -29,8 +31,8 @@ def write_session_reports(
         session,
         json_path=json_path,
         txt_path=txt_path,
-        write_json=True,
-        write_txt=True,
+        write_json=write_json,
+        write_txt=write_txt,
     )
     session.report_json_path, session.report_txt_path = written
     return written

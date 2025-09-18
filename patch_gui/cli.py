@@ -64,11 +64,13 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             )
         )
 
+    summary_format = args.summary_format or "txt"
+
     level_name = args.log_level.upper()
     logging.basicConfig(
         level=getattr(logging, level_name, logging.WARNING),
         format="%(levelname)s: %(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr if summary_format == "json" else sys.stdout,
         force=True,
     )
 
@@ -95,26 +97,53 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             report_json=args.report_json,
             report_txt=args.report_txt,
             write_report_files=not args.no_report,
+            write_report_json=(
+                summary_format == "json" or bool(args.report_json)
+            ),
+            write_report_txt=(
+                summary_format == "txt" or bool(args.report_txt)
+            ),
             exclude_dirs=exclude_dirs,
             config=config,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
 
-    print(session.to_txt())
+    print_txt_summary = summary_format == "txt"
+    print_json_summary = summary_format == "json"
+
+    if print_txt_summary:
+        print(session.to_txt())
+    elif print_json_summary:
+        print(json.dumps(session.to_json(), ensure_ascii=False, indent=2))
+
+    messages: list[str] = []
     if args.dry_run:
-        print(_("\nDry-run mode: no files were modified and no backups were created."))
+        messages.append(
+            _("Dry-run mode: no files were modified and no backups were created.")
+        )
     else:
-        print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
+        messages.append(_("Backups saved to: {path}").format(path=session.backup_dir))
         if session.report_json_path or session.report_txt_path:
             details = []
             if session.report_json_path:
                 details.append(_("JSON: {path}").format(path=session.report_json_path))
             if session.report_txt_path:
                 details.append(_("Text: {path}").format(path=session.report_txt_path))
-            print(_("Reports saved to: {details}").format(details=", ".join(details)))
+            messages.append(
+                _("Reports saved to: {details}").format(details=", ".join(details))
+            )
+        elif args.no_report:
+            messages.append(_("Reports disabled (--no-report)"))
         else:
-            print(_("Reports disabled (--no-report)"))
+            messages.append(_("Reports skipped (no formats requested)"))
+
+    for idx, message in enumerate(messages):
+        if print_txt_summary:
+            prefix = "\n" if idx == 0 else ""
+            print(f"{prefix}{message}")
+        else:
+            logger.info(message)
 
     return 0 if session_completed(session) else 1
 

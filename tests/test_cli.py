@@ -924,6 +924,96 @@ def test_run_cli_defaults_to_auto_encoding(
     assert captured["encoding"] is None
 
 
+def test_run_cli_summary_json_prints_json(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "summary-json.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_write_session_reports(
+        session: executor.ApplySession,
+        *,
+        report_json: Path | str | None,
+        report_txt: Path | str | None,
+        enable_reports: bool,
+        write_json: bool,
+        write_txt: bool,
+    ) -> tuple[Path | None, Path | None]:
+        captured["write_json"] = write_json
+        captured["write_txt"] = write_txt
+        session.report_json_path = Path("dummy.json") if write_json else None
+        session.report_txt_path = Path("dummy.txt") if write_txt else None
+        return session.report_json_path, session.report_txt_path
+
+    monkeypatch.setattr(executor, "write_session_reports", fake_write_session_reports)
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--summary-format",
+            "json",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr()
+    parsed = json.loads(output.out)
+    assert parsed["dry_run"] is True
+    assert captured["write_json"] is True
+    assert captured["write_txt"] is False
+    assert output.err == ""
+
+
+def test_run_cli_summary_none_skips_reports(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "summary-none.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    captured: dict[str, object] = {}
+
+    def fake_write_session_reports(
+        session: executor.ApplySession,
+        *,
+        report_json: Path | str | None,
+        report_txt: Path | str | None,
+        enable_reports: bool,
+        write_json: bool,
+        write_txt: bool,
+    ) -> tuple[Path | None, Path | None]:
+        captured["write_json"] = write_json
+        captured["write_txt"] = write_txt
+        session.report_json_path = None
+        session.report_txt_path = None
+        return None, None
+
+    monkeypatch.setattr(executor, "write_session_reports", fake_write_session_reports)
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--summary-format",
+            "none",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr()
+    assert output.out.strip() == ""
+    assert captured["write_json"] is False
+    assert captured["write_txt"] is False
+
+
 def test_config_show_outputs_json(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
     config = AppConfig(

@@ -102,6 +102,14 @@ def build_parser(
         % REPORT_TXT,
     )
     parser.add_argument(
+        "--summary-format",
+        choices=("txt", "json", "none"),
+        help=_(
+            "Format of the CLI summary printed to stdout: 'txt' (default), "
+            "'json', or 'none'."
+        ),
+    )
+    parser.add_argument(
         "--no-report",
         action="store_true",
         help=_("Do not create JSON/TXT report files."),
