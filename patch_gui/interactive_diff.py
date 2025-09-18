@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from typing import Iterable, List
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from .highlighter import DiffHighlighter
 from .localization import gettext as _
@@ -64,12 +65,63 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         self._order_label = QtWidgets.QLabel("")
         self._order_label.setObjectName("interactiveDiffOrderLabel")
         self._order_label.setWordWrap(True)
+        self._order_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        self._order_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #f8fafc;
+                border-radius: 6px;
+                padding: 8px;
+            }
+            .diff-order-entry {
+                margin-bottom: 4px;
+                font-size: 12px;
+            }
+            .diff-order-entry:last-child {
+                margin-bottom: 0;
+            }
+            .diff-order-index {
+                font-weight: 600;
+                margin-right: 6px;
+                color: #0f172a;
+            }
+            .diff-badge {
+                border-radius: 10px;
+                padding: 1px 8px;
+                font-weight: 600;
+                font-size: 11px;
+            }
+            .diff-badge.additions {
+                background-color: #dcfce7;
+                color: #166534;
+            }
+            .diff-badge.deletions {
+                background-color: #fee2e2;
+                color: #b91c1c;
+            }
+            """
+        )
         upper_layout.addWidget(self._order_label)
 
         self._list_widget = QtWidgets.QListWidget()
         self._list_widget.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
         self._list_widget.setDefaultDropAction(QtCore.Qt.DropAction.MoveAction)
         self._list_widget.setAlternatingRowColors(True)
+        self._list_widget.setVerticalScrollMode(
+            QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self._list_widget.setStyleSheet(
+            """
+            QListWidget::item {
+                border-radius: 6px;
+                margin: 2px 4px;
+                padding: 0px;
+            }
+            QListWidget::item:selected {
+                background-color: transparent;
+            }
+            """
+        )
         self._list_widget.setSelectionMode(
             QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
         )
@@ -104,6 +156,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
 
         self._list_widget.currentItemChanged.connect(self._on_current_item_changed)
         self._list_widget.model().rowsMoved.connect(self._on_rows_moved)
+        self._list_widget.itemSelectionChanged.connect(self._refresh_item_selection)
 
         self._update_enabled_state()
 
@@ -143,20 +196,16 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
     def _populate(self, entries: List[FileDiffEntry]) -> None:
         self._list_widget.clear()
         for entry in entries:
-            item = QtWidgets.QListWidgetItem(entry.display_text)
+            item = QtWidgets.QListWidgetItem()
             item.setData(QtCore.Qt.ItemDataRole.UserRole, entry)
-            if entry.additions and not entry.deletions:
-                item.setBackground(QtGui.QColor("#d1f8d1"))
-                item.setForeground(QtGui.QColor("#0e5a0e"))
-            elif entry.deletions and not entry.additions:
-                item.setBackground(QtGui.QColor("#fcd6d6"))
-                item.setForeground(QtGui.QColor("#7a1e1e"))
-            elif entry.additions or entry.deletions:
-                item.setBackground(QtGui.QColor("#f0f4ff"))
+            widget = _DiffListItemWidget(entry)
+            item.setSizeHint(widget.sizeHint())
             self._list_widget.addItem(item)
+            self._list_widget.setItemWidget(item, widget)
 
         if entries:
             self._list_widget.setCurrentRow(0)
+        self._refresh_item_selection()
         self._update_order_label()
         self._update_enabled_state()
 
@@ -167,8 +216,20 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             entry: FileDiffEntry | None = item.data(QtCore.Qt.ItemDataRole.UserRole)
             if entry is None:
                 continue
-            order_parts.append(f"{idx + 1}. {entry.file_label}")
-        self._order_label.setText("\n".join(order_parts))
+            order_parts.append(
+                """
+                <div class="diff-order-entry">
+                    <span class="diff-order-index">{index}.</span>
+                    <span class="diff-order-name">{name}</span>
+                    {badges}
+                </div>
+                """.format(
+                    index=idx + 1,
+                    name=escape(entry.file_label),
+                    badges=_format_badges(entry),
+                )
+            )
+        self._order_label.setText("".join(order_parts))
 
     def _update_enabled_state(self) -> None:
         has_entries = self._list_widget.count() > 0
@@ -198,6 +259,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
         if isinstance(entry, FileDiffEntry):
             self._preview.setPlainText(entry.diff_text)
+        self._refresh_item_selection()
 
     def _apply_reordered_diff(self) -> None:
         entries = self._current_entries()
@@ -209,6 +271,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
     def _reset_order(self) -> None:
         self._populate(list(self._original_entries))
         self._preview.clear()
+        self._refresh_item_selection()
 
     def _on_rows_moved(
         self,
@@ -220,6 +283,148 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
     ) -> None:
         del parent, start, end, destination, row
         self._update_order_label()
+        self._refresh_item_selection()
+
+    def _refresh_item_selection(self) -> None:
+        for idx in range(self._list_widget.count()):
+            item = self._list_widget.item(idx)
+            widget = self._list_widget.itemWidget(item)
+            if isinstance(widget, _DiffListItemWidget):
+                widget.setSelected(item.isSelected())
+                widget.updateGeometry()
+
+
+class _DiffListItemWidget(QtWidgets.QFrame):
+    """Custom widget for list items with colourful diff statistics."""
+
+    def __init__(self, entry: FileDiffEntry) -> None:
+        super().__init__()
+        self.setObjectName("diffListItem")
+        self.setProperty("selected", False)
+        self.setStyleSheet(
+            """
+            QFrame#diffListItem {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 8px 12px;
+            }
+            QFrame#diffListItem[selected="true"] {
+                border-color: #2563eb;
+                background-color: #eff6ff;
+            }
+            QLabel#diffListItemPath {
+                font-weight: 600;
+                color: #0f172a;
+            }
+            QLabel#diffListItemPath[selected="true"] {
+                color: #1d4ed8;
+            }
+            QLabel.diffStatBadge {
+                border-radius: 10px;
+                padding: 2px 10px;
+                font-weight: 600;
+                font-size: 11px;
+            }
+            QLabel.diffStatBadge.additions {
+                background-color: #bbf7d0;
+                color: #166534;
+            }
+            QLabel.diffStatBadge.deletions {
+                background-color: #fecaca;
+                color: #991b1b;
+            }
+            """
+        )
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(10)
+
+        self._path_label = QtWidgets.QLabel(entry.file_label)
+        self._path_label.setObjectName("diffListItemPath")
+        self._path_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(self._path_label, 1)
+
+        badges_container = QtWidgets.QWidget()
+        badges_layout = QtWidgets.QHBoxLayout(badges_container)
+        badges_layout.setContentsMargins(0, 0, 0, 0)
+        badges_layout.setSpacing(6)
+        for badge in _create_badge_widgets(entry):
+            badges_layout.addWidget(badge)
+        layout.addWidget(badges_container, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+
+        self.setToolTip(entry.display_text)
+
+    def setSelected(self, selected: bool) -> None:
+        self.setProperty("selected", selected)
+        self._path_label.setProperty("selected", selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self._path_label.style().unpolish(self._path_label)
+        self._path_label.style().polish(self._path_label)
+        self.update()
+
+
+def _create_badge_widgets(entry: FileDiffEntry) -> list[QtWidgets.QLabel]:
+    badges: list[QtWidgets.QLabel] = []
+    if entry.additions:
+        badges.append(_make_badge(_("+{count}").format(count=entry.additions), "additions"))
+    if entry.deletions:
+        badges.append(_make_badge(_("-{count}").format(count=entry.deletions), "deletions"))
+    if not badges:
+        badges.append(_make_badge(_("0 modifiche"), "additions"))
+    return badges
+
+
+def _make_badge(text: str, badge_type: str) -> QtWidgets.QLabel:
+    badge = QtWidgets.QLabel(text)
+    badge.setObjectName("diffStatBadge")
+    badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+    badge.setProperty("class", "diffStatBadge")
+    badge.setProperty("badgeType", badge_type)
+    badge.setStyleSheet(
+        """
+        QLabel#diffStatBadge {
+            border-radius: 10px;
+            padding: 2px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            background-color: #e2e8f0;
+            color: #1e293b;
+        }
+        QLabel#diffStatBadge[badgeType="additions"] {
+            background-color: #bbf7d0;
+            color: #166534;
+        }
+        QLabel#diffStatBadge[badgeType="deletions"] {
+            background-color: #fecaca;
+            color: #991b1b;
+        }
+        """
+    )
+    return badge
+
+
+def _format_badges(entry: FileDiffEntry) -> str:
+    badges: list[str] = []
+    if entry.additions:
+        badges.append(
+            '<span class="diff-badge additions">+{count}</span>'.format(
+                count=entry.additions
+            )
+        )
+    if entry.deletions:
+        badges.append(
+            '<span class="diff-badge deletions">-{count}</span>'.format(
+                count=entry.deletions
+            )
+        )
+    if not badges:
+        badges.append('<span class="diff-badge additions">0</span>')
+    return "".join(badges)
 
 
 def _count_changes(diff_text: str) -> tuple[int, int]:

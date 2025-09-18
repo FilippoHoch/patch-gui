@@ -7,6 +7,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 ## [Non rilasciato]
 ### Aggiunto
 - Sezione iniziale del changelog pronta per essere aggiornata con le prossime modifiche.
+- Migliorata l'esperienza del diff interattivo con badge e colori più leggibili per le aggiunte e le rimozioni.
 
 ## [0.1.0] - 2025-09-18
 ### Aggiunto
