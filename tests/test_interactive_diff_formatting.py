@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from unidiff import PatchSet
 
+from patch_gui.interactive_diff_models import (
+    FileDiffEntry,
+    populate_ai_note,
+    set_diff_ai_note_client,
+)
+
 from patch_gui.diff_formatting import format_diff_with_line_numbers
 
 
@@ -41,3 +47,73 @@ def test_format_diff_with_line_numbers_returns_fallback_for_binary() -> None:
     formatted = format_diff_with_line_numbers(patched_file, diff_text)
 
     assert formatted == diff_text
+
+
+def test_populate_ai_note_uses_registered_client() -> None:
+    entry = FileDiffEntry(
+        file_label="foo.py",
+        diff_text="diff --git a/foo.py b/foo.py\n+print('hi')\n",
+        annotated_diff_text="annotated",
+        additions=1,
+        deletions=0,
+    )
+
+    captured: list[str] = []
+
+    class DummyClient:
+        def note_for_diff(self, diff_entry: FileDiffEntry) -> str:
+            captured.append(diff_entry.file_label)
+            return "Suggerimento AI"
+
+    set_diff_ai_note_client(DummyClient())
+    try:
+        enriched = populate_ai_note(entry)
+    finally:
+        set_diff_ai_note_client(None)
+
+    assert captured == ["foo.py"]
+    assert enriched.ai_note == "Suggerimento AI"
+
+
+def test_populate_ai_note_gracefully_handles_failures() -> None:
+    entry = FileDiffEntry(
+        file_label="bar.txt",
+        diff_text="diff --git a/bar.txt b/bar.txt\n-line\n+line\n",
+        annotated_diff_text="annotated",
+        additions=1,
+        deletions=1,
+    )
+
+    class FailingClient:
+        def note_for_diff(self, diff_entry: FileDiffEntry) -> str:
+            raise RuntimeError("boom")
+
+    set_diff_ai_note_client(FailingClient())
+    try:
+        enriched = populate_ai_note(entry)
+    finally:
+        set_diff_ai_note_client(None)
+
+    assert enriched.ai_note is None
+
+
+def test_populate_ai_note_discards_blank_responses() -> None:
+    entry = FileDiffEntry(
+        file_label="baz.md",
+        diff_text="diff --git a/baz.md b/baz.md\n+line\n",
+        annotated_diff_text="annotated",
+        additions=1,
+        deletions=0,
+    )
+
+    class BlankClient:
+        def note_for_diff(self, diff_entry: FileDiffEntry) -> str:
+            return "   "
+
+    set_diff_ai_note_client(BlankClient())
+    try:
+        enriched = populate_ai_note(entry)
+    finally:
+        set_diff_ai_note_client(None)
+
+    assert enriched.ai_note is None

@@ -5,6 +5,9 @@ Il formato segue le convenzioni di [Keep a Changelog](https://keepachangelog.com
 e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
+### Aggiunto
+- Vista diff interattiva arricchita con note AI opzionali, controllabili da
+  preferenze dedicate e con fallback automatico in caso di errori del servizio.
 
 ## [0.2.0] - 2025-09-18
 ### Aggiunto

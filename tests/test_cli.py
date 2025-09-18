@@ -1373,6 +1373,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
         log_max_bytes=2048,
         log_backup_count=5,
         backup_retention_days=12,
+        ai_notes_enabled=True,
     )
     save_config(config, path=config_path)
 
@@ -1389,6 +1390,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
     assert payload["log_max_bytes"] == config.log_max_bytes
     assert payload["log_backup_count"] == config.log_backup_count
     assert payload["backup_retention_days"] == config.backup_retention_days
+    assert payload["ai_notes_enabled"] is True
 
 
 def test_config_set_updates_values(tmp_path: Path) -> None:
@@ -1445,6 +1447,14 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
     assert load_config(config_path).write_reports is False
 
     cli.config_set(
+        "ai_notes_enabled",
+        ["yes"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).ai_notes_enabled is True
+
+    cli.config_set(
         "log_file",
         [str(tmp_path / "logs" / "session.log")],
         path=config_path,
@@ -1484,6 +1494,12 @@ def test_config_reset_values(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
     cli.config_set("threshold", ["0.92"], path=config_path, stream=io.StringIO())
     cli.config_set("log_level", ["debug"], path=config_path, stream=io.StringIO())
+    cli.config_set(
+        "ai_notes_enabled",
+        ["true"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
 
     cli.config_reset("threshold", path=config_path, stream=io.StringIO())
     loaded = load_config(config_path)
@@ -1506,6 +1522,7 @@ def test_config_reset_values(tmp_path: Path) -> None:
     assert reset.log_max_bytes == defaults.log_max_bytes
     assert reset.log_backup_count == defaults.log_backup_count
     assert reset.backup_retention_days == defaults.backup_retention_days
+    assert reset.ai_notes_enabled == defaults.ai_notes_enabled
 
 
 def test_run_config_reports_invalid_log_level(
