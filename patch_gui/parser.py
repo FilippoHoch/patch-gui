@@ -30,8 +30,14 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         self._width = max(self._width, minimum_total_width)
 
 
+REPORT_JSON_UNSET = object()
+REPORT_TXT_UNSET = object()
+
+
 __all__ = [
     "_LOG_LEVEL_CHOICES",
+    "REPORT_JSON_UNSET",
+    "REPORT_TXT_UNSET",
     "build_parser",
     "parse_exclude_dirs",
     "threshold_value",
@@ -93,11 +99,13 @@ def build_parser(
     )
     parser.add_argument(
         "--report-json",
+        default=REPORT_JSON_UNSET,
         help=_("Path of the generated JSON report; defaults to '<backup>/%s'.")
         % REPORT_JSON,
     )
     parser.add_argument(
         "--report-txt",
+        default=REPORT_TXT_UNSET,
         help=_("Path of the generated text report; defaults to '<backup>/%s'.")
         % REPORT_TXT,
     )
@@ -105,6 +113,15 @@ def build_parser(
         "--no-report",
         action="store_true",
         help=_("Do not create JSON/TXT report files."),
+    )
+    parser.add_argument(
+        "--summary-format",
+        action="append",
+        choices=("text", "json", "none"),
+        help=_(
+            "Choose one or more summary formats to print on stdout (defaults to text). "
+            "Repeat the option to combine formats; use 'none' to suppress summaries."
+        ),
     )
     parser.add_argument(
         "--non-interactive",
