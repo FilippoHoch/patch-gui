@@ -116,6 +116,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         force=True,
     )
 
+    interactive = not args.non_interactive
+    if args.auto_accept:
+        interactive = True
+
     try:
         patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
@@ -135,7 +139,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
             threshold=args.threshold,
             backup_base=backup_base,
-            interactive=not args.non_interactive,
+            interactive=interactive,
+            auto_accept=args.auto_accept,
             report_json=report_json_arg,
             report_txt=report_txt_arg,
             write_report_files=not args.no_report,

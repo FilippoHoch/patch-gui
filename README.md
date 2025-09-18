@@ -141,6 +141,8 @@ patch-gui apply --root . --dry-run --threshold 0.90 diff.patch
 git diff | patch-gui apply --root . --backup ~/diff_backups -
 patch-gui apply --root . --dry-run --log-level debug diff.patch
 patch-gui apply --root . --non-interactive diff.patch
+# per accettare automaticamente il candidato migliore senza prompt
+patch-gui apply --root . --auto-accept diff.patch
 ```
 
 - `--dry-run` simula l'applicazione mantenendo i file intatti e produce comunque i report (se non disabilitati).
@@ -148,11 +150,16 @@ patch-gui apply --root . --non-interactive diff.patch
 - `--backup` personalizza la cartella in cui vengono salvati gli originali prima della patch.
 - `--report-json` / `--report-txt` definiscono percorsi precisi per i report; per default vengono creati sotto `~/.diff_backups/reports/results/<timestamp-ms>/`.
 - `--no-report` disattiva entrambi i file di report.
+- `--exclude-dir NAME` permette di aggiungere directory personalizzate all'elenco di esclusione (puoi passare l'opzione più volte o separare i valori con virgole).
+- `--no-default-exclude` disabilita la lista predefinita di esclusioni (es. `.git`, `.venv`, `node_modules`, `.diff_backups`) così da poter patchare anche file normalmente ignorati.
+- `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
+- `--auto-accept` sceglie autonomamente il candidato migliore per file e hunk ambigui, includendo i casi fuzzy: nessun input richiesto, ma la patch viene comunque applicata.
+- `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
+- L'uscita termina con codice `0` solo se tutti gli hunk vengono applicati.
 - `--exclude-dir` aggiunge cartelle personalizzate agli esclusi. Usa l'opzione più volte o separa con virgole.
 - `--no-default-exclude` toglie `.git`, `.venv`, `node_modules`, `.diff_backups` dagli esclusi standard.
 - `--non-interactive` replica il comportamento tradizionale: i file ambigui vengono saltati senza prompt.
 - `--log-level` controlla la verbosità (`debug`, `info`, `warning`, `error`, `critical`). La variabile `PATCH_GUI_LOG_LEVEL` offre lo stesso controllo.
-
 Il comando termina con `0` solo se tutti gli hunk vengono applicati.
 
 ---
@@ -230,10 +237,15 @@ PATCH_GUI_LANG=it patch-gui apply --root . diff.patch
 
 ## 🧩 Opzioni tecniche
 
+- **Soglia fuzzy**: regola la tolleranza nel confronto del contesto (`difflib.SequenceMatcher`).
+- **EOL**: preserva lo stile originale (LF/CRLF) al salvataggio.
+- **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca per nome in modo ricorsivo; in caso di multipli chiede quale usare. Con `--non-interactive` i file ambigui vengono saltati, mentre `--auto-accept` seleziona automaticamente il match con punteggio più alto.
+- **Formati supportati**: qualsiasi file di testo (JS, TS, HTML, CSS, MD, Rust, …).
 - **Soglia fuzzy**: controlla la tolleranza del contesto (basata su `difflib.SequenceMatcher`).
 - **Fine linea (EOL)**: i file vengono salvati rispettando lo stile originale (LF/CRLF).
 - **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca ricorsiva per nome. In modalità interattiva ti chiede quale percorso usare; con `--non-interactive` salta i conflitti.
 - **Formati supportati**: qualsiasi file di testo (JavaScript, TypeScript, HTML, CSS, Markdown, Rust, …).
+
 - **Logging**:
   - `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` o valori numerici).
   - `PATCH_GUI_LOG_FILE` definisce il percorso del log (default `~/.patch_gui.log`).
