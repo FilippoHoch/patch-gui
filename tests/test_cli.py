@@ -1093,10 +1093,9 @@ def test_run_cli_reports_backup_creation_error(
 
     monkeypatch.setattr(executor, "backup_file", failing_backup)
 
-    with pytest.raises(SystemExit) as excinfo:
-        cli.run_cli(["--root", str(project), str(patch_path)])
+    exit_code = cli.run_cli(["--root", str(project), str(patch_path)])
 
-    assert excinfo.value.code == 1
+    assert exit_code == 1
     captured = capsys.readouterr()
     assert "Failed to create backup" in captured.out
     assert "sample.txt" in captured.out
@@ -1124,8 +1123,10 @@ def test_run_cli_reports_directory_creation_error(
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Failed to create directory" in captured.out
-    assert "docs" in captured.out
+    assert "Failed to create directory" in captured.err
+    assert "docs" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
 
 
 def test_run_cli_reports_write_error(
@@ -1146,8 +1147,56 @@ def test_run_cli_reports_write_error(
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Failed to write updated content" in captured.out
-    assert "sample.txt" in captured.out
+    assert "Failed to write updated content" in captured.err
+    assert "sample.txt" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
+
+
+def test_run_cli_reports_prepare_backup_dir_permission_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def failing_prepare(*args: object, **kwargs: object) -> Path:
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(executor, "prepare_backup_dir", failing_prepare)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_cli(["--root", str(project), str(patch_path)])
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "Failed to prepare backup directory" in captured.err
+    assert "permission denied" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
+
+
+def test_run_cli_reports_write_session_reports_permission_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "input.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def failing_write_reports(*args: object, **kwargs: object) -> None:
+        raise PermissionError("permission denied")
+
+    monkeypatch.setattr(executor, "write_session_reports", failing_write_reports)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_cli(["--root", str(project), str(patch_path)])
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "Failed to write session report" in captured.err
+    assert "permission denied" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
 
 
 def test_config_show_outputs_json(tmp_path: Path) -> None:
