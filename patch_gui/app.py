@@ -21,6 +21,7 @@ from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPol
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
+from .ai_conflict_helper import build_conflict_suggestion
 from .config import (
     AppConfig,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -653,6 +654,7 @@ class CandidateDialog(_QDialogBase):
         self.setModal(True)
         self.resize(1000, 700)
         self.selected_pos: Optional[int] = None
+        self._suggestion_plaintext: str = ""
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -667,6 +669,8 @@ class CandidateDialog(_QDialogBase):
 
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
+
+        file_lines = file_text.splitlines(keepends=True)
 
         left = QtWidgets.QWidget()
         left_layout = QtWidgets.QVBoxLayout(left)
@@ -698,6 +702,16 @@ class CandidateDialog(_QDialogBase):
         splitter.addWidget(right)
         layout.addWidget(splitter, 1)
 
+        suggestion_group = QtWidgets.QGroupBox(_("Suggerimento assistente"))
+        suggestion_layout = QtWidgets.QVBoxLayout(suggestion_group)
+        self.suggestion_text: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit()
+        self.suggestion_text.setReadOnly(True)
+        suggestion_layout.addWidget(self.suggestion_text, 1)
+        copy_btn = QtWidgets.QPushButton(_("Copia suggerimento"))
+        copy_btn.clicked.connect(self._copy_suggestion)
+        suggestion_layout.addWidget(copy_btn, 0, QtCore.Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(suggestion_group)
+
         btns = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -706,12 +720,25 @@ class CandidateDialog(_QDialogBase):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
 
+        suggestion = build_conflict_suggestion(
+            file_lines,
+            failure_reason=_("Ambiguità nella posizione del hunk."),
+            before_lines=hv.before_lines,
+            after_lines=hv.after_lines,
+            header=hv.header,
+        ).as_text()
+        if suggestion:
+            self._suggestion_plaintext = suggestion
+            self.suggestion_text.setPlainText(suggestion)
+        else:
+            suggestion_group.setVisible(False)
+            self._suggestion_plaintext = ""
+
         def on_row_changed() -> None:
             row = self.list.currentRow()
             if row < 0:
                 return
             pos, _ = candidates[row]
-            file_lines = file_text.splitlines(keepends=True)
             start = max(0, pos - 15)
             end = min(len(file_lines), pos + len(hv.before_lines) + 15)
             snippet = "".join(file_lines[start:end])
@@ -719,6 +746,17 @@ class CandidateDialog(_QDialogBase):
 
         self.list.currentRowChanged.connect(on_row_changed)
         on_row_changed()
+
+    def _copy_suggestion(self) -> None:
+        if not self._suggestion_plaintext:
+            return
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setText(self._suggestion_plaintext)
+        QtWidgets.QToolTip.showText(
+            self.mapToGlobal(QtCore.QPoint(0, 0)),
+            _("Suggerimento copiato negli appunti."),
+            self,
+        )
 
     def accept(self) -> None:
         row = self.list.currentRow()

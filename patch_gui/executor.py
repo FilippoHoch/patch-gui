@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import sys
+import textwrap
 import time
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .ai_conflict_helper import build_conflict_suggestion
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -831,6 +833,22 @@ def _cli_manual_resolver(
         print(_("  Proposed hunk lines:"))
         for line in hv.after_lines:
             print(f"    + {line.rstrip()}" if line.endswith("\n") else f"    + {line}")
+
+    ai_summary = build_conflict_suggestion(
+        lines,
+        failure_reason=context_message,
+        before_lines=hv.before_lines,
+        after_lines=hv.after_lines,
+        header=hv.header,
+    ).as_text()
+    if ai_summary:
+        print("")
+        print(
+            _(
+                "Suggerimento assistente (puoi copiarlo o applicarlo manualmente):"
+            )
+        )
+        print(textwrap.indent(ai_summary, "  "))
 
     window_len = len(hv.before_lines)
     highlight_width = max(window_len, 1)

@@ -40,6 +40,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 6. **Gestisci eventuali ambiguità**
    - Se la patch può essere applicata in più punti plausibili, viene aperto un dialog che mostra tutte le opzioni con il relativo contesto.
    - Scegli manualmente il posizionamento corretto.
+   - Usa il riquadro **Suggerimento assistente** per copiare un patch alternativo o seguire le istruzioni generate automaticamente quando un hunk non può essere applicato.
 7. **Consulta backup e report**
    - Ogni esecuzione reale crea una cartella `~/.diff_backups/<timestamp-ms>/` con copie dei file originali (a meno di impostare un percorso diverso con `--backup`). Il suffisso `<timestamp-ms>` usa il formato `YYYYMMDD-HHMMSS-fff`, includendo i millisecondi per evitare collisioni.
    - I report `apply-report.json` e `apply-report.txt` vengono salvati in `~/.diff_backups/reports/results/<timestamp-ms>/`
@@ -67,6 +68,8 @@ Esempio:
 ```bash
 patch-gui apply --root . --no-default-exclude fix.diff
 ```
+
+Durante la risoluzione manuale via CLI, quando un hunk non può essere applicato automaticamente viene mostrato un suggerimento testuale con il diff consigliato: copialo nel tuo editor o applicalo a mano prima di procedere.
 
 ## Gestione della configurazione via CLI
 
