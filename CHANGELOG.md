@@ -14,6 +14,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 - L'anteprima diff interattiva mostra le vere linee di file coinvolte nelle modifiche con colonne numerate in stile Visual Studio, facilitando il riferimento al codice originale.
 - Raffinata l'interfaccia del diff interattivo con intestazioni e contenitori più strutturati per facilitare la lettura delle patch.
 - Resa più vivace la schermata del diff interattivo con gradienti, badge neutri e pulsanti colorati che mettono in evidenza le azioni disponibili e lo stato dei file.
+- Riscritto il README principale con una struttura armonizzata con la GUI, nuove sezioni di onboarding e tour dell'interfaccia.
 
 ## [0.1.0] - 2025-09-18
 ### Aggiunto
