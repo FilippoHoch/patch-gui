@@ -118,9 +118,15 @@ def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
     return pen
 
 
-def _draw_document(painter: QPainter, size: QSize, *, offset: QPointF = QPointF(0, 0),
-                   body_color: QColor = _BRAND_SURFACE, corner_color: QColor | None = None,
-                   radius: float = 4.0) -> None:
+def _draw_document(
+    painter: QPainter,
+    size: QSize,
+    *,
+    offset: QPointF = QPointF(0, 0),
+    body_color: QColor = _BRAND_SURFACE,
+    corner_color: QColor | None = None,
+    radius: float = 4.0,
+) -> None:
     width = size.width() * 0.52
     height = size.height() * 0.64
     x = size.width() * 0.24 + offset.x()
@@ -152,10 +158,20 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     painter.setPen(folder_pen)
     painter.setBrush(_BRAND_SURFACE)
 
-    tab_rect = QRectF(size.width() * 0.14, size.height() * 0.28, size.width() * 0.34, size.height() * 0.22)
+    tab_rect = QRectF(
+        size.width() * 0.14,
+        size.height() * 0.28,
+        size.width() * 0.34,
+        size.height() * 0.22,
+    )
     painter.drawRoundedRect(tab_rect, 3, 3)
 
-    body_rect = QRectF(size.width() * 0.12, size.height() * 0.4, size.width() * 0.72, size.height() * 0.42)
+    body_rect = QRectF(
+        size.width() * 0.12,
+        size.height() * 0.4,
+        size.width() * 0.72,
+        size.height() * 0.42,
+    )
     painter.drawRoundedRect(body_rect, 4, 4)
 
     center = QPointF(size.width() * 0.7, size.height() * 0.52)
@@ -163,7 +179,9 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     inner = outer * 0.45
 
     painter.setPen(QtCore.Qt.NoPen)
-    gradient = QLinearGradient(center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer)
+    gradient = QLinearGradient(
+        center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer
+    )
     gradient.setColorAt(0.0, _BRAND_PRIMARY)
     gradient.setColorAt(1.0, _BRAND_ACCENT)
     painter.setBrush(gradient)
@@ -195,7 +213,12 @@ def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
     arrow_x = size.width() * 0.5
     arrow_half = size.width() * 0.14
 
-    shaft_rect = QRectF(arrow_x - arrow_half * 0.45, arrow_top, arrow_half * 0.9, arrow_bottom - arrow_top - arrow_half * 0.9)
+    shaft_rect = QRectF(
+        arrow_x - arrow_half * 0.45,
+        arrow_top,
+        arrow_half * 0.9,
+        arrow_bottom - arrow_top - arrow_half * 0.9,
+    )
     painter.drawRoundedRect(shaft_rect, 2, 2)
 
     arrow = QtGui.QPolygonF(
@@ -213,16 +236,31 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     painter.setPen(_configured_pen(_BRAND_BASE, size, scale=0.04))
     painter.setBrush(_BRAND_SURFACE)
 
-    body_rect = QRectF(size.width() * 0.2, size.height() * 0.26, size.width() * 0.6, size.height() * 0.6)
+    body_rect = QRectF(
+        size.width() * 0.2,
+        size.height() * 0.26,
+        size.width() * 0.6,
+        size.height() * 0.6,
+    )
     painter.drawRoundedRect(body_rect, 4, 4)
 
     painter.setPen(QtCore.Qt.NoPen)
     painter.setBrush(_BRAND_PRIMARY)
-    clip_rect = QRectF(size.width() * 0.32, size.height() * 0.16, size.width() * 0.36, size.height() * 0.16)
+    clip_rect = QRectF(
+        size.width() * 0.32,
+        size.height() * 0.16,
+        size.width() * 0.36,
+        size.height() * 0.16,
+    )
     painter.drawRoundedRect(clip_rect, 4, 4)
 
     painter.setBrush(_BRAND_ACCENT)
-    handle_rect = QRectF(size.width() * 0.42, size.height() * 0.12, size.width() * 0.16, size.height() * 0.12)
+    handle_rect = QRectF(
+        size.width() * 0.42,
+        size.height() * 0.12,
+        size.width() * 0.16,
+        size.height() * 0.12,
+    )
     painter.drawRoundedRect(handle_rect, 3, 3)
 
     painter.setBrush(_BRAND_ACCENT)
@@ -231,7 +269,12 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     arrow_x = body_rect.center().x()
     half_width = size.width() * 0.13
 
-    shaft = QRectF(arrow_x - half_width * 0.3, arrow_top, half_width * 0.6, arrow_bottom - arrow_top - half_width * 0.7)
+    shaft = QRectF(
+        arrow_x - half_width * 0.3,
+        arrow_top,
+        half_width * 0.6,
+        arrow_bottom - arrow_top - half_width * 0.7,
+    )
     painter.drawRoundedRect(shaft, 2, 2)
 
     arrow = QtGui.QPolygonF(
@@ -268,9 +311,17 @@ def _generate_text_icon(painter: QPainter, size: QSize) -> None:
     bracket_top = size.height() * 0.44
     bracket_bottom = size.height() * 0.68
     bracket_x = size.width() * 0.42
-    painter.drawLine(QPointF(bracket_x, bracket_top), QPointF(bracket_x, bracket_bottom))
-    painter.drawLine(QPointF(bracket_x, bracket_top), QPointF(bracket_x + size.width() * 0.08, bracket_top))
-    painter.drawLine(QPointF(bracket_x, bracket_bottom), QPointF(bracket_x + size.width() * 0.08, bracket_bottom))
+    painter.drawLine(
+        QPointF(bracket_x, bracket_top), QPointF(bracket_x, bracket_bottom)
+    )
+    painter.drawLine(
+        QPointF(bracket_x, bracket_top),
+        QPointF(bracket_x + size.width() * 0.08, bracket_top),
+    )
+    painter.drawLine(
+        QPointF(bracket_x, bracket_bottom),
+        QPointF(bracket_x + size.width() * 0.08, bracket_bottom),
+    )
 
 
 def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
@@ -278,7 +329,13 @@ def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
 
     shadow_offset = QPointF(-size.width() * 0.08, size.height() * 0.08)
     painter.setOpacity(0.65)
-    _draw_document(painter, size, offset=shadow_offset, body_color=_BRAND_BASE, corner_color=_BRAND_PRIMARY)
+    _draw_document(
+        painter,
+        size,
+        offset=shadow_offset,
+        body_color=_BRAND_BASE,
+        corner_color=_BRAND_PRIMARY,
+    )
     painter.setOpacity(1.0)
     _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
 
@@ -302,7 +359,12 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
     radius = min(size.width(), size.height()) * 0.42
 
     painter.setPen(QtCore.Qt.NoPen)
-    gradient = QLinearGradient(center.x() - radius, center.y() - radius, center.x() + radius, center.y() + radius)
+    gradient = QLinearGradient(
+        center.x() - radius,
+        center.y() - radius,
+        center.x() + radius,
+        center.y() + radius,
+    )
     gradient.setColorAt(0.0, _BRAND_SURFACE)
     gradient.setColorAt(1.0, _BRAND_BASE)
     painter.setBrush(gradient)
@@ -321,8 +383,14 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
     bar_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
     bar_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(bar_pen)
-    painter.drawLine(QPointF(size.width() * 0.34, size.height() * 0.42), QPointF(size.width() * 0.34, size.height() * 0.62))
-    painter.drawLine(QPointF(size.width() * 0.28, size.height() * 0.48), QPointF(size.width() * 0.28, size.height() * 0.58))
+    painter.drawLine(
+        QPointF(size.width() * 0.34, size.height() * 0.42),
+        QPointF(size.width() * 0.34, size.height() * 0.62),
+    )
+    painter.drawLine(
+        QPointF(size.width() * 0.28, size.height() * 0.48),
+        QPointF(size.width() * 0.28, size.height() * 0.58),
+    )
 
 
 _ICON_GENERATORS: dict[str, Callable[[QPainter, QSize], None]] = {
@@ -619,9 +687,7 @@ class CandidateDialog(_QDialogBase):
 
         right = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.addWidget(
-            QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):"))
-        )
+        right_layout.addWidget(QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):")))
         self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
             "".join(hv.before_lines)
         )
@@ -782,9 +848,7 @@ class SettingsDialog(_QDialogBase):
         self.backup_retention_edit.setPlaceholderText(
             _("Giorni di conservazione backup (0 = illimitato)")
         )
-        form.addRow(
-            _("Conservazione backup (giorni)"), self.backup_retention_edit
-        )
+        form.addRow(_("Conservazione backup (giorni)"), self.backup_retention_edit)
 
         self.log_file_edit = QtWidgets.QLineEdit(str(self._original_config.log_file))
         self.log_file_edit.setPlaceholderText(_("Percorso del file di log"))
@@ -809,9 +873,7 @@ class SettingsDialog(_QDialogBase):
         self.log_backup_edit = QtWidgets.QLineEdit(
             str(self._original_config.log_backup_count)
         )
-        self.log_backup_edit.setPlaceholderText(
-            _("Numero di file di log conservati")
-        )
+        self.log_backup_edit.setPlaceholderText(_("Numero di file di log conservati"))
         form.addRow(_("File di log conservati"), self.log_backup_edit)
 
         self.log_combo = QtWidgets.QComboBox()
@@ -852,7 +914,7 @@ class SettingsDialog(_QDialogBase):
             self.backup_edit.setText(directory)
 
     def _on_choose_log_file(self) -> None:  # pragma: no cover - user interaction
-        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+        file_path, unused_filter = QtWidgets.QFileDialog.getSaveFileName(
             self,
             _("Seleziona file di log"),
             str(self._original_config.log_file),
@@ -992,9 +1054,7 @@ class PatchApplyWorker(_QThreadBase):
             self._emit_progress("Applicazione diff completata.", percent=100)
             self.finished.emit(self.session)
         except Exception as exc:  # pragma: no cover - defensive guard
-            logger.exception(
-                _("Errore durante l'applicazione della patch: %s"), exc
-            )
+            logger.exception(_("Errore durante l'applicazione della patch: %s"), exc)
             self.error.emit(str(exc))
 
     def apply_file_patch(self, pf: "PatchedFile", rel_path: str) -> FileResult:
@@ -1259,9 +1319,7 @@ class MainWindow(_QMainWindowBase):
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.root_edit = QtWidgets.QLineEdit()
-        self.root_edit.setPlaceholderText(
-            _("Root del progetto (seleziona cartella)")
-        )
+        self.root_edit.setPlaceholderText(_("Root del progetto (seleziona cartella)"))
         self.root_edit.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             QtWidgets.QSizePolicy.Policy.Fixed,
@@ -1296,7 +1354,9 @@ class MainWindow(_QMainWindowBase):
         self.action_load_file.triggered.connect(self.load_diff_file)
 
         self.action_from_clip = QtGui.QAction(
-            load_icon("from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton),
+            load_icon(
+                "from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton
+            ),
             _("Da appunti"),
             self,
         )
@@ -1307,7 +1367,9 @@ class MainWindow(_QMainWindowBase):
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
         self.action_from_text = QtGui.QAction(
-            load_icon("from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            load_icon(
+                "from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
+            ),
             _("Da testo"),
             self,
         )
@@ -1576,7 +1638,7 @@ class MainWindow(_QMainWindowBase):
             self.set_project_root(Path(d))
 
     def load_diff_file(self) -> None:
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+        path, unused_filter = QtWidgets.QFileDialog.getOpenFileName(
             self,
             _("Apri file .diff"),
             filter=_("Diff files (*.diff *.patch *.txt);;Tutti (*.*)"),
@@ -1637,9 +1699,7 @@ class MainWindow(_QMainWindowBase):
         try:
             patch = PatchSet(preprocessed.splitlines(True))
         except Exception as e:
-            QtWidgets.QMessageBox.critical(
-                self, _("Errore parsing diff"), str(e)
-            )
+            QtWidgets.QMessageBox.critical(self, _("Errore parsing diff"), str(e))
             return
         self.patch = patch
 
@@ -1764,9 +1824,7 @@ class MainWindow(_QMainWindowBase):
             QtWidgets.QMessageBox.information(
                 self,
                 _("Operazione in corso"),
-                _(
-                    "È già in corso un'applicazione di patch. Attendi il completamento."
-                ),
+                _("È già in corso un'applicazione di patch. Attendi il completamento."),
             )
             return
         if not self.patch:
@@ -1803,9 +1861,7 @@ class MainWindow(_QMainWindowBase):
                 reference_timestamp=started_at,
             )
             reports_base = (
-                self.app_config.backup_base
-                / REPORTS_SUBDIR
-                / REPORT_RESULTS_SUBDIR
+                self.app_config.backup_base / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
             )
             prune_backup_sessions(
                 reports_base,
@@ -1936,8 +1992,8 @@ class MainWindow(_QMainWindowBase):
             exclude_dirs=session.exclude_dirs,
         )
         if not candidates:
-            fr.skipped_reason = (
-                _("File non trovato nella root – salto per preferenza utente")
+            fr.skipped_reason = _(
+                "File non trovato nella root – salto per preferenza utente"
             )
             logger.warning(_("SKIP: %s non trovato."), rel_path)
             return fr
@@ -1949,8 +2005,8 @@ class MainWindow(_QMainWindowBase):
                 base=self.project_root,
             )
             if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted or not dlg.chosen:
-                fr.skipped_reason = (
-                    _("Ambiguità sul file, operazione annullata dall'utente")
+                fr.skipped_reason = _(
+                    "Ambiguità sul file, operazione annullata dall'utente"
                 )
                 return fr
             path = dlg.chosen

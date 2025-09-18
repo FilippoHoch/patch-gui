@@ -97,12 +97,16 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             )
         )
 
-    report_json_arg = None if args.report_json is REPORT_JSON_UNSET else args.report_json
+    report_json_arg = (
+        None if args.report_json is REPORT_JSON_UNSET else args.report_json
+    )
     report_txt_arg = None if args.report_txt is REPORT_TXT_UNSET else args.report_txt
 
     requested_report_formats: set[str]
     if summary_controlled:
-        requested_report_formats = {fmt for fmt in summary_formats if fmt in {"json", "text"}}
+        requested_report_formats = {
+            fmt for fmt in summary_formats if fmt in {"json", "text"}
+        }
     else:
         requested_report_formats = {"json", "text"}
     if args.report_json is not REPORT_JSON_UNSET:
@@ -163,16 +167,24 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     def _emit_text_summary() -> None:
         print(session.to_txt())
         if args.dry_run:
-            print(_("\nDry-run mode: no files were modified and no backups were created."))
+            print(
+                _("\nDry-run mode: no files were modified and no backups were created.")
+            )
         else:
             print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
             if session.report_json_path or session.report_txt_path:
                 details = []
                 if session.report_json_path:
-                    details.append(_("JSON: {path}").format(path=session.report_json_path))
+                    details.append(
+                        _("JSON: {path}").format(path=session.report_json_path)
+                    )
                 if session.report_txt_path:
-                    details.append(_("Text: {path}").format(path=session.report_txt_path))
-                print(_("Reports saved to: {details}").format(details=", ".join(details)))
+                    details.append(
+                        _("Text: {path}").format(path=session.report_txt_path)
+                    )
+                print(
+                    _("Reports saved to: {details}").format(details=", ".join(details))
+                )
             else:
                 print(_("Reports disabled (--no-report)"))
 
@@ -195,9 +207,13 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             if session.report_json_path or session.report_txt_path:
                 details = []
                 if session.report_json_path:
-                    details.append(_("JSON: {path}").format(path=session.report_json_path))
+                    details.append(
+                        _("JSON: {path}").format(path=session.report_json_path)
+                    )
                 if session.report_txt_path:
-                    details.append(_("Text: {path}").format(path=session.report_txt_path))
+                    details.append(
+                        _("Text: {path}").format(path=session.report_txt_path)
+                    )
                 logger.info(
                     _("Reports saved to: %s"),
                     ", ".join(details),

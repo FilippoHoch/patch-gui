@@ -79,7 +79,7 @@ def _colour_name(color: QtGui.QColor, *, with_alpha: bool = False) -> str:
         if with_alpha
         else QtGui.QColor.NameFormat.HexRgb
     )
-    return QtGui.QColor(color).name(format_)
+    return str(QtGui.QColor(color).name(format_))
 
 
 def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
@@ -157,7 +157,7 @@ def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
     )
 
 
-class InteractiveDiffWidget(QtWidgets.QWidget):
+class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
     """Widget that shows diff blocks and allows reordering them interactively."""
 
     diffReordered = QtCore.Signal(str)
@@ -217,7 +217,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             _(
                 "Trascina i file nell'elenco sottostante per definire l'ordine "
                 "di applicazione della patch. Quando sei soddisfatto, premi "
-                "<span class=\"highlight\">\"Aggiorna editor diff\"</span> "
+                '<span class="highlight">"Aggiorna editor diff"</span> '
                 "per riscrivere il testo completo."
             )
         )
@@ -516,9 +516,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
 
         entries: list[FileDiffEntry] = []
         for patched_file in patch:
-            file_label = getattr(patched_file, "path", None) or getattr(
-                patched_file, "target_file", None
-            ) or getattr(patched_file, "source_file", None) or _("<sconosciuto>")
+            file_label = (
+                getattr(patched_file, "path", None)
+                or getattr(patched_file, "target_file", None)
+                or getattr(patched_file, "source_file", None)
+                or _("<sconosciuto>")
+            )
             diff_text = str(patched_file)
             if not diff_text.endswith("\n"):
                 diff_text += "\n"
@@ -638,7 +641,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
                 widget.updateGeometry()
 
 
-class _DiffListItemWidget(QtWidgets.QFrame):
+class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
     """Custom widget for list items with colourful diff statistics."""
 
     def __init__(self, entry: FileDiffEntry, colors: _DiffPalette) -> None:
@@ -861,4 +864,3 @@ def _join_diff_entries(entries: Iterable[FileDiffEntry]) -> str:
             text += "\n"
         parts.append(text)
     return "".join(parts)
-

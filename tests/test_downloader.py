@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import pytest
 
@@ -28,7 +28,7 @@ class _FakeOpener:
         self._responses: List[_FakeResponse] = list(responses)
         self.requests: list[str] = []
 
-    def __call__(self, request) -> _FakeResponse:  # type: ignore[override]
+    def __call__(self, request: Any) -> _FakeResponse:
         self.requests.append(request.full_url)
         if not self._responses:
             raise AssertionError("No fake responses left for opener")
@@ -69,7 +69,9 @@ def test_download_latest_release_exe_saves_file(tmp_path: Path) -> None:
     assert responses.requests[1] == download_url
 
 
-def test_download_latest_release_exe_appends_asset_name_when_directory(tmp_path: Path) -> None:
+def test_download_latest_release_exe_appends_asset_name_when_directory(
+    tmp_path: Path,
+) -> None:
     download_url = "https://example.test/patch-gui.exe"
     responses = _FakeOpener(
         [
@@ -101,7 +103,9 @@ def test_download_latest_release_exe_raises_when_asset_missing(tmp_path: Path) -
     assert "Asset" in str(excinfo.value)
 
 
-def test_download_latest_release_exe_requires_force_for_existing_file(tmp_path: Path) -> None:
+def test_download_latest_release_exe_requires_force_for_existing_file(
+    tmp_path: Path,
+) -> None:
     existing = tmp_path / downloader.DEFAULT_ASSET_NAME
     existing.write_bytes(b"old")
 

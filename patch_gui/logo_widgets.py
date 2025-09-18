@@ -123,9 +123,7 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
             dot_spacing = line_rect.width() / (dots + 1)
             for idx in range(dots):
                 painter.drawPoint(
-                    QtCore.QPointF(
-                        line_rect.left() + dot_spacing * (idx + 1), centre_y
-                    )
+                    QtCore.QPointF(line_rect.left() + dot_spacing * (idx + 1), centre_y)
                 )
         else:
             painter.drawLine(
@@ -250,9 +248,7 @@ class WordmarkWidget(_QWidgetBase):
         accent_gradient.setColorAt(1.0, QtGui.QColor("#2f7df2"))
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(accent_gradient))
-        painter.drawRoundedRect(
-            accent_rect, accent_rect.width(), accent_rect.width()
-        )
+        painter.drawRoundedRect(accent_rect, accent_rect.width(), accent_rect.width())
 
         highlight_rect = QtCore.QRectF(
             rect.left() + rect.width() * 0.12,

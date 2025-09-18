@@ -15,6 +15,6 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: pytest --quiet
+        entry: .venv/bin/pytest --quiet
         language: system
         pass_filenames: false

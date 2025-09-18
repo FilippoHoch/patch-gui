@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Iterable, Protocol
+from typing import Any, BinaryIO, Iterable, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -29,8 +29,7 @@ DEFAULT_ASSET_NAME = "patch-gui.exe"
 class _Opener(Protocol):
     """Protocol describing the ``urllib.request.urlopen`` compatible callable."""
 
-    def __call__(self, request: Request) -> BinaryIO:
-        ...
+    def __call__(self, request: Request) -> Any: ...
 
 
 class DownloadError(Exception):
@@ -85,7 +84,7 @@ def download_latest_release_exe(
     """
 
     opener_fn = opener or urlopen
-    release = _fetch_release(repo=repo, token=token, tag=tag, opener=opener_fn)
+    release = _fetch_release(repo=repo, token=token, tag=tag, opener=opener_fn)  # type: ignore[arg-type]
     asset = _select_asset(release, asset_name)
 
     destination_path = _resolve_destination(destination, asset.name)
@@ -126,7 +125,9 @@ def _fetch_release(
     try:
         response = opener(request)
     except HTTPError as exc:  # pragma: no cover - network failures are rare
-        raise DownloadError(_("Failed to query release metadata: {error}").format(error=exc))
+        raise DownloadError(
+            _("Failed to query release metadata: {error}").format(error=exc)
+        )
     except URLError as exc:  # pragma: no cover - network failures are rare
         raise DownloadError(_("Unable to reach GitHub: {error}").format(error=exc))
 
@@ -218,10 +219,11 @@ def _ensure_binary_stream(handle: BinaryIO) -> BinaryIO:
     return handle
 
 
-def _copy_stream(source: BinaryIO, destination: BinaryIO, chunk_size: int = 64 * 1024) -> None:
+def _copy_stream(
+    source: BinaryIO, destination: BinaryIO, chunk_size: int = 64 * 1024
+) -> None:
     while True:
         chunk = source.read(chunk_size)
         if not chunk:
             break
         destination.write(chunk)
-

@@ -694,7 +694,9 @@ def prune_backup_sessions(
     except FileNotFoundError:
         return []
     except OSError as exc:  # pragma: no cover - unexpected filesystem error
-        logger.warning("Impossibile elencare le sessioni di backup in %s: %s", base, exc)
+        logger.warning(
+            "Impossibile elencare le sessioni di backup in %s: %s", base, exc
+        )
         return []
 
     removed: list[Path] = []

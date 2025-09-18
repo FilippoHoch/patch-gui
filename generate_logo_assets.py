@@ -39,18 +39,23 @@ def _hex_to_rgba(value: str, alpha: int = 255) -> Color:
 
 def _lerp_color(a: Color, b: Color, t: float) -> Color:
     t = _clamp(t, 0.0, 1.0)
-    return tuple(
-        int(round(a[idx] + (b[idx] - a[idx]) * t)) for idx in range(3)
-    ) + (int(round(a[3] + (b[3] - a[3]) * t)),)
+    return (
+        int(round(a[0] + (b[0] - a[0]) * t)),
+        int(round(a[1] + (b[1] - a[1]) * t)),
+        int(round(a[2] + (b[2] - a[2]) * t)),
+        int(round(a[3] + (b[3] - a[3]) * t)),
+    )
 
 
 def _scale_color(color: Color, factor: float, *, alpha: int | None = None) -> Color:
-    scaled = tuple(
-        int(round(_clamp(component * factor, 0.0, 255.0))) for component in color[:3]
+    scaled = (
+        int(round(_clamp(color[0] * factor, 0.0, 255.0))),
+        int(round(_clamp(color[1] * factor, 0.0, 255.0))),
+        int(round(_clamp(color[2] * factor, 0.0, 255.0))),
     )
     if alpha is None:
         alpha = color[3]
-    return scaled + (alpha,)
+    return (scaled[0], scaled[1], scaled[2], alpha)
 
 
 def _linear_gradient(
@@ -276,7 +281,9 @@ def _render_logo(size: int) -> _Image:
         rect[2] + shadow_offset_x,
         rect[3] + shadow_offset_y,
     )
-    img.paint_rounded_rect(shadow_rect, radius * 1.05, lambda _x, _y: _hex_to_rgba("#000000", 55))
+    img.paint_rounded_rect(
+        shadow_rect, radius * 1.05, lambda _x, _y: _hex_to_rgba("#000000", 55)
+    )
 
     img.paint_rounded_rect(rect, radius, lambda _x, _y: _hex_to_rgba("#08172c"))
 
@@ -303,7 +310,9 @@ def _render_logo(size: int) -> _Image:
         inner_rect[3] - (inner_rect[3] - inner_rect[1]) * 0.16,
     )
     sheet_radius = inner_radius * 0.7
-    img.paint_rounded_rect(sheet_rect, sheet_radius, lambda _x, _y: _hex_to_rgba("#1b365f"))
+    img.paint_rounded_rect(
+        sheet_rect, sheet_radius, lambda _x, _y: _hex_to_rgba("#1b365f")
+    )
 
     sheet_border = max((sheet_rect[2] - sheet_rect[0]) * 0.03, 1.0)
     sheet_inner_rect: Rect = (
@@ -356,7 +365,13 @@ def _render_logo(size: int) -> _Image:
         if line_rect[2] <= line_rect[0]:
             break
         highlight = (accent[0], accent[1], accent[2], 60)
-        img.paint_rounded_rect(line_rect, line_height / 2.3, lambda _x, _y, h=highlight: h)
+
+        def make_highlight_fn(h: Color) -> Callable[[float, float], Color]:
+            return lambda _x, _y: h
+
+        img.paint_rounded_rect(
+            line_rect, line_height / 2.3, make_highlight_fn(highlight)
+        )
 
         stroke = _scale_color(accent, 0.82)
         line_thickness = max(line_height * 0.42, size * 0.01)
@@ -366,7 +381,11 @@ def _render_logo(size: int) -> _Image:
             line_rect[2] - line_height * 0.55,
             (line_rect[1] + line_rect[3]) / 2.0 + line_thickness / 2.0,
         )
-        img.paint_rounded_rect(core_rect, line_thickness / 2.0, lambda _x, _y, c=stroke: c)
+
+        def make_stroke_fn(c: Color) -> Callable[[float, float], Color]:
+            return lambda _x, _y: c
+
+        img.paint_rounded_rect(core_rect, line_thickness / 2.0, make_stroke_fn(stroke))
 
         centre_y = (line_rect[1] + line_rect[3]) / 2.0
         if kind == "plus":
@@ -377,10 +396,14 @@ def _render_logo(size: int) -> _Image:
                 mid_x + line_thickness / 2.0,
                 centre_y + line_height * 0.6,
             )
+
+            def make_stroke_fn_vertical(c: Color) -> Callable[[float, float], Color]:
+                return lambda _x, _y: c
+
             img.paint_rounded_rect(
                 vertical_rect,
                 line_thickness / 2.0,
-                lambda _x, _y, c=stroke: c,
+                make_stroke_fn_vertical(stroke),
             )
         elif kind == "review":
             dots = 4
@@ -394,10 +417,14 @@ def _render_logo(size: int) -> _Image:
                     cx + dot_radius,
                     centre_y + dot_radius,
                 )
+
+                def make_dot_fn(c: Color) -> Callable[[float, float], Color]:
+                    return lambda _x, _y: c
+
                 img.paint_rounded_rect(
                     dot_rect,
                     dot_radius,
-                    lambda _x, _y, c=stroke: c,
+                    make_dot_fn(stroke),
                 )
 
         y += line_height + vertical_margin
@@ -413,7 +440,9 @@ def _render_logo(size: int) -> _Image:
     p0: Point = (fold_rect[0], fold_rect[1])
     p1: Point = (fold_rect[2], fold_rect[1])
     p2: Point = (fold_rect[2], fold_rect[3])
-    fold_gradient = _linear_gradient(p0, p2, _hex_to_rgba("#d1ddff"), _hex_to_rgba("#a8bbff"))
+    fold_gradient = _linear_gradient(
+        p0, p2, _hex_to_rgba("#d1ddff"), _hex_to_rgba("#a8bbff")
+    )
     img.paint_triangle(p0, p1, p2, fold_gradient)
 
     border_colour = _hex_to_rgba("#1b365f")
@@ -438,7 +467,9 @@ def _save_logo_set(directory: Path) -> None:
 
     directory.joinpath("patch_gui_logo_primary.png").write_bytes(png_cache[1024])
     ico_path = directory / "patch_gui_logo_primary.ico"
-    ico_path.write_bytes(_build_ico([(size, png_cache[size]) for size in sizes if size <= 256]))
+    ico_path.write_bytes(
+        _build_ico([(size, png_cache[size]) for size in sizes if size <= 256])
+    )
 
 
 def _build_ico(entries: Iterable[tuple[int, bytes]]) -> bytes:

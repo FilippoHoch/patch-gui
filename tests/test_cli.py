@@ -10,7 +10,7 @@ import sys
 import time
 import types
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 from unidiff import PatchSet
@@ -20,6 +20,7 @@ from tests._pytest_typing import typed_parametrize
 import patch_gui
 from patch_gui import cli, localization
 from patch_gui.config import AppConfig, load_config, save_config
+from patch_gui.downloader import DownloadError
 import patch_gui.executor as executor
 import patch_gui.utils as utils
 import patch_gui.parser as parser
@@ -1229,7 +1230,7 @@ def test_run_cli_defaults_to_auto_encoding(
         captured["encoding"] = encoding
         return PatchSet(SAMPLE_DIFF)
 
-    def fake_apply_patchset(*args: object, **kwargs: object) -> object:
+    def fake_apply_patchset(*args: Any, **kwargs: Any) -> Any:
         return _create_dummy_session(tmp_path)
 
     monkeypatch.setattr(cli, "load_patch", fake_load_patch)
@@ -1273,7 +1274,7 @@ def test_run_cli_reports_directory_creation_error(
     target_dir = project / "docs"
     original_mkdir = Path.mkdir
 
-    def failing_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+    def failing_mkdir(self: Path, *args: Any, **kwargs: Any) -> None:
         if self == target_dir:
             raise OSError("cannot create directory")
         return original_mkdir(self, *args, **kwargs)
@@ -1449,9 +1450,10 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
         path=config_path,
         stream=io.StringIO(),
     )
-    assert load_config(config_path).log_file == (
-        tmp_path / "logs" / "session.log"
-    ).expanduser()
+    assert (
+        load_config(config_path).log_file
+        == (tmp_path / "logs" / "session.log").expanduser()
+    )
 
     cli.config_set(
         "log_max_bytes",
@@ -1595,7 +1597,7 @@ def test_run_download_exe_reports_error(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     def fake_download(**kwargs: object) -> Path:
-        raise cli.DownloadError("boom")
+        raise DownloadError("boom")
 
     monkeypatch.setattr(cli, "download_latest_release_exe", fake_download)
 
@@ -1607,7 +1609,7 @@ def test_run_download_exe_reports_error(
     assert "boom" in captured.err
 
 
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 3), ("", 0, False, None)],
 )
@@ -1667,7 +1669,7 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
         assert decision.similarity is not None
 
 
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # type: ignore[misc]
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 4), ("", 0, False, None)],
 )
@@ -1731,6 +1733,7 @@ def test_cli_manual_resolver_handles_context_candidates(
         assert decision.strategy == "manual"
         assert decision.selected_pos == expected_pos
         assert decision.similarity is not None
+
 
 def test_cli_auto_accept_resolves_fuzzy_candidates(tmp_path: Path) -> None:
     project = tmp_path / "auto_fuzzy"

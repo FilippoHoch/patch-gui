@@ -200,7 +200,10 @@ def test_main_window_applies_settings_dialog(
     configured_invocations: list[dict[str, object]] = []
 
     def fake_configure_logging(
-        *, level: str, log_file: object | None = None, max_bytes: object | None = None,
+        *,
+        level: str,
+        log_file: object | None = None,
+        max_bytes: object | None = None,
         backup_count: object | None = None,
     ) -> None:
         configured_invocations.append(

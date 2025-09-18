@@ -352,7 +352,7 @@ def _coerce_non_negative_int(value: Any, default: int) -> int:
         candidate = int(value)
         return candidate if candidate >= 0 else default
     if isinstance(value, str):
-        candidate = value.strip()
+        candidate = str(value).strip()  # type: ignore[assignment]
         if not candidate:
             return default
         try:

@@ -165,9 +165,7 @@ def apply_patchset(
         raise CLIError(_("Invalid project root: {path}").format(path=project_root))
 
     if not 0 < threshold <= 1:
-        raise CLIError(
-            _("Threshold must be between 0 (exclusive) and 1 (inclusive).")
-        )
+        raise CLIError(_("Threshold must be between 0 (exclusive) and 1 (inclusive)."))
 
     resolved_config = config or load_config()
     started_at = time.time()
@@ -186,9 +184,9 @@ def apply_patchset(
             or backup_base_arg
             or root
         )
-        message = _(
-            "Failed to prepare backup directory at {path}: {error}"
-        ).format(path=failure_path, error=exc)
+        message = _("Failed to prepare backup directory at {path}: {error}").format(
+            path=failure_path, error=exc
+        )
         raise CLIError(message) from exc
 
     retention_days = getattr(resolved_config, "backup_retention_days", 0)
@@ -334,7 +332,7 @@ def _apply_file_patch(
             is_copy = True
     source_file = getattr(pf, "source_file", None)
     target_file = getattr(pf, "target_file", None)
-    if isinstance(source_file, str) and source_file.strip() == "/dev/null":
+    if isinstance(source_file, str) and str(source_file).strip() == "/dev/null":
         is_added_file = True
     if isinstance(target_file, str) and target_file.strip() == "/dev/null":
         is_removed_file = True
@@ -349,16 +347,12 @@ def _apply_file_patch(
         and not is_removed_file
         and rename_source
         and rename_target
-        and (rename_source != rename_target or rename_flag)
+        and (rename_source != rename_target or rename_flag)  # type: ignore[assignment]
     )
 
     candidates: list[Path] = []
     for candidate_path in _iter_unique(
-        (
-            [rename_source, normalized_rel_path]
-            if is_rename
-            else [normalized_rel_path]
-        )
+        ([rename_source, normalized_rel_path] if is_rename else [normalized_rel_path])
     ):
         candidates = find_file_candidates(
             project_root,
@@ -571,9 +565,9 @@ def _apply_file_patch(
             backup_file(project_root, path, session.backup_dir)
         except OSError as exc:
             relative_path = display_relative_path(path, project_root)
-            message = _(
-                "Failed to create backup for {path}: {error}"
-            ).format(path=relative_path, error=exc)
+            message = _("Failed to create backup for {path}: {error}").format(
+                path=relative_path, error=exc
+            )
             logger.error(message)
             fr.skipped_reason = message
             fr.decisions.append(
@@ -585,9 +579,7 @@ def _apply_file_patch(
             )
             return fr
 
-    manual_resolver = functools.partial(
-        _cli_manual_resolver, auto_accept=auto_accept
-    )
+    manual_resolver = functools.partial(_cli_manual_resolver, auto_accept=auto_accept)
 
     lines, decisions, applied = apply_hunks(
         lines,
@@ -604,7 +596,9 @@ def _apply_file_patch(
     if rename_target_path is not None:
         if session.dry_run:
             fr.file_path = rename_target_path
-            fr.relative_to_root = display_relative_path(rename_target_path, project_root)
+            fr.relative_to_root = display_relative_path(
+                rename_target_path, project_root
+            )
         elif applied == fr.hunks_total:
             try:
                 rename_target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -685,9 +679,9 @@ def _prompt_candidate_selection(
 
     if auto_accept_first and candidates:
         selected = candidates[0]
-        message = _(
-            "Automatically selected {path} (--auto-accept)."
-        ).format(path=display_relative_path(selected, project_root))
+        message = _("Automatically selected {path} (--auto-accept).").format(
+            path=display_relative_path(selected, project_root)
+        )
         print(message)
         return selected
 
@@ -873,7 +867,9 @@ def _cli_manual_resolver(
         similarity_str = f"{score:.3f}" if score is not None else _("n/a")
         line_number = pos + 1
         print(
-            _("  {index}) Position {position} (line {line}, similarity {similarity})").format(
+            _(
+                "  {index}) Position {position} (line {line}, similarity {similarity})"
+            ).format(
                 index=idx,
                 position=pos,
                 line=line_number,
@@ -892,18 +888,16 @@ def _cli_manual_resolver(
             print(_("    File context:"))
             for current_index in range(snippet_start, snippet_end):
                 indicator = (
-                    ">"
-                    if highlight_start <= current_index < highlight_end
-                    else " "
+                    ">" if highlight_start <= current_index < highlight_end else " "
                 )
                 raw_line = lines[current_index]
                 display_line = raw_line.rstrip("\n")
                 print(f"    {indicator}{current_index + 1:>6}: {display_line}")
         print("")
 
-    prompt = _(
-        "Choose a candidate number (1-{count}) or press Enter to skip: "
-    ).format(count=len(candidates))
+    prompt = _("Choose a candidate number (1-{count}) or press Enter to skip: ").format(
+        count=len(candidates)
+    )
 
     while True:
         try:

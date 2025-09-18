@@ -408,7 +408,7 @@ def test_apply_patchset_reports_rename_only_details(tmp_path: Path) -> None:
     assert file_result.decisions[0].strategy == "rename"
 
     json_report = session.to_json()
-    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"
+    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"  # type: ignore[index]
     text_report = session.to_txt()
     assert "Hunk rename -> rename" in text_report
 
@@ -436,8 +436,8 @@ def test_apply_patchset_reports_rename_with_edit_details(tmp_path: Path) -> None
     assert any(d.strategy != "rename" for d in file_result.decisions)
 
     json_report = session.to_json()
-    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"
-    assert json_report["files"][0]["hunks_applied"] == 1
+    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"  # type: ignore[index]
+    assert json_report["files"][0]["hunks_applied"] == 1  # type: ignore[index]
     text_report = session.to_txt()
     assert "Hunk rename -> rename" in text_report
 

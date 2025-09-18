@@ -43,7 +43,7 @@ OUTSIDE_DIFF = """--- /dev/null
 """
 
 
-@pytest.fixture()
+@pytest.fixture()  # type: ignore[misc]
 def qt_app() -> Any:
     """Provide a ``QApplication`` instance for tests that need Qt."""
 
