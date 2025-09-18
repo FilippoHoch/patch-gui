@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Tuple
+
 from unidiff.patch import Hunk, Line as UnidiffLine, PatchedFile
 
 
@@ -62,3 +64,55 @@ def _format_numbered_line(line: UnidiffLine) -> str:
 
 def _format_line_number(value: int | None) -> str:
     return f"{value:>6}" if value is not None else " " * 6
+
+
+def format_diff_side_by_side(
+    patched_file: PatchedFile, fallback_text: str
+) -> Tuple[str, str]:
+    """Render ``patched_file`` as two aligned columns."""
+
+    if getattr(patched_file, "is_binary_file", False):
+        return fallback_text, fallback_text
+
+    if len(patched_file) == 0:
+        return fallback_text, fallback_text
+
+    try:
+        left_lines: list[str] = []
+        right_lines: list[str] = []
+
+        patch_info = getattr(patched_file, "patch_info", "")
+        if patch_info:
+            info_lines = str(patch_info).splitlines()
+            left_lines.extend(info_lines)
+            right_lines.extend(info_lines)
+
+        source_file = getattr(patched_file, "source_file", None) or "-"
+        target_file = getattr(patched_file, "target_file", None) or "-"
+        left_lines.append(f"--- {source_file}")
+        right_lines.append(f"+++ {target_file}")
+
+        for hunk in patched_file:
+            header = _format_hunk_header(hunk)
+            left_lines.append(header)
+            right_lines.append(header)
+
+            for diff_line in hunk:
+                left_number = _format_line_number(diff_line.source_line_no)
+                right_number = _format_line_number(diff_line.target_line_no)
+                left_content, right_content = _format_side_by_side_content(diff_line)
+                left_lines.append(f"{left_number} │ {left_content}")
+                right_lines.append(f"{right_number} │ {right_content}")
+
+        return "\n".join(left_lines) + "\n", "\n".join(right_lines) + "\n"
+    except Exception:
+        return fallback_text, fallback_text
+
+
+def _format_side_by_side_content(line: UnidiffLine) -> Tuple[str, str]:
+    value = line.value.rstrip("\n")
+    if line.is_added:
+        return "", f"+{value}"
+    if line.is_removed:
+        return f"-{value}", ""
+    return f" {value}", f" {value}"
