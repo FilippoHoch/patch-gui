@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
@@ -26,9 +27,12 @@ from .patcher import (
     backup_file,
     find_file_candidates,
     prepare_backup_dir,
+    prune_backup_sessions,
 )
 from .reporting import write_session_reports
 from .utils import (
+    REPORT_RESULTS_SUBDIR,
+    REPORTS_SUBDIR,
     decode_bytes,
     display_relative_path,
     normalize_newlines,
@@ -186,6 +190,20 @@ def apply_patchset(
             "Failed to prepare backup directory at {path}: {error}"
         ).format(path=failure_path, error=exc)
         raise CLIError(message) from exc
+
+    retention_days = getattr(resolved_config, "backup_retention_days", 0)
+    if retention_days > 0:
+        prune_backup_sessions(
+            backup_base_arg,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
+        reports_base = backup_base_arg / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
+        prune_backup_sessions(
+            reports_base,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
     resolved_excludes = (
         tuple(exclude_dirs)
         if exclude_dirs is not None
@@ -719,6 +737,52 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     ).format(candidates=joined)
 
 
+def _ai_rank_candidates(
+    lines: List[str],
+    hv: HunkView,
+    candidates: List[Tuple[int, float]],
+) -> Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]]:
+    if not candidates:
+        return None
+
+    reference_lines = hv.before_lines or hv.after_lines
+    block_len = len(reference_lines)
+    if block_len == 0 and hv.after_lines:
+        block_len = len(hv.after_lines)
+    if block_len <= 0:
+        block_len = 1
+
+    reference_text = "".join(reference_lines)
+    if not reference_text:
+        reference_text = "".join(hv.after_lines)
+
+    best: Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]] = None
+    for display_index, (pos, similarity) in enumerate(candidates, start=1):
+        if similarity is not None:
+            score = float(similarity)
+        elif reference_text:
+            snippet = "".join(lines[pos : pos + block_len])
+            if not snippet and 0 <= pos < len(lines):
+                snippet = lines[pos]
+            score = SequenceMatcher(None, reference_text, snippet).ratio()
+        else:
+            # Cannot compute a heuristic score without reference text
+            continue
+
+        start_line = pos + 1
+        end_line = start_line + block_len - 1
+        if start_line > len(lines):
+            line_range: Optional[Tuple[int, int]] = None
+        else:
+            end_line = min(end_line, len(lines))
+            line_range = (start_line, end_line)
+
+        if best is None or score > best[2]:
+            best = (display_index, pos, score, line_range)
+
+    return best
+
+
 def _cli_manual_resolver(
     hv: HunkView,
     lines: List[str],
@@ -777,6 +841,31 @@ def _cli_manual_resolver(
     window_len = len(hv.before_lines)
     highlight_width = max(window_len, 1)
     context_padding = 2
+
+    ai_hint = _ai_rank_candidates(lines, hv, candidates)
+    if ai_hint is not None:
+        hint_index, hint_position, hint_score, hint_range = ai_hint
+        if hint_range is None:
+            range_text = _("line {line}").format(line=hint_position + 1)
+        else:
+            start_line, end_line = hint_range
+            if start_line == end_line:
+                range_text = _("line {line}").format(line=start_line)
+            else:
+                range_text = _("lines {start}-{end}").format(
+                    start=start_line,
+                    end=end_line,
+                )
+        print(
+            _(
+                "AI suggestion: candidate {index} ({range_text}) looks like the best "
+                "match (confidence {confidence:.3f})."
+            ).format(
+                index=hint_index,
+                range_text=range_text,
+                confidence=hint_score,
+            )
+        )
 
     print("")
     print(_("Available candidate positions:"))
