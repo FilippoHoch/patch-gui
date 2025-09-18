@@ -39,10 +39,25 @@ _DEFAULT_THRESHOLD = 0.85
 _DEFAULT_LOG_LEVEL = "warning"
 _DEFAULT_DRY_RUN = True
 _DEFAULT_WRITE_REPORTS = True
+_DEFAULT_LOG_FILE_NAME = ".patch_gui.log"
+_DEFAULT_LOG_MAX_BYTES = 0
+_DEFAULT_LOG_BACKUP_COUNT = 0
+
+
+def _default_log_file() -> Path:
+    return Path.home() / _DEFAULT_LOG_FILE_NAME
+
+
+DEFAULT_LOG_FILE: Path = _default_log_file()
+DEFAULT_LOG_MAX_BYTES: int = _DEFAULT_LOG_MAX_BYTES
+DEFAULT_LOG_BACKUP_COUNT: int = _DEFAULT_LOG_BACKUP_COUNT
 
 
 __all__ = [
     "AppConfig",
+    "DEFAULT_LOG_BACKUP_COUNT",
+    "DEFAULT_LOG_FILE",
+    "DEFAULT_LOG_MAX_BYTES",
     "default_config_dir",
     "default_config_path",
     "load_config",
@@ -62,6 +77,9 @@ class AppConfig:
     log_level: str = _DEFAULT_LOG_LEVEL
     dry_run_default: bool = _DEFAULT_DRY_RUN
     write_reports: bool = _DEFAULT_WRITE_REPORTS
+    log_file: Path = field(default_factory=_default_log_file)
+    log_max_bytes: int = DEFAULT_LOG_MAX_BYTES
+    log_backup_count: int = DEFAULT_LOG_BACKUP_COUNT
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -77,6 +95,13 @@ class AppConfig:
             data.get("dry_run_default"), base.dry_run_default
         )
         write_reports = _coerce_bool(data.get("write_reports"), base.write_reports)
+        log_file = _coerce_path(data.get("log_file"), base.log_file)
+        log_max_bytes = _coerce_non_negative_int(
+            data.get("log_max_bytes"), base.log_max_bytes
+        )
+        log_backup_count = _coerce_non_negative_int(
+            data.get("log_backup_count"), base.log_backup_count
+        )
 
         return cls(
             threshold=threshold,
@@ -85,6 +110,9 @@ class AppConfig:
             log_level=log_level,
             dry_run_default=dry_run_default,
             write_reports=write_reports,
+            log_file=log_file,
+            log_max_bytes=log_max_bytes,
+            log_backup_count=log_backup_count,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -97,6 +125,9 @@ class AppConfig:
             "log_level": str(self.log_level),
             "dry_run_default": bool(self.dry_run_default),
             "write_reports": bool(self.write_reports),
+            "log_file": str(self.log_file),
+            "log_max_bytes": int(self.log_max_bytes),
+            "log_backup_count": int(self.log_backup_count),
         }
 
 
@@ -159,6 +190,9 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     dry_run_repr = json.dumps(mapping["dry_run_default"])
     write_reports_repr = json.dumps(mapping["write_reports"])
     backup_repr = json.dumps(mapping["backup_base"])
+    log_file_repr = json.dumps(mapping["log_file"])
+    log_max_bytes_repr = json.dumps(mapping["log_max_bytes"])
+    log_backup_count_repr = json.dumps(mapping["log_backup_count"])
 
     content_lines = [
         f"[{_CONFIG_SECTION}]",
@@ -168,6 +202,9 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"log_level = {log_level_repr}",
         f"dry_run_default = {dry_run_repr}",
         f"write_reports = {write_reports_repr}",
+        f"log_file = {log_file_repr}",
+        f"log_max_bytes = {log_max_bytes_repr}",
+        f"log_backup_count = {log_backup_count_repr}",
         "",
     ]
 
@@ -270,6 +307,10 @@ def _coerce_backup_base(value: Any, default: Path) -> Path:
     return default
 
 
+def _coerce_path(value: Any, default: Path) -> Path:
+    return _coerce_backup_base(value, default)
+
+
 def _coerce_log_level(value: Any, default: str) -> str:
     if not isinstance(value, str):
         return default
@@ -288,4 +329,24 @@ def _coerce_bool(value: Any, default: bool) -> bool:
             return True
         if normalized in {"false", "0", "no", "off"}:
             return False
+    return default
+
+
+def _coerce_non_negative_int(value: Any, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, float) and value.is_integer():
+        candidate = int(value)
+        return candidate if candidate >= 0 else default
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return default
+        try:
+            parsed = int(candidate)
+        except ValueError:
+            return default
+        return parsed if parsed >= 0 else default
     return default

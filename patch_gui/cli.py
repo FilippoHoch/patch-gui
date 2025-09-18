@@ -49,6 +49,9 @@ _CONFIG_KEYS = (
     "log_level",
     "dry_run_default",
     "write_reports",
+    "log_file",
+    "log_max_bytes",
+    "log_backup_count",
 )
 
 
@@ -332,6 +335,12 @@ def config_reset(
             config.dry_run_default = defaults.dry_run_default
         elif key == "write_reports":
             config.write_reports = defaults.write_reports
+        elif key == "log_file":
+            config.log_file = defaults.log_file
+        elif key == "log_max_bytes":
+            config.log_max_bytes = defaults.log_max_bytes
+        elif key == "log_backup_count":
+            config.log_backup_count = defaults.log_backup_count
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -406,6 +415,26 @@ def _apply_config_value(
             config.write_reports = config_value
         return
 
+    if key == "log_file":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The log_file key expects exactly one value."),
+            )
+        config.log_file = Path(values[0]).expanduser()
+        return
+
+    if key in {"log_max_bytes", "log_backup_count"}:
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The {key} key expects exactly one value.").format(key=key),
+            )
+        numeric = _parse_non_negative_int(values[0], key=key)
+        if key == "log_max_bytes":
+            config.log_max_bytes = numeric
+        else:
+            config.log_backup_count = numeric
+        return
+
     raise ValueError(_("Unknown configuration key: {key}").format(key=key))
 
 
@@ -418,3 +447,22 @@ def _parse_bool(value: str) -> bool:
     raise ConfigCommandError(
         _("Unsupported boolean value: {value}.").format(value=value)
     )
+
+
+def _parse_non_negative_int(value: str, *, key: str) -> int:
+    candidate = value.strip()
+    if not candidate:
+        raise ConfigCommandError(
+            _("The {key} key expects a non-negative integer.").format(key=key)
+        )
+    try:
+        parsed = int(candidate)
+    except ValueError as exc:
+        raise ConfigCommandError(
+            _("The {key} key expects a non-negative integer.").format(key=key)
+        ) from exc
+    if parsed < 0:
+        raise ConfigCommandError(
+            _("The {key} key expects a non-negative integer.").format(key=key)
+        )
+    return parsed

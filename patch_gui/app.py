@@ -21,7 +21,14 @@ from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPol
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
-from .config import AppConfig, load_config, save_config
+from .config import (
+    AppConfig,
+    DEFAULT_LOG_BACKUP_COUNT,
+    DEFAULT_LOG_FILE,
+    DEFAULT_LOG_MAX_BYTES,
+    load_config,
+    save_config,
+)
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
 from .i18n import install_translators
@@ -372,9 +379,6 @@ LOG_FILE_ENV_VAR: str = "PATCH_GUI_LOG_FILE"
 LOG_LEVEL_ENV_VAR: str = "PATCH_GUI_LOG_LEVEL"
 LOG_MAX_BYTES_ENV_VAR: str = "PATCH_GUI_LOG_MAX_BYTES"
 LOG_BACKUP_COUNT_ENV_VAR: str = "PATCH_GUI_LOG_BACKUP_COUNT"
-DEFAULT_LOG_FILE: Path = Path.home() / ".patch_gui.log"
-DEFAULT_LOG_MAX_BYTES: int = 0
-DEFAULT_LOG_BACKUP_COUNT: int = 0
 LOG_TIMESTAMP_FORMAT: str = "%Y-%m-%d %H:%M:%S"
 
 
@@ -769,6 +773,34 @@ class SettingsDialog(_QDialogBase):
         backup_widget.setLayout(backup_layout)
         form.addRow(_("Directory backup"), backup_widget)
 
+        self.log_file_edit = QtWidgets.QLineEdit(str(self._original_config.log_file))
+        self.log_file_edit.setPlaceholderText(_("Percorso del file di log"))
+        log_file_layout = QtWidgets.QHBoxLayout()
+        log_file_layout.setContentsMargins(0, 0, 0, 0)
+        log_file_layout.addWidget(self.log_file_edit, 1)
+        self.log_file_button = QtWidgets.QPushButton(_("Sfoglia…"))
+        self.log_file_button.clicked.connect(self._on_choose_log_file)
+        log_file_layout.addWidget(self.log_file_button)
+        log_file_widget = QtWidgets.QWidget()
+        log_file_widget.setLayout(log_file_layout)
+        form.addRow(_("File di log"), log_file_widget)
+
+        self.log_max_edit = QtWidgets.QLineEdit(
+            str(self._original_config.log_max_bytes)
+        )
+        self.log_max_edit.setPlaceholderText(
+            _("Dimensione rotazione (byte, 0 = disabilitata)")
+        )
+        form.addRow(_("Dimensione massima log"), self.log_max_edit)
+
+        self.log_backup_edit = QtWidgets.QLineEdit(
+            str(self._original_config.log_backup_count)
+        )
+        self.log_backup_edit.setPlaceholderText(
+            _("Numero di file di log conservati")
+        )
+        form.addRow(_("File di log conservati"), self.log_backup_edit)
+
         self.log_combo = QtWidgets.QComboBox()
         for level in _GUI_LOG_LEVEL_CHOICES:
             self.log_combo.addItem(level.upper(), level)
@@ -806,6 +838,16 @@ class SettingsDialog(_QDialogBase):
         if directory:
             self.backup_edit.setText(directory)
 
+    def _on_choose_log_file(self) -> None:  # pragma: no cover - user interaction
+        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            _("Seleziona file di log"),
+            str(self._original_config.log_file),
+            _("File di log (*.log);;Tutti i file (*)"),
+        )
+        if file_path:
+            self.log_file_edit.setText(file_path)
+
     def _on_accept(self) -> None:
         self.result_config = self._gather_config()
         self.accept()
@@ -824,6 +866,18 @@ class SettingsDialog(_QDialogBase):
             if isinstance(log_level_data, str)
             else self._original_config.log_level
         )
+        log_file_text = self.log_file_edit.text().strip()
+        if log_file_text:
+            log_file = Path(log_file_text).expanduser()
+        else:
+            log_file = self._original_config.log_file
+
+        log_max_bytes = self._parse_non_negative_int(
+            self.log_max_edit.text(), self._original_config.log_max_bytes
+        )
+        log_backup_count = self._parse_non_negative_int(
+            self.log_backup_edit.text(), self._original_config.log_backup_count
+        )
 
         return AppConfig(
             threshold=threshold,
@@ -832,7 +886,21 @@ class SettingsDialog(_QDialogBase):
             log_level=log_level,
             dry_run_default=self.dry_run_check.isChecked(),
             write_reports=self.reports_check.isChecked(),
+            log_file=log_file,
+            log_max_bytes=log_max_bytes,
+            log_backup_count=log_backup_count,
         )
+
+    @staticmethod
+    def _parse_non_negative_int(text: str, default: int) -> int:
+        candidate = text.strip()
+        if not candidate:
+            return default
+        try:
+            value = int(candidate)
+        except ValueError:
+            return default
+        return value if value >= 0 else default
 
 
 class PatchApplyWorker(_QThreadBase):
@@ -1427,7 +1495,12 @@ class MainWindow(_QMainWindowBase):
         if dialog.result_config is None:
             return
         self.app_config = dialog.result_config
-        configure_logging(level=self.app_config.log_level)
+        configure_logging(
+            level=self.app_config.log_level,
+            log_file=self.app_config.log_file,
+            max_bytes=self.app_config.log_max_bytes,
+            backup_count=self.app_config.log_backup_count,
+        )
         self._apply_config_to_widgets()
         save_config(self.app_config)
         self.statusBar().showMessage(_("Impostazioni salvate"), 5000)
@@ -1975,7 +2048,12 @@ class MainWindow(_QMainWindowBase):
 
 def main() -> None:
     app_config = load_config()
-    configure_logging(level=app_config.log_level)
+    configure_logging(
+        level=app_config.log_level,
+        log_file=app_config.log_file,
+        max_bytes=app_config.log_max_bytes,
+        backup_count=app_config.log_backup_count,
+    )
     _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
     apply_modern_theme(app)
