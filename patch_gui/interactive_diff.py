@@ -46,14 +46,45 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        header = QtWidgets.QFrame()
+        header.setObjectName("interactiveDiffHeader")
+        header.setStyleSheet(
+            """
+            QFrame#interactiveDiffHeader {
+                background-color: #f1f5f9;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+            }
+            QLabel#interactiveDiffTitle {
+                font-size: 16px;
+                font-weight: 700;
+                color: #0f172a;
+            }
+            QLabel#interactiveDiffSubtitle {
+                color: #475569;
+            }
+            """
+        )
+        header_layout = QtWidgets.QVBoxLayout(header)
+        header_layout.setContentsMargins(16, 14, 16, 14)
+        header_layout.setSpacing(6)
+
+        title_label = QtWidgets.QLabel(_("Organizza il diff"))
+        title_label.setObjectName("interactiveDiffTitle")
+        header_layout.addWidget(title_label)
+
         self._info_label = QtWidgets.QLabel(
             _(
-                "Trascina i file per cambiare l'ordine delle patch."
-                " Premi \"Aggiorna editor diff\" per riscrivere il testo."
+                "Trascina i file nell'elenco sottostante per definire l'ordine "
+                "di applicazione della patch. Quando sei soddisfatto, premi "
+                "\"Aggiorna editor diff\" per riscrivere il testo completo."
             )
         )
+        self._info_label.setObjectName("interactiveDiffSubtitle")
         self._info_label.setWordWrap(True)
-        layout.addWidget(self._info_label)
+        header_layout.addWidget(self._info_label)
+
+        layout.addWidget(header)
 
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Vertical)
@@ -62,58 +93,83 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         upper = QtWidgets.QWidget()
         upper_layout = QtWidgets.QVBoxLayout(upper)
         upper_layout.setContentsMargins(0, 0, 0, 0)
-        upper_layout.setSpacing(6)
+        upper_layout.setSpacing(12)
 
-        self._order_label = QtWidgets.QLabel("")
-        self._order_label.setObjectName("interactiveDiffOrderLabel")
-        self._order_label.setWordWrap(True)
-        self._order_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
-        self._order_label.setStyleSheet(
+        order_container = QtWidgets.QFrame()
+        order_container.setObjectName("interactiveDiffOrderContainer")
+        order_container.setStyleSheet(
             """
-            QLabel {
-                background-color: #f8fafc;
-                border-radius: 6px;
-                padding: 8px;
+            QFrame#interactiveDiffOrderContainer {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
             }
-            .diff-order-entry {
-                margin-bottom: 4px;
+            QLabel#interactiveDiffOrderTitle {
+                font-weight: 600;
+                color: #0f172a;
+            }
+            QLabel#interactiveDiffOrderLabel {
+                padding: 0px;
+                margin: 0px;
+            }
+            QLabel#interactiveDiffOrderLabel .diff-order-entry {
+                margin-bottom: 6px;
                 font-size: 12px;
             }
-            .diff-order-entry:last-child {
+            QLabel#interactiveDiffOrderLabel .diff-order-entry:last-child {
                 margin-bottom: 0;
             }
-            .diff-order-index {
+            QLabel#interactiveDiffOrderLabel .diff-order-index {
                 font-weight: 600;
                 margin-right: 6px;
                 color: #0f172a;
             }
-            .diff-badge {
+            QLabel#interactiveDiffOrderLabel .diff-badge {
                 border-radius: 10px;
                 padding: 1px 8px;
                 font-weight: 600;
                 font-size: 11px;
             }
-            .diff-badge.additions {
+            QLabel#interactiveDiffOrderLabel .diff-badge.additions {
                 background-color: #dcfce7;
                 color: #166534;
             }
-            .diff-badge.deletions {
+            QLabel#interactiveDiffOrderLabel .diff-badge.deletions {
                 background-color: #fee2e2;
                 color: #b91c1c;
             }
             """
         )
-        upper_layout.addWidget(self._order_label)
+        order_layout = QtWidgets.QVBoxLayout(order_container)
+        order_layout.setContentsMargins(16, 14, 16, 14)
+        order_layout.setSpacing(4)
+
+        order_title = QtWidgets.QLabel(_("Sequenza dei file"))
+        order_title.setObjectName("interactiveDiffOrderTitle")
+        order_layout.addWidget(order_title)
+
+        self._order_label = QtWidgets.QLabel("")
+        self._order_label.setObjectName("interactiveDiffOrderLabel")
+        self._order_label.setWordWrap(True)
+        self._order_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
+        order_layout.addWidget(self._order_label)
+
+        upper_layout.addWidget(order_container)
 
         self._list_widget = QtWidgets.QListWidget()
         self._list_widget.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
         self._list_widget.setDefaultDropAction(QtCore.Qt.DropAction.MoveAction)
-        self._list_widget.setAlternatingRowColors(True)
         self._list_widget.setVerticalScrollMode(
             QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
         )
         self._list_widget.setStyleSheet(
             """
+            QListWidget {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 6px 4px;
+            }
             QListWidget::item {
                 border-radius: 6px;
                 margin: 2px 4px;
@@ -124,6 +180,8 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             }
             """
         )
+        self._list_widget.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self._list_widget.setAlternatingRowColors(False)
         self._list_widget.setSelectionMode(
             QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
         )

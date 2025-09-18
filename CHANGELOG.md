@@ -11,6 +11,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 
 ### Modificato
 - L'anteprima diff interattiva mostra le vere linee di file coinvolte nelle modifiche con colonne numerate in stile Visual Studio, facilitando il riferimento al codice originale.
+- Raffinata l'interfaccia del diff interattivo con intestazioni e contenitori più strutturati per facilitare la lettura delle patch.
 
 ## [0.1.0] - 2025-09-18
 ### Aggiunto
