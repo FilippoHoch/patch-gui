@@ -6,7 +6,7 @@ import sys
 
 __all__ = ["__version__"]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 _PACKAGE_NAME = __name__.rsplit(".", 1)[0]
 _parent = sys.modules.get(_PACKAGE_NAME)
