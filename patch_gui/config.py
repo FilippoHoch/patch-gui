@@ -43,6 +43,8 @@ _DEFAULT_LOG_FILE_NAME = ".patch_gui.log"
 _DEFAULT_LOG_MAX_BYTES = 0
 _DEFAULT_LOG_BACKUP_COUNT = 0
 _DEFAULT_BACKUP_RETENTION_DAYS = 0
+_DEFAULT_AI_ASSISTANT = False
+_DEFAULT_AI_AUTO_APPLY = False
 
 
 def _default_log_file() -> Path:
@@ -84,6 +86,8 @@ class AppConfig:
     log_max_bytes: int = DEFAULT_LOG_MAX_BYTES
     log_backup_count: int = DEFAULT_LOG_BACKUP_COUNT
     backup_retention_days: int = DEFAULT_BACKUP_RETENTION_DAYS
+    ai_assistant_enabled: bool = _DEFAULT_AI_ASSISTANT
+    ai_auto_apply: bool = _DEFAULT_AI_AUTO_APPLY
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -109,6 +113,10 @@ class AppConfig:
         backup_retention_days = _coerce_non_negative_int(
             data.get("backup_retention_days"), base.backup_retention_days
         )
+        ai_enabled = _coerce_bool(
+            data.get("ai_assistant_enabled"), base.ai_assistant_enabled
+        )
+        ai_auto_apply = _coerce_bool(data.get("ai_auto_apply"), base.ai_auto_apply)
 
         return cls(
             threshold=threshold,
@@ -121,6 +129,8 @@ class AppConfig:
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
             backup_retention_days=backup_retention_days,
+            ai_assistant_enabled=ai_enabled,
+            ai_auto_apply=ai_auto_apply,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -137,6 +147,8 @@ class AppConfig:
             "log_max_bytes": int(self.log_max_bytes),
             "log_backup_count": int(self.log_backup_count),
             "backup_retention_days": int(self.backup_retention_days),
+            "ai_assistant_enabled": bool(self.ai_assistant_enabled),
+            "ai_auto_apply": bool(self.ai_auto_apply),
         }
 
 
@@ -203,6 +215,8 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     log_max_bytes_repr = json.dumps(mapping["log_max_bytes"])
     log_backup_count_repr = json.dumps(mapping["log_backup_count"])
     backup_retention_repr = json.dumps(mapping["backup_retention_days"])
+    ai_assistant_repr = json.dumps(mapping["ai_assistant_enabled"])
+    ai_auto_apply_repr = json.dumps(mapping["ai_auto_apply"])
 
     content_lines = [
         f"[{_CONFIG_SECTION}]",
@@ -216,6 +230,8 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"log_max_bytes = {log_max_bytes_repr}",
         f"log_backup_count = {log_backup_count_repr}",
         f"backup_retention_days = {backup_retention_repr}",
+        f"ai_assistant_enabled = {ai_assistant_repr}",
+        f"ai_auto_apply = {ai_auto_apply_repr}",
         "",
     ]
 

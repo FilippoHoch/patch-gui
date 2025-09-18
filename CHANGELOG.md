@@ -5,6 +5,18 @@ Il formato segue le convenzioni di [Keep a Changelog](https://keepachangelog.com
 e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
+### Aggiunto
+- Modulo `ai_candidate_selector` con supporto all'invio del contesto a un modello
+  AI e recupero del suggerimento migliore per gli hunk ambigui, incluso fallback
+  locale se l'endpoint non risponde.
+- Opzioni CLI `--ai-assistant` / `--no-ai-assistant` e `--ai-select` per
+  controllare l'assistente e applicare automaticamente il suggerimento.
+- Nuovi controlli nelle preferenze della GUI e nel dialog dei candidati per
+  mostrare confidenza, spiegazione e consentire l'applicazione rapida del
+  suggerimento AI.
+### Modificato
+- La configurazione persistente include ora le impostazioni dedicate
+  all'assistente AI ed è documentata nella guida d'uso.
 
 ## [0.2.0] - 2025-09-18
 ### Aggiunto

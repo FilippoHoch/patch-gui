@@ -142,6 +142,40 @@ def build_parser(
             "prompts entirely."
         ),
     )
+    ai_group = parser.add_mutually_exclusive_group()
+    ai_group.add_argument(
+        "--ai-assistant",
+        dest="ai_assistant",
+        action="store_true",
+        help=_(
+            "Enable the AI assistant when ranking ambiguous hunk candidates (overrides the configuration)."
+        ),
+    )
+    ai_group.add_argument(
+        "--no-ai-assistant",
+        dest="ai_assistant",
+        action="store_false",
+        help=_(
+            "Disable the AI assistant for candidate ranking (overrides the configuration)."
+        ),
+    )
+    parser.set_defaults(ai_assistant=resolved_config.ai_assistant_enabled)
+    ai_select_group = parser.add_mutually_exclusive_group()
+    ai_select_group.add_argument(
+        "--ai-select",
+        dest="ai_select",
+        action="store_true",
+        help=_(
+            "Automatically choose the candidate suggested by the assistant when manual selection is required."
+        ),
+    )
+    ai_select_group.add_argument(
+        "--no-ai-select",
+        dest="ai_select",
+        action="store_false",
+        help=_("Disable automatic application of the assistant suggestion."),
+    )
+    parser.set_defaults(ai_select=resolved_config.ai_auto_apply)
     parser.add_argument(
         "--encoding",
         default=None,

@@ -21,6 +21,7 @@ from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap, QPol
 from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
+from .ai_candidate_selector import AISuggestion, rank_candidates
 from .config import (
     AppConfig,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -647,12 +648,15 @@ class CandidateDialog(_QDialogBase):
         file_text: str,
         candidates: List[Tuple[int, float]],
         hv: HunkView,
+        *,
+        ai_hint: AISuggestion | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(_("Seleziona posizione hunk (ambiguità)"))
         self.setModal(True)
         self.resize(1000, 700)
         self.selected_pos: Optional[int] = None
+        self.ai_hint: AISuggestion | None = ai_hint
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -664,6 +668,56 @@ class CandidateDialog(_QDialogBase):
         )
         info.setWordWrap(True)
         layout.addWidget(info)
+
+        if self.ai_hint is not None:
+            block_len = len(hv.before_lines) or len(hv.after_lines) or 1
+            file_lines = file_text.splitlines(keepends=True)
+            start_line = self.ai_hint.position + 1
+            end_line = min(len(file_lines), start_line + block_len - 1)
+            if start_line > len(file_lines):
+                range_text = _("riga {line}").format(line=start_line)
+            elif start_line == end_line:
+                range_text = _("riga {line}").format(line=start_line)
+            else:
+                range_text = _("righe {start}-{end}").format(
+                    start=start_line,
+                    end=end_line,
+                )
+            origin_label = (
+                _("assistente AI")
+                if self.ai_hint.source == "assistant"
+                else _("euristica locale")
+            )
+            suggestion_text = _(
+                "Suggerimento assistente ({origin}): candidato {index} su {range} (confidenza {confidence:.3f})."
+            ).format(
+                origin=origin_label,
+                index=self.ai_hint.candidate_index,
+                range=range_text,
+                confidence=self.ai_hint.confidence,
+            )
+            suggestion_widget = QtWidgets.QWidget()
+            suggestion_layout = QtWidgets.QHBoxLayout(suggestion_widget)
+            suggestion_layout.setContentsMargins(0, 0, 0, 0)
+            suggestion_layout.setSpacing(8)
+            self.ai_label = QtWidgets.QLabel(suggestion_text)
+            self.ai_label.setWordWrap(True)
+            suggestion_layout.addWidget(self.ai_label, 1)
+            self.apply_ai_btn = QtWidgets.QPushButton(
+                _("Applica suggerimento")
+            )
+            self.apply_ai_btn.clicked.connect(self._apply_ai)
+            suggestion_layout.addWidget(self.apply_ai_btn)
+            layout.addWidget(suggestion_widget)
+            if self.ai_hint.explanation:
+                explanation_label = QtWidgets.QLabel(
+                    _("Spiegazione: {text}").format(text=self.ai_hint.explanation)
+                )
+                explanation_label.setWordWrap(True)
+                layout.addWidget(explanation_label)
+        else:
+            self.ai_label = None
+            self.apply_ai_btn = None
 
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
@@ -678,7 +732,14 @@ class CandidateDialog(_QDialogBase):
             item = QtWidgets.QListWidgetItem(label)
             item.setData(QtCore.Qt.ItemDataRole.UserRole, pos)
             self.list.addItem(item)
-        self.list.setCurrentRow(0)
+        if self.ai_hint is not None:
+            index = self.ai_hint.candidate_index - 1
+            if 0 <= index < self.list.count():
+                self.list.setCurrentRow(index)
+            else:
+                self.list.setCurrentRow(0)
+        elif self.list.count():
+            self.list.setCurrentRow(0)
         left_layout.addWidget(self.list)
 
         self.preview_left: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit()
@@ -741,6 +802,14 @@ class CandidateDialog(_QDialogBase):
             if m:
                 self.selected_pos = int(m.group(0)) - 1
         super().accept()
+
+    def _apply_ai(self) -> None:  # pragma: no cover - user interaction
+        if self.ai_hint is None:
+            return
+        index = self.ai_hint.candidate_index - 1
+        if 0 <= index < self.list.count():
+            self.list.setCurrentRow(index)
+        self.accept()
 
 
 class FileChoiceDialog(_QDialogBase):
@@ -896,6 +965,20 @@ class SettingsDialog(_QDialogBase):
         self.reports_check.setChecked(self._original_config.write_reports)
         form.addRow("", self.reports_check)
 
+        self.ai_assistant_check = QtWidgets.QCheckBox(
+            _("Suggerisci automaticamente con l'assistente AI")
+        )
+        self.ai_assistant_check.setChecked(
+            self._original_config.ai_assistant_enabled
+        )
+        form.addRow("", self.ai_assistant_check)
+
+        self.ai_auto_check = QtWidgets.QCheckBox(
+            _("Applica il suggerimento AI senza chiedere")
+        )
+        self.ai_auto_check.setChecked(self._original_config.ai_auto_apply)
+        form.addRow("", self.ai_auto_check)
+
         self.buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -969,6 +1052,8 @@ class SettingsDialog(_QDialogBase):
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
             backup_retention_days=backup_retention_days,
+            ai_assistant_enabled=self.ai_assistant_check.isChecked(),
+            ai_auto_apply=self.ai_auto_check.isChecked(),
         )
 
     @staticmethod
@@ -988,12 +1073,21 @@ class PatchApplyWorker(_QThreadBase):
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
     request_file_choice = QtCore.Signal(str, object)
-    request_hunk_choice = QtCore.Signal(str, object, object)
+    request_hunk_choice = QtCore.Signal(str, object, object, object)
 
-    def __init__(self, patch: PatchSet, session: ApplySession) -> None:
+    def __init__(
+        self,
+        patch: PatchSet,
+        session: ApplySession,
+        *,
+        ai_assistant_enabled: bool = False,
+        ai_auto_apply: bool = False,
+    ) -> None:
         super().__init__()
         self.patch: PatchSet = patch
         self.session: ApplySession = session
+        self.ai_assistant_enabled: bool = ai_assistant_enabled
+        self.ai_auto_apply: bool = ai_auto_apply
         self._file_choice_event: threading.Event = threading.Event()
         self._file_choice_result: Optional[Path] = None
         self._hunk_choice_event: threading.Event = threading.Event()
@@ -1208,12 +1302,16 @@ class PatchApplyWorker(_QThreadBase):
         return self._file_choice_result
 
     def _wait_for_hunk_choice(
-        self, hv: HunkView, lines: List[str], candidates: List[Tuple[int, float]]
+        self,
+        hv: HunkView,
+        lines: List[str],
+        candidates: List[Tuple[int, float]],
+        ai_hint: AISuggestion | None,
     ) -> Optional[int]:
         self._hunk_choice_result = None
         self._hunk_choice_event.clear()
         file_text = "".join(lines)
-        self.request_hunk_choice.emit(file_text, candidates, hv)
+        self.request_hunk_choice.emit(file_text, candidates, hv, ai_hint)
         self._hunk_choice_event.wait()
         return self._hunk_choice_result
 
@@ -1225,7 +1323,45 @@ class PatchApplyWorker(_QThreadBase):
         decision: HunkDecision,
         reason: str,
     ) -> Optional[int]:
-        pos = self._wait_for_hunk_choice(hv, lines, candidates)
+        ai_hint: AISuggestion | None = None
+        if candidates:
+            ai_hint = rank_candidates(
+                lines,
+                hv,
+                candidates,
+                use_ai=self.ai_assistant_enabled,
+                logger_override=logger,
+            )
+        if ai_hint is not None:
+            decision.ai_recommendation = ai_hint.position
+            decision.ai_confidence = ai_hint.confidence
+            decision.ai_explanation = ai_hint.explanation
+            decision.ai_source = ai_hint.source
+            if self.ai_auto_apply:
+                similarity = next(
+                    (score for pos, score in candidates if pos == ai_hint.position),
+                    None,
+                )
+                if similarity is None:
+                    logger.warning(
+                        "Suggerimento AI non corrisponde a nessun candidato per %s",
+                        hv.header,
+                    )
+                else:
+                    decision.selected_pos = ai_hint.position
+                    decision.similarity = similarity
+                    decision.message = _(
+                        "Suggerimento AI applicato automaticamente (candidato {index})."
+                    ).format(index=ai_hint.candidate_index)
+                    logger.info(
+                        "Suggerimento AI selezionato automaticamente per %s (candidato %d, confidenza %.3f)",
+                        hv.header,
+                        ai_hint.candidate_index,
+                        ai_hint.confidence,
+                    )
+                    return ai_hint.position
+
+        pos = self._wait_for_hunk_choice(hv, lines, candidates, ai_hint)
         if pos is None:
             decision.strategy = "failed"
             if reason == "context":
@@ -1256,6 +1392,8 @@ class MainWindow(_QMainWindowBase):
         self.threshold: float = self.app_config.threshold
         self.exclude_dirs: tuple[str, ...] = self.app_config.exclude_dirs
         self.reports_enabled: bool = self.app_config.write_reports
+        self.ai_assistant_enabled: bool = self.app_config.ai_assistant_enabled
+        self.ai_auto_apply: bool = self.app_config.ai_auto_apply
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
 
@@ -1559,6 +1697,8 @@ class MainWindow(_QMainWindowBase):
         self.threshold = float(self.app_config.threshold)
         self.exclude_dirs = tuple(self.app_config.exclude_dirs)
         self.reports_enabled = bool(self.app_config.write_reports)
+        self.ai_assistant_enabled = bool(self.app_config.ai_assistant_enabled)
+        self.ai_auto_apply = bool(self.app_config.ai_auto_apply)
         self.spin_thresh.setValue(self.threshold)
         excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
         self.exclude_edit.setText(excludes_text)
@@ -1625,6 +1765,8 @@ class MainWindow(_QMainWindowBase):
             self.app_config.log_level = level_name.lower()
         self.app_config.dry_run_default = self.chk_dry.isChecked()
         self.app_config.write_reports = self.reports_enabled
+        self.app_config.ai_assistant_enabled = self.ai_assistant_enabled
+        self.app_config.ai_auto_apply = self.ai_auto_apply
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
@@ -1876,7 +2018,12 @@ class MainWindow(_QMainWindowBase):
             exclude_dirs=excludes,
             started_at=started_at,
         )
-        worker = PatchApplyWorker(self.patch, session)
+        worker = PatchApplyWorker(
+            self.patch,
+            session,
+            ai_assistant_enabled=self.ai_assistant_enabled,
+            ai_auto_apply=self.ai_auto_apply,
+        )
         worker.progress.connect(self._on_worker_progress)
         worker.request_file_choice.connect(self._on_worker_request_file_choice)
         worker.request_hunk_choice.connect(self._on_worker_request_hunk_choice)
@@ -1964,14 +2111,18 @@ class MainWindow(_QMainWindowBase):
             choice = dlg.chosen
         worker.provide_file_choice(choice)
 
-    @_qt_slot(str, object, object)
+    @_qt_slot(str, object, object, object)
     def _on_worker_request_hunk_choice(
-        self, file_text: str, candidates: List[Tuple[int, float]], hv: HunkView
+        self,
+        file_text: str,
+        candidates: List[Tuple[int, float]],
+        hv: HunkView,
+        ai_hint: AISuggestion | None,
     ) -> None:  # pragma: no cover - UI feedback
         worker = self._current_worker
         if worker is None:
             return
-        dlg = CandidateDialog(self, file_text, candidates, hv)
+        dlg = CandidateDialog(self, file_text, candidates, hv, ai_hint=ai_hint)
         if (
             dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
             and dlg.selected_pos is not None

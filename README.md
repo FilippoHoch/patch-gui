@@ -140,6 +140,10 @@ utili:
 - `--non-interactive`: evita prompt e salta i conflitti.
 - `--auto-accept`: accetta automaticamente il candidato migliore senza
   richiedere input.
+- `--ai-assistant` / `--no-ai-assistant`: abilita o disabilita il supporto AI
+  per classificare i candidati manuali.
+- `--ai-select`: applica automaticamente il suggerimento restituito
+  dall'assistente (con fallback locale se l'endpoint non è configurato).
 - `--log-level`: livello di logging (`debug`, `info`, `warning`, `error`,
   `critical`).
 
@@ -196,7 +200,9 @@ Le impostazioni vengono salvate in `settings.toml` sotto:
 - Windows: `%APPDATA%\Patch GUI\`
 
 La configurazione include soglia fuzzy, directory escluse, percorsi di backup,
-livello di log, gestione dei report e parametri di rotazione del file di log.
+livello di log, gestione dei report, parametri di rotazione del file di log e
+l'impostazione dell'assistente AI (inclusa l'applicazione automatica del
+suggerimento).
 Puoi modificarla dalla GUI o tramite `patch-gui config`.
 
 ## Sviluppo e test
