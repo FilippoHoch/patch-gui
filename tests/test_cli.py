@@ -1550,6 +1550,63 @@ def test_threshold_value_rejects_invalid_inputs(
     assert str(excinfo.value) == expected_message
 
 
+def test_run_download_exe_invokes_downloader(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_download(**kwargs: object) -> Path:
+        recorded.update(kwargs)
+        return tmp_path / "patch-gui.exe"
+
+    monkeypatch.setattr(cli, "download_latest_release_exe", fake_download)
+
+    exit_code = cli.run_download_exe(
+        [
+            "--repo",
+            "owner/project",
+            "--asset-name",
+            "custom.exe",
+            "--output",
+            str(tmp_path / "exports" / "custom.exe"),
+            "--token",
+            "secret",
+            "--tag",
+            "v1.2.3",
+            "--force",
+        ]
+    )
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "Downloaded custom.exe" in captured.out
+    assert captured.err == ""
+    assert recorded == {
+        "repo": "owner/project",
+        "asset_name": "custom.exe",
+        "destination": Path(tmp_path / "exports" / "custom.exe"),
+        "overwrite": True,
+        "token": "secret",
+        "tag": "v1.2.3",
+    }
+
+
+def test_run_download_exe_reports_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fake_download(**kwargs: object) -> Path:
+        raise cli.DownloadError("boom")
+
+    monkeypatch.setattr(cli, "download_latest_release_exe", fake_download)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_download_exe([])
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "boom" in captured.err
+
+
 @pytest.mark.parametrize(
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 3), ("", 0, False, None)],
