@@ -145,6 +145,9 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
         log_level="warning",
         dry_run_default=True,
         write_reports=True,
+        log_file=tmp_path / "logs" / "app.log",
+        log_max_bytes=1024,
+        log_backup_count=2,
     )
 
     dialog = app_module.SettingsDialog(None, config=config)
@@ -157,6 +160,10 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
         dialog.log_combo.setCurrentIndex(index)
     dialog.dry_run_check.setChecked(False)
     dialog.reports_check.setChecked(False)
+    new_log_file = tmp_path / "logs" / "custom.log"
+    dialog.log_file_edit.setText(str(new_log_file))
+    dialog.log_max_edit.setText("8192")
+    dialog.log_backup_edit.setText("5")
 
     updated = dialog._gather_config()
 
@@ -166,6 +173,9 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     assert updated.log_level == "debug"
     assert updated.dry_run_default is False
     assert updated.write_reports is False
+    assert updated.log_file == new_log_file
+    assert updated.log_max_bytes == 8192
+    assert updated.log_backup_count == 5
 
 
 def test_main_window_applies_settings_dialog(
@@ -184,10 +194,20 @@ def test_main_window_applies_settings_dialog(
         saved_configs.append(config)
         return tmp_path / "settings.toml"
 
-    configured_levels: list[str] = []
+    configured_invocations: list[dict[str, object]] = []
 
-    def fake_configure_logging(*, level: str) -> None:
-        configured_levels.append(level)
+    def fake_configure_logging(
+        *, level: str, log_file: object | None = None, max_bytes: object | None = None,
+        backup_count: object | None = None,
+    ) -> None:
+        configured_invocations.append(
+            {
+                "level": level,
+                "log_file": log_file,
+                "max_bytes": max_bytes,
+                "backup_count": backup_count,
+            }
+        )
 
     monkeypatch.setattr(app_module, "save_config", fake_save)
     monkeypatch.setattr(app_module, "configure_logging", fake_configure_logging)
@@ -199,6 +219,9 @@ def test_main_window_applies_settings_dialog(
         log_level="info",
         dry_run_default=True,
         write_reports=True,
+        log_file=tmp_path / "logs" / "app.log",
+        log_max_bytes=0,
+        log_backup_count=0,
     )
 
     window = app_module.MainWindow(app_config=original)
@@ -210,6 +233,9 @@ def test_main_window_applies_settings_dialog(
         log_level="error",
         dry_run_default=False,
         write_reports=False,
+        log_file=tmp_path / "logs" / "custom.log",
+        log_max_bytes=2048,
+        log_backup_count=3,
     )
 
     class _FakeDialog:
@@ -229,7 +255,14 @@ def test_main_window_applies_settings_dialog(
     assert window.chk_dry.isChecked() is new_config.dry_run_default
     assert window.exclude_edit.text() == ", ".join(new_config.exclude_dirs)
     assert window.reports_enabled is new_config.write_reports
-    assert configured_levels == [new_config.log_level]
+    assert configured_invocations == [
+        {
+            "level": new_config.log_level,
+            "log_file": new_config.log_file,
+            "max_bytes": new_config.log_max_bytes,
+            "backup_count": new_config.log_backup_count,
+        }
+    ]
     assert saved_configs[-1] == new_config
 
     window.close()

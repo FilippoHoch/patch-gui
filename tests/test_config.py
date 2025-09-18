@@ -17,6 +17,9 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.log_level == defaults.log_level
     assert loaded.dry_run_default == defaults.dry_run_default
     assert loaded.write_reports == defaults.write_reports
+    assert loaded.log_file == defaults.log_file
+    assert loaded.log_max_bytes == defaults.log_max_bytes
+    assert loaded.log_backup_count == defaults.log_backup_count
 
 
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
@@ -30,6 +33,9 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         log_level="debug",
         dry_run_default=False,
         write_reports=False,
+        log_file=tmp_path / "custom.log",
+        log_max_bytes=1048576,
+        log_backup_count=3,
     )
 
     save_config(original, path=config_path)
@@ -50,6 +56,9 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 "log_level = 123",
                 'dry_run_default = "maybe"',
                 'write_reports = "sometimes"',
+                'log_file = "   "',
+                "log_max_bytes = -1",
+                "log_backup_count = -5",
                 "",
             ]
         ),
@@ -65,6 +74,9 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.log_level == defaults.log_level
     assert loaded.dry_run_default == defaults.dry_run_default
     assert loaded.write_reports == defaults.write_reports
+    assert loaded.log_file == defaults.log_file
+    assert loaded.log_max_bytes == defaults.log_max_bytes
+    assert loaded.log_backup_count == defaults.log_backup_count
 
 
 def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
@@ -79,6 +91,9 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
                 'log_level = "warning"',
                 "dry_run_default = false",
                 "write_reports = true",
+                'log_file = "' + str(tmp_path / "log.txt") + '"',
+                "log_max_bytes = 1024",
+                "log_backup_count = 4",
                 "",
             ]
         ),
@@ -93,3 +108,6 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.backup_base == (tmp_path / "backups")
     assert loaded.dry_run_default is False
     assert loaded.write_reports is True
+    assert loaded.log_file == (tmp_path / "log.txt")
+    assert loaded.log_max_bytes == 1024
+    assert loaded.log_backup_count == 4
