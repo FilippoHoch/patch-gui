@@ -25,10 +25,11 @@ from .patcher import (
     find_file_candidates,
     prepare_backup_dir,
 )
-from .reporting import write_session_reports
+from .reporting import coerce_report_path, write_session_reports
 from .utils import (
     decode_bytes,
     display_relative_path,
+    format_session_timestamp,
     normalize_newlines,
     preprocess_patch_text,
     write_text_preserving_encoding,
@@ -154,12 +155,25 @@ def apply_patchset(
 
     resolved_config = config or load_config()
     started_at = time.time()
-    backup_dir = prepare_backup_dir(
-        root,
-        dry_run=dry_run,
-        backup_base=backup_base or resolved_config.backup_base,
-        started_at=started_at,
-    )
+    resolved_backup_base = backup_base or resolved_config.backup_base
+    try:
+        backup_dir = prepare_backup_dir(
+            root,
+            dry_run=dry_run,
+            backup_base=resolved_backup_base,
+            started_at=started_at,
+        )
+    except (OSError, PermissionError) as exc:
+        timestamp = format_session_timestamp(started_at)
+        try:
+            base_for_message = resolved_backup_base.expanduser()
+        except Exception:  # pragma: no cover - defensive fallback
+            base_for_message = resolved_backup_base
+        backup_target = base_for_message / timestamp
+        message = _(
+            "Failed to prepare backup directory at {path}: {error}"
+        ).format(path=backup_target, error=exc)
+        raise CLIError(message) from exc
     resolved_excludes = (
         tuple(exclude_dirs)
         if exclude_dirs is not None
@@ -180,12 +194,27 @@ def apply_patchset(
         fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
-    write_session_reports(
-        session,
-        report_json=report_json,
-        report_txt=report_txt,
-        enable_reports=write_report_files,
-    )
+    json_target = coerce_report_path(report_json)
+    txt_target = coerce_report_path(report_txt)
+    try:
+        write_session_reports(
+            session,
+            report_json=report_json,
+            report_txt=report_txt,
+            enable_reports=write_report_files,
+        )
+    except (OSError, PermissionError) as exc:
+        failed_path = getattr(exc, "filename", None)
+        if not failed_path:
+            candidates = [p for p in (json_target, txt_target) if p is not None]
+            if candidates:
+                failed_path = candidates[0]
+            else:
+                failed_path = session.backup_dir
+        message = _("Failed to write session report at {path}: {error}").format(
+            path=failed_path, error=exc
+        )
+        raise CLIError(message) from exc
 
     return session
 
@@ -304,7 +333,22 @@ def _apply_file_patch(
         lines = []
 
     if not session.dry_run and not is_new_file:
-        backup_file(project_root, path, session.backup_dir)
+        try:
+            backup_file(project_root, path, session.backup_dir)
+        except OSError as exc:
+            message = _(
+                "Failed to create backup for {path}: {error}"
+            ).format(path=display_relative_path(path, project_root), error=exc)
+            fr.skipped_reason = message
+            hunk_header = pf[0].header if len(pf) else rel_path
+            fr.decisions.append(
+                HunkDecision(
+                    hunk_header=hunk_header,
+                    strategy="failed",
+                    message=message,
+                )
+            )
+            return fr
 
     lines, decisions, applied = apply_hunks(
         lines,
