@@ -1,14 +1,14 @@
 # Italian translations for PACKAGE package.
-# Copyright (C) 2025 THE PACKAGE'S COPYRIGHT HOLDER
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
-# Automatically generated, 2025.
+# Automatically generated.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-17 10:59+0000\n"
-"PO-Revision-Date: 2025-09-17 10:59+0000\n"
+"POT-Creation-Date: 2025-09-18 07:43+0000\n"
+"PO-Revision-Date: 2025-09-18 07:43+0000\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "Language: it\n"
@@ -17,425 +17,889 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: patch_gui/parser.py:34
-#, python-brace-format
-msgid ""
-"{app_name}: apply a unified diff patch using the same heuristics as the GUI, "
-"but from the command line."
-msgstr ""
-
-#: patch_gui/app.py:437 patch_gui/app.py:755
-msgid "Impostazioni"
-msgstr "Impostazioni"
-
-#: patch_gui/app.py:756
-msgid "Preferenze…"
-msgstr "Preferenze…"
-
-#: patch_gui/app.py:452
-msgid "Soglia fuzzy"
-msgstr "Soglia fuzzy"
-
-#: patch_gui/app.py:458
-msgid "Directory escluse (separate da virgola)"
-msgstr "Directory escluse (separate da virgola)"
-
-#: patch_gui/app.py:460
-msgid "Directory escluse"
-msgstr "Directory escluse"
-
-#: patch_gui/app.py:466
-msgid "Percorso base per i backup"
-msgstr "Percorso base per i backup"
-
-#: patch_gui/app.py:471
-msgid "Sfoglia…"
-msgstr "Sfoglia…"
-
-#: patch_gui/app.py:476
-msgid "Directory backup"
-msgstr "Directory backup"
-
-#: patch_gui/app.py:484
-msgid "Livello log"
-msgstr "Livello log"
-
-#: patch_gui/app.py:487
-msgid "Esegui sempre in dry-run inizialmente"
-msgstr "Esegui sempre in dry-run inizialmente"
-
-#: patch_gui/app.py:493
-msgid "Genera report al termine (JSON + testo)"
-msgstr "Genera report al termine (JSON + testo)"
-
-#: patch_gui/app.py:509
-msgid "Seleziona directory di backup"
-msgstr "Seleziona directory di backup"
-
-#: patch_gui/app.py:947
-msgid "Impostazioni salvate"
-msgstr "Impostazioni salvate"
-
-#: patch_gui/app.py:1173
-msgid "Operazione terminata. Vedi log e report nella cartella di backup."
-msgstr "Operazione terminata. Vedi log e report nella cartella di backup."
-
-#: patch_gui/app.py:1177
-msgid "Operazione terminata. Report disabilitati nelle impostazioni."
-msgstr "Operazione terminata. Report disabilitati nelle impostazioni."
-
-#: patch_gui/app.py:1184
-msgid "Operazione completata"
-msgstr "Operazione completata"
-
-#: patch_gui/cli.py:327
-#, python-brace-format
-msgid "The {key} key expects exactly one value."
-msgstr "La chiave {key} richiede esattamente un valore."
-
-#: patch_gui/cli.py:346
-#, python-brace-format
-msgid "Unsupported boolean value: {value}."
-msgstr "Valore booleano non supportato: {value}."
-
-#: patch_gui/parser.py:48
-msgid "Path to the diff file to apply ('-' reads from STDIN)."
-msgstr ""
-
-#: patch_gui/parser.py:53
-msgid "Project root where the patch should be applied."
-msgstr ""
-
-#: patch_gui/parser.py:58
-msgid "Simulate the execution without modifying files or creating backups."
-msgstr ""
-
-#: patch_gui/parser.py:64
-msgid "Matching threshold (0-1) for fuzzy context alignment."
-msgstr ""
-
-#: patch_gui/parser.py:68
-#, python-brace-format
-msgid "Base directory for backups and reports; defaults to \"{path}\"."
-msgstr ""
-
-#: patch_gui/parser.py:74
-#, python-format
-msgid "Path of the generated JSON report; defaults to '<backup>/%s'."
-msgstr ""
-
-#: patch_gui/parser.py:79
-#, python-format
-msgid "Path of the generated text report; defaults to '<backup>/%s'."
-msgstr ""
-
-#: patch_gui/parser.py:85
-msgid "Do not create JSON/TXT report files."
-msgstr ""
-
-#: patch_gui/parser.py:92
-msgid ""
-"Disable interactive prompts on STDIN and keep the historical behaviour when "
-"multiple matches exist."
-msgstr ""
-
-#: patch_gui/parser.py:101
-msgid "Explicit encoding to use when reading the diff (default: auto-detect)."
-msgstr ""
-
-#: patch_gui/parser.py:109
-msgid ""
-"Logging level to emit on stdout (debug, info, warning, error, critical)."
-msgstr ""
-
-#: patch_gui/parser.py:118
-#, python-format
-msgid ""
-"Directory (relative to the root) to ignore while searching for files. "
-"Specify the option multiple times to provide more than one. Defaults: %s."
-msgstr ""
-"Directory (relative alla root) da ignorare durante la ricerca dei file. "
-"Specificare l'opzione più volte per indicarne più di una. Predefinite: %s."
-
-#: patch_gui/parser.py:133
-msgid "Threshold must be a decimal number."
-msgstr ""
-
-#: patch_gui/parser.py:137
-msgid "Threshold must be between 0 (exclusive) and 1 (inclusive)."
-msgstr ""
-
-#: patch_gui/executor.py:66
-#, python-brace-format
-msgid "Cannot decode diff from STDIN using encoding {encoding}: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:74
-#, python-brace-format
-msgid "Diff file not found: {path}"
-msgstr ""
-
-#: patch_gui/executor.py:80
-#, python-brace-format
-msgid "Cannot decode diff using encoding {encoding}: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:88 patch_gui/executor.py:97
-#, python-brace-format
-msgid "Cannot read {path}: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:103
-#, python-format
-msgid ""
-"Decoded diff %s using fallback UTF-8 (original encoding %s); the content may "
-"contain substituted characters."
-msgstr ""
-
-#: patch_gui/executor.py:114
-#, python-brace-format
-msgid "Invalid diff: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:117
-#, python-brace-format
-msgid "Unexpected error while parsing the diff: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:139
-#, python-brace-format
-msgid "Invalid project root: {path}"
-msgstr ""
-
-#: patch_gui/executor.py:199
-msgid "Binary patches are not supported in CLI mode"
-msgstr ""
-
-#: patch_gui/executor.py:208
-msgid "File not found in the project root"
-msgstr ""
-
-#: patch_gui/executor.py:227
-#, python-brace-format
-msgid "Cannot read the file: {error}"
-msgstr ""
-
-#: patch_gui/executor.py:234
-#, python-format
-msgid ""
-"Decoded file %s using fallback UTF-8 (original encoding %s); some characters "
-"may be substituted."
-msgstr ""
-
-#: patch_gui/executor.py:270
-msgid "Multiple files match the patch path:"
-msgstr ""
-
-#: patch_gui/executor.py:274
-#, python-brace-format
-msgid ""
-"Select the number of the file to use (1-{count}). Press Enter or type 's' to "
-"skip: "
-msgstr ""
-
-#: patch_gui/executor.py:292
-msgid "Invalid input. Enter a number or leave empty to cancel."
-msgstr ""
-
-#: patch_gui/executor.py:298
-msgid "Number out of range. Try again."
-msgstr ""
-
-#: patch_gui/executor.py:308
-#, python-brace-format
-msgid "… (+{count} more)"
-msgstr ""
-
-#: patch_gui/executor.py:311
-#, python-brace-format
-msgid ""
-"Multiple files found for the provided path; resolve the ambiguity manually. "
-"Candidates: {candidates}"
-msgstr ""
-
-#: patch_gui/executor.py:328
-msgid ""
-"Multiple candidate positions scored above the threshold. The CLI cannot "
-"choose automatically."
-msgstr ""
-
-#: patch_gui/executor.py:333
-msgid ""
-"Only the context matches. Use the GUI or adjust the threshold to apply this "
-"hunk."
-msgstr ""
-
-#: patch_gui/cli.py:35
-msgid ""
-"The --report-json/--report-txt options are incompatible with --no-report."
-msgstr ""
-
-#: patch_gui/patcher.py:156
-#, python-brace-format
-msgid "Report – {app_name}"
-msgstr "Report – {app_name}"
-
-#: patch_gui/patcher.py:159
-#, python-brace-format
-msgid "Started: {timestamp}"
-msgstr "Avviato: {timestamp}"
-
-#: patch_gui/patcher.py:163
-#, python-brace-format
-msgid "Project root: {project_root}"
-msgstr "Root progetto: {project_root}"
-
-#: patch_gui/patcher.py:165
-#, python-brace-format
-msgid "Backup directory: {backup_dir}"
-msgstr "Backup: {backup_dir}"
-
-#: patch_gui/patcher.py:167
-#, python-brace-format
-msgid "Dry-run: {dry_run}"
-msgstr "Dry-run: {dry_run}"
-
-#: patch_gui/patcher.py:169
-#, python-brace-format
-msgid "Fuzzy threshold: {threshold}"
-msgstr "Soglia fuzzy: {threshold}"
-
-#: patch_gui/patcher.py:171
-msgid "(none)"
-msgstr "(nessuna)"
-
-#: patch_gui/patcher.py:173
-#, python-brace-format
-msgid "Excluded directories: {directories}"
-msgstr "Directory escluse: {directories}"
-
-#: patch_gui/patcher.py:180
-msgid "Summary:"
-msgstr "Riepilogo:"
-
-#: patch_gui/patcher.py:182
-#, python-brace-format
-msgid "  Files processed: {count}"
-msgstr "  File analizzati: {count}"
-
-#: patch_gui/patcher.py:185
-#, python-brace-format
-msgid "  Files with changes: {count}"
-msgstr "  File con modifiche: {count}"
-
-#: patch_gui/patcher.py:189
-#, python-brace-format
-msgid "  Files skipped: {count}"
-msgstr "  File saltati: {count}"
-
-#: patch_gui/patcher.py:192
-#, python-brace-format
-msgid "  Hunks applied: {applied}/{total}"
-msgstr "  Hunks applicati: {applied}/{total}"
-
-#: patch_gui/patcher.py:197
-msgid "  No changes were applied to the files."
-msgstr "  Nessuna modifica è stata applicata ai file."
-
-#: patch_gui/patcher.py:200
-#, python-brace-format
-msgid "File: {path}"
-msgstr "File: {path}"
-
-#: patch_gui/patcher.py:203
-#, python-brace-format
-msgid "  SKIPPED: {reason}"
-msgstr "  SALTATO: {reason}"
-
-#: patch_gui/patcher.py:205
-#, python-brace-format
-msgid "  File type: {file_type}"
-msgstr "  Tipo file: {file_type}"
-
-#: patch_gui/patcher.py:207
-#, python-brace-format
-msgid "  Hunks: {applied}/{total}"
-msgstr "  Hunks: {applied}/{total}"
-
-#: patch_gui/patcher.py:213
-#, python-brace-format
-msgid "    Hunk {header} -> {strategy}"
-msgstr "    Hunk {header} -> {strategy}"
-
-#: patch_gui/patcher.py:219
-#, python-brace-format
-msgid "      Position: {position}"
-msgstr "      Posizione: {position}"
-
-#: patch_gui/patcher.py:225
-#, python-brace-format
-msgid "      Similarity: {similarity:.3f}"
-msgstr "      Similarità: {similarity:.3f}"
-
-#: patch_gui/patcher.py:232
-#, python-brace-format
-msgid "(position {position}, similarity {similarity:.3f})"
-msgstr "(posizione {position}, similarità {similarity:.3f})"
-
-#: patch_gui/patcher.py:239
-#, python-brace-format
-msgid "      Candidates: {candidates}"
-msgstr "      Candidati: {candidates}"
-
-#: patch_gui/patcher.py:245
-#, python-brace-format
-msgid "      Notes: {notes}"
-msgstr "      Note: {notes}"
-
-#: patch_gui/cli.py:69
-#, python-brace-format
-msgid "Error: {message}\n"
-msgstr ""
-
-#: patch_gui/cli.py:73
+#: patch_gui/app.py:1669
 msgid ""
 "\n"
-"Dry-run mode: no files were modified and no backups were created."
+"=== RISULTATO ===\n"
+"%s"
 msgstr ""
+"\n"
+"=== RISULTATO ===\n"
+"%s"
 
-#: patch_gui/cli.py:75
+#: patch_gui/cli.py:108
 #, python-brace-format
 msgid ""
 "\n"
 "Backups saved to: {path}"
 msgstr ""
+"\n"
+"Backups saved to: {path}"
 
-#: patch_gui/cli.py:79
+#: patch_gui/cli.py:106
+msgid ""
+"\n"
+"Dry-run mode: no files were modified and no backups were created."
+msgstr ""
+"\n"
+"Dry-run mode: no files were modified and no backups were created."
+
+#: patch_gui/patcher.py:225
+#, python-brace-format
+msgid "      Candidates: {candidates}"
+msgstr "      Candidates: {candidates}"
+
+#: patch_gui/patcher.py:228
+#, python-brace-format
+msgid "      Notes: {notes}"
+msgstr "      Notes: {notes}"
+
+#: patch_gui/patcher.py:204
+#, python-brace-format
+msgid "      Position: {position}"
+msgstr "      Position: {position}"
+
+#: patch_gui/patcher.py:208
+#, python-brace-format
+msgid "      Similarity: {similarity:.3f}"
+msgstr "      Similarity: {similarity:.3f}"
+
+#: patch_gui/patcher.py:198
+#, python-brace-format
+msgid "    Hunk {header} -> {strategy}"
+msgstr "    Hunk {header} -> {strategy}"
+
+#: patch_gui/patcher.py:190
+#, python-brace-format
+msgid "  File type: {file_type}"
+msgstr "  File type: {file_type}"
+
+#: patch_gui/patcher.py:174
+#, python-brace-format
+msgid "  Files processed: {count}"
+msgstr "  Files processed: {count}"
+
+#: patch_gui/patcher.py:177
+#, python-brace-format
+msgid "  Files skipped: {count}"
+msgstr "  Files skipped: {count}"
+
+#: patch_gui/patcher.py:175
+#, python-brace-format
+msgid "  Files with changes: {count}"
+msgstr "  Files with changes: {count}"
+
+#: patch_gui/patcher.py:179
+#, python-brace-format
+msgid "  Hunks applied: {applied}/{total}"
+msgstr "  Hunks applied: {applied}/{total}"
+
+#: patch_gui/patcher.py:192
+#, python-brace-format
+msgid "  Hunks: {applied}/{total}"
+msgstr "  Hunks: {applied}/{total}"
+
+#: patch_gui/patcher.py:184
+msgid "  No changes were applied to the files."
+msgstr "  No changes were applied to the files."
+
+#: patch_gui/patcher.py:189
+#, python-brace-format
+msgid "  SKIPPED: {reason}"
+msgstr "  SKIPPED: {reason}"
+
+#: patch_gui/patcher.py:164
+msgid "(none)"
+msgstr "(none)"
+
+#: patch_gui/patcher.py:215
+#, python-brace-format
+msgid "(position {position}, similarity {similarity:.3f})"
+msgstr "(position {position}, similarity {similarity:.3f})"
+
+#: patch_gui/app.py:1482
+msgid "<sconosciuto>"
+msgstr "<sconosciuto>"
+
+#: patch_gui/app.py:1759
+msgid "Ambiguità sul file, operazione annullata dall'utente"
+msgstr "Ambiguità sul file, operazione annullata dall'utente"
+
+#: patch_gui/app.py:1499
+msgid "Analisi completata. File nel diff: %s"
+msgstr "Analisi completata. File nel diff: %s"
+
+#: patch_gui/app.py:1196
+msgid "Analizza diff"
+msgstr "Analizza diff"
+
+#: patch_gui/app.py:1200
+msgid "Analizza il diff attualmente caricato o incollato"
+msgstr "Analizza il diff attualmente caricato o incollato"
+
+#: patch_gui/app.py:1162
+msgid "Analizza il diff incollato nell'editor interno"
+msgstr "Analizza il diff incollato nell'editor interno"
+
+#: patch_gui/app.py:1159
+msgid "Analizza il diff inserito nell'editor di testo"
+msgstr "Analizza il diff inserito nell'editor di testo"
+
+#: patch_gui/app.py:1598
+msgid "Analizza prima"
+msgstr "Analizza prima"
+
+#: patch_gui/app.py:1270
+msgid "Anteprima"
+msgstr "Anteprima"
+
+#: patch_gui/app.py:1528
+msgid "Anteprima aggiornata: %s"
+msgstr "Anteprima aggiornata: %s"
+
+#: patch_gui/app.py:1530
+#, python-brace-format
+msgid "Anteprima aggiornata: {summary}"
+msgstr "Anteprima aggiornata: {summary}"
+
+#: patch_gui/app.py:1245
+msgid "Applica patch"
+msgstr "Applica patch"
+
+#: patch_gui/app.py:1642
+msgid "Applicazione diff in corso…"
+msgstr "Applicazione diff in corso…"
+
+#: patch_gui/app.py:1432
+msgid "Appunti vuoti"
+msgstr "Appunti vuoti"
+
+#: patch_gui/app.py:1416
+msgid "Apri file .diff"
+msgstr "Apri file .diff"
+
+#: patch_gui/app.py:1135
+msgid "Apri file diff…"
+msgstr "Apri file diff…"
+
+#: patch_gui/app.py:1180
+msgid "Apri un menu con le opzioni di caricamento del diff"
+msgstr "Apri un menu con le opzioni di caricamento del diff"
+
+#: patch_gui/app.py:1323
+msgid "Attendi il completamento dell'applicazione della patch prima di chiudere."
+msgstr "Attendi il completamento dell'applicazione della patch prima di chiudere."
+
+#: patch_gui/app.py:1202
+msgid "Avvia l'analisi del diff selezionato"
+msgstr "Avvia l'analisi del diff selezionato"
+
+#: patch_gui/app.py:1098
+msgid "Azioni"
+msgstr "Azioni"
+
+#: patch_gui/patcher.py:160
+#, python-brace-format
+msgid "Backup directory: {backup_dir}"
+msgstr "Backup directory: {backup_dir}"
+
+#: patch_gui/app.py:1886
+#, python-brace-format
+msgid "Backup {name} ripristinato."
+msgstr "Backup {name} ripristinato."
+
+#: patch_gui/parser.py:90
+#, python-brace-format
+msgid "Base directory for backups and reports; defaults to \"{path}\"."
+msgstr "Base directory for backups and reports; defaults to \"{path}\"."
+
+#: patch_gui/executor.py:222
+msgid "Binary patches are not supported in CLI mode"
+msgstr "Binary patches are not supported in CLI mode"
+
+#: patch_gui/executor.py:80
+#, python-brace-format
+msgid "Cannot decode diff from STDIN using encoding {encoding}: {error}"
+msgstr "Cannot decode diff from STDIN using encoding {encoding}: {error}"
+
+#: patch_gui/executor.py:101
+#, python-brace-format
+msgid "Cannot decode diff using encoding {encoding}: {error}"
+msgstr "Cannot decode diff using encoding {encoding}: {error}"
+
+#: patch_gui/executor.py:287
+#, python-brace-format
+msgid "Cannot read the file: {error}"
+msgstr "Cannot read the file: {error}"
+
+#: patch_gui/executor.py:109 patch_gui/executor.py:118
+#, python-brace-format
+msgid "Cannot read {path}: {error}"
+msgstr "Cannot read {path}: {error}"
+
+#: patch_gui/app.py:1166 patch_gui/app.py:1172
+msgid "Carica diff"
+msgstr "Carica diff"
+
+#: patch_gui/app.py:1149
+msgid "Carica il diff direttamente dagli appunti di sistema"
+msgstr "Carica il diff direttamente dagli appunti di sistema"
+
+#: patch_gui/app.py:1464
+msgid "Carica o incolla un diff prima di analizzare."
+msgstr "Carica o incolla un diff prima di analizzare."
+
+#: patch_gui/app.py:1139
+msgid "Carica un file diff dal disco"
+msgstr "Carica un file diff dal disco"
+
+#: patch_gui/app.py:1424
+msgid "Caricato diff da file: %s"
+msgstr "Caricato diff da file: %s"
+
+#: patch_gui/app.py:1844
+msgid "Cartella backup non trovata."
+msgstr "Cartella backup non trovata."
+
+#: patch_gui/app.py:1684
+msgid "Completato"
+msgstr "Completato"
+
+#: patch_gui/app.py:1870
+msgid "Conferma ripristino"
+msgstr "Conferma ripristino"
+
+#: patch_gui/cli.py:243
+msgid "Configuration reset to defaults."
+msgstr "Configuration reset to defaults."
+
+#: patch_gui/app.py:1144
+msgid "Da appunti"
+msgstr "Da appunti"
+
+#: patch_gui/app.py:1155
+msgid "Da testo"
+msgstr "Da testo"
+
+#: patch_gui/executor.py:61
+msgid "Decoded diff %s using fallback UTF-8 (original encoding %s); the content may contain substituted characters."
+msgstr "Decoded diff %s using fallback UTF-8 (original encoding %s); the content may contain substituted characters."
+
+#: patch_gui/executor.py:293
+msgid "Decoded file %s using fallback UTF-8 (original encoding %s); some characters may be substituted."
+msgstr "Decoded file %s using fallback UTF-8 (original encoding %s); some characters may be substituted."
+
+#: patch_gui/app.py:1779
+msgid "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); alcuni caratteri potrebbero essere sostituiti."
+msgstr "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); alcuni caratteri potrebbero essere sostituiti."
+
+#: patch_gui/app.py:1438
+msgid "Diff caricato dagli appunti."
+msgstr "Diff caricato dagli appunti."
+
+#: patch_gui/executor.py:95
+#, python-brace-format
+msgid "Diff file not found: {path}"
+msgstr "Diff file not found: {path}"
+
+#: patch_gui/app.py:1417
+msgid "Diff files (*.diff *.patch *.txt);;Tutti (*.*)"
+msgstr "Diff files (*.diff *.patch *.txt);;Tutti (*.*)"
+
+#: patch_gui/app.py:1463
+msgid "Diff mancante"
+msgstr "Diff mancante"
+
+#: patch_gui/parser.py:143
+msgid "Directory (relative to the root) to ignore while searching for files. Specify the option multiple times to provide more than one. Defaults: %s."
+msgstr "Directory (relative to the root) to ignore while searching for files. Specify the option multiple times to provide more than one. Defaults: %s."
+
+#: patch_gui/app.py:769
+msgid "Directory backup"
+msgstr "Directory backup"
+
+#: patch_gui/app.py:757
+msgid "Directory escluse"
+msgstr "Directory escluse"
+
+#: patch_gui/app.py:755
+msgid "Directory escluse (separate da virgola)"
+msgstr "Directory escluse (separate da virgola)"
+
+#: patch_gui/parser.py:113
+msgid "Disable interactive prompts on STDIN and keep the historical behaviour when multiple matches exist."
+msgstr "Disable interactive prompts on STDIN and keep the historical behaviour when multiple matches exist."
+
+#: patch_gui/cli.py:145
+msgid "Display the current configuration values."
+msgstr "Display the current configuration values."
+
+#: patch_gui/parser.py:107
+msgid "Do not create JSON/TXT report files."
+msgstr "Do not create JSON/TXT report files."
+
+#: patch_gui/parser.py:152
+msgid "Do not ignore the default directories (e.g. %s). Use together with --exclude-dir to specify an explicit allowlist."
+msgstr "Do not ignore the default directories (e.g. %s). Use together with --exclude-dir to specify an explicit allowlist."
+
+#: patch_gui/app.py:1208
+msgid "Dry-run / anteprima"
+msgstr "Dry-run / anteprima"
+
+#: patch_gui/patcher.py:162
+#, python-brace-format
+msgid "Dry-run: {dry_run}"
+msgstr "Dry-run: {dry_run}"
+
+#: patch_gui/app.py:1265
+msgid "Editor diff"
+msgstr "Editor diff"
+
+#: patch_gui/app.py:1225
+msgid "Elenco di directory da ignorare (relative alla root), separate da virgola."
+msgstr "Elenco di directory da ignorare (relative alla root), separate da virgola."
+
+#: patch_gui/cli.py:102 patch_gui/cli.py:131
+#, python-brace-format
+msgid ""
+"Error: {message}\n"
+""
+msgstr ""
+"Error: {message}\n"
+""
+
+#: patch_gui/app.py:1696
+msgid "Errore"
+msgstr "Errore"
+
+#: patch_gui/app.py:1697
+msgid "Errore durante l'applicazione della patch"
+msgstr "Errore durante l'applicazione della patch"
+
+#: patch_gui/app.py:1691 patch_gui/app.py:909
+msgid "Errore durante l'applicazione della patch: %s"
+msgstr "Errore durante l'applicazione della patch: %s"
+
+#: patch_gui/app.py:1474
+msgid "Errore parsing diff"
+msgstr "Errore parsing diff"
+
+#: patch_gui/app.py:1599
+msgid "Esegui 'Analizza diff' prima di applicare."
+msgstr "Esegui 'Analizza diff' prima di applicare."
+
+#: patch_gui/app.py:780
+msgid "Esegui sempre in dry-run inizialmente"
+msgstr "Esegui sempre in dry-run inizialmente"
+
+#: patch_gui/patcher.py:166
+#, python-brace-format
+msgid "Excluded directories: {directories}"
+msgstr "Excluded directories: {directories}"
+
+#: patch_gui/parser.py:122
+msgid "Explicit encoding to use when reading the diff (default: auto-detect)."
+msgstr "Explicit encoding to use when reading the diff (default: auto-detect)."
+
+#: patch_gui/executor.py:326
+#, python-brace-format
+msgid "Failed to delete file after applying patch: {error}"
+msgstr "Failed to delete file after applying patch: {error}"
+
+#: patch_gui/app.py:1242
+msgid "File / Hunk"
+msgstr "File / Hunk"
+
+#: patch_gui/app.py:1746
+msgid "File non trovato nella root – salto per preferenza utente"
+msgstr "File non trovato nella root – salto per preferenza utente"
+
+#: patch_gui/executor.py:258 patch_gui/executor.py:273
+msgid "File not found in the project root"
+msgstr "File not found in the project root"
+
+#: patch_gui/app.py:1548
+#, python-brace-format
+msgid "File: {name}"
+msgstr "File: {name}"
+
+#: patch_gui/patcher.py:187
+#, python-brace-format
+msgid "File: {path}"
+msgstr "File: {path}"
+
+#: patch_gui/patcher.py:163
+#, python-brace-format
+msgid "Fuzzy threshold: {threshold}"
+msgstr "Fuzzy threshold: {threshold}"
+
+#: patch_gui/app.py:786
+msgid "Genera report al termine (JSON + testo)"
+msgstr "Genera report al termine (JSON + testo)"
+
+#: patch_gui/app.py:615
+msgid "Hunk – contenuto atteso (prima):"
+msgstr "Hunk – contenuto atteso (prima):"
+
+#: patch_gui/app.py:1221
+msgid "Ignora directory"
+msgstr "Ignora directory"
+
+#: patch_gui/app.py:1773
+#, python-brace-format
+msgid "Impossibile leggere file: {error}"
+msgstr "Impossibile leggere file: {error}"
+
+#: patch_gui/app.py:1050 patch_gui/app.py:734
+msgid "Impostazioni"
+msgstr "Impostazioni"
+
+#: patch_gui/app.py:1359
+msgid "Impostazioni salvate"
+msgstr "Impostazioni salvate"
+
+#: patch_gui/app.py:1147
+msgid "Incolla il diff dagli appunti"
+msgstr "Incolla il diff dagli appunti"
+
+#: patch_gui/app.py:1262
+msgid "Incolla qui il diff se non stai aprendo un file…"
+msgstr "Incolla qui il diff se non stai aprendo un file…"
+
+#: patch_gui/app.py:1446
+msgid "Inserisci del testo diff nella textarea."
+msgstr "Inserisci del testo diff nella textarea."
+
+#: patch_gui/cli.py:139
+msgid "Inspect or modify the persistent configuration."
+msgstr "Inspect or modify the persistent configuration."
+
+#: patch_gui/executor.py:127
+#, python-brace-format
+msgid "Invalid diff: {error}"
+msgstr "Invalid diff: {error}"
+
+#: patch_gui/executor.py:378
+msgid "Invalid input. Enter a number or leave empty to cancel."
+msgstr "Invalid input. Enter a number or leave empty to cancel."
+
+#: patch_gui/executor.py:153
+#, python-brace-format
+msgid "Invalid project root: {path}"
+msgstr "Invalid project root: {path}"
+
+#: patch_gui/cli.py:112
 #, python-brace-format
 msgid "JSON: {path}"
-msgstr ""
+msgstr "JSON: {path}"
 
-#: patch_gui/cli.py:81
+#: patch_gui/app.py:1367
+msgid "La cartella selezionata non esiste."
+msgstr "La cartella selezionata non esiste."
+
+#: patch_gui/app.py:1433
+msgid "La clipboard non contiene testo."
+msgstr "La clipboard non contiene testo."
+
+#: patch_gui/app.py:599
 #, python-brace-format
-msgid "Text: {path}"
-msgstr ""
+msgid "Linea {line} – similarità {score:.3f}"
+msgstr "Linea {line} – similarità {score:.3f}"
 
-#: patch_gui/cli.py:82
+#: patch_gui/app.py:777
+msgid "Livello log"
+msgstr "Livello log"
+
+#: patch_gui/app.py:1274
+msgid "Log:"
+msgstr "Log:"
+
+#: patch_gui/parser.py:130
+msgid "Logging level to emit on stdout (debug, info, warning, error, critical)."
+msgstr "Logging level to emit on stdout (debug, info, warning, error, critical)."
+
+#: patch_gui/parser.py:86
+msgid "Matching threshold (0-1) for fuzzy context alignment."
+msgstr "Matching threshold (0-1) for fuzzy context alignment."
+
+#: patch_gui/executor.py:413
+msgid "Multiple candidate positions scored above the threshold. The CLI cannot choose automatically."
+msgstr "Multiple candidate positions scored above the threshold. The CLI cannot choose automatically."
+
+#: patch_gui/executor.py:396
 #, python-brace-format
-msgid "Reports saved to: {details}"
-msgstr ""
+msgid "Multiple files found for the provided path; resolve the ambiguity manually. Candidates: {candidates}"
+msgstr "Multiple files found for the provided path; resolve the ambiguity manually. Candidates: {candidates}"
 
-#: patch_gui/cli.py:84
-msgid "Reports disabled (--no-report)"
-msgstr ""
+#: patch_gui/executor.py:356
+msgid "Multiple files match the patch path:"
+msgstr "Multiple files match the patch path:"
 
-#: patch_gui/diff_applier_gui.py:143
-msgid ""
-"PySide6 is not installed. Install the GUI dependencies with 'pip install ."
-"[gui]' or include the 'gui' extra when installing the package."
-msgstr ""
+#: patch_gui/app.py:1843 patch_gui/app.py:1851
+msgid "Nessun backup"
+msgstr "Nessun backup"
 
-#: patch_gui/diff_applier_gui.py:148
+#: patch_gui/app.py:1445
+msgid "Nessun testo"
+msgstr "Nessun testo"
+
+#: patch_gui/app.py:1521
+msgid "Nessuna anteprima disponibile per la selezione corrente"
+msgstr "Nessuna anteprima disponibile per la selezione corrente"
+
+#: patch_gui/app.py:1506
+msgid "Nessuna selezione per l'anteprima"
+msgstr "Nessuna selezione per l'anteprima"
+
+#: patch_gui/app.py:1852
+msgid "Nessuna sessione di backup trovata."
+msgstr "Nessuna sessione di backup trovata."
+
+#: patch_gui/cli.py:165
+msgid "New value for the key. Provide multiple values for exclude_dirs."
+msgstr "New value for the key. Provide multiple values for exclude_dirs."
+
+#: patch_gui/executor.py:384
+msgid "Number out of range. Try again."
+msgstr "Number out of range. Try again."
+
+#: patch_gui/executor.py:418
+msgid "Only the context matches. Use the GUI or adjust the threshold to apply this hunk."
+msgstr "Only the context matches. Use the GUI or adjust the threshold to apply this hunk."
+
+#: patch_gui/app.py:1687
+msgid "Operazione completata"
+msgstr "Operazione completata"
+
+#: patch_gui/app.py:1322 patch_gui/app.py:1589
+msgid "Operazione in corso"
+msgstr "Operazione in corso"
+
+#: patch_gui/app.py:1679
+msgid "Operazione terminata. Report disabilitati nelle impostazioni."
+msgstr "Operazione terminata. Report disabilitati nelle impostazioni."
+
+#: patch_gui/app.py:1675
+msgid "Operazione terminata. Vedi log e report nella cartella di backup."
+msgstr "Operazione terminata. Vedi log e report nella cartella di backup."
+
+#: patch_gui/diff_applier_gui.py:163
 #, python-brace-format
 msgid "Original details: {error}"
+msgstr "Original details: {error}"
+
+#: patch_gui/cli.py:151 patch_gui/cli.py:171 patch_gui/cli.py:186
+msgid "Override the configuration file path (default: use the standard location)."
+msgstr "Override the configuration file path (default: use the standard location)."
+
+#: patch_gui/app.py:1060
+msgid "Patch GUI – Diff Applier"
+msgstr "Patch GUI – Diff Applier"
+
+#: patch_gui/executor.py:250
+msgid "Patch targets a path outside the project root"
+msgstr "Patch targets a path outside the project root"
+
+#: patch_gui/parser.py:96
+msgid "Path of the generated JSON report; defaults to '<backup>/%s'."
+msgstr "Path of the generated JSON report; defaults to '<backup>/%s'."
+
+#: patch_gui/parser.py:101
+msgid "Path of the generated text report; defaults to '<backup>/%s'."
+msgstr "Path of the generated text report; defaults to '<backup>/%s'."
+
+#: patch_gui/parser.py:69
+msgid "Path to the diff file to apply ('-' reads from STDIN)."
+msgstr "Path to the diff file to apply ('-' reads from STDIN)."
+
+#: patch_gui/app.py:760
+msgid "Percorso base per i backup"
+msgstr "Percorso base per i backup"
+
+#: patch_gui/app.py:1051
+msgid "Preferenze…"
+msgstr "Preferenze…"
+
+#: patch_gui/parser.py:74
+msgid "Project root where the patch should be applied."
+msgstr "Project root where the patch should be applied."
+
+#: patch_gui/patcher.py:157
+#, python-brace-format
+msgid "Project root: {project_root}"
+msgstr "Project root: {project_root}"
+
+#: patch_gui/app.py:1289
+msgid "Pronto"
+msgstr "Pronto"
+
+#: patch_gui/diff_applier_gui.py:157
+msgid "PySide6 is not installed. Install the GUI dependencies with 'pip install .[gui]' or include the 'gui' extra when installing the package."
+msgstr "PySide6 is not installed. Install the GUI dependencies with 'pip install .[gui]' or include the 'gui' extra when installing the package."
+
+#: patch_gui/app.py:548
+msgid "Qt non supporta la configurazione del rounding High DPI; workaround ignorato."
+msgstr "Qt non supporta la configurazione del rounding High DPI; workaround ignorato."
+
+#: patch_gui/patcher.py:150
+#, python-brace-format
+msgid "Report – {app_name}"
+msgstr "Report – {app_name}"
+
+#: patch_gui/cli.py:117
+msgid "Reports disabled (--no-report)"
+msgstr "Reports disabled (--no-report)"
+
+#: patch_gui/cli.py:115
+#, python-brace-format
+msgid "Reports saved to: {details}"
+msgstr "Reports saved to: {details}"
+
+#: patch_gui/cli.py:179
+msgid "Reset one key or the entire configuration to the defaults."
+msgstr "Reset one key or the entire configuration to the defaults."
+
+#: patch_gui/app.py:521
+msgid "Rilevata esecuzione su %s: applicazione workaround High DPI."
+msgstr "Rilevata esecuzione su %s: applicazione workaround High DPI."
+
+#: patch_gui/app.py:1248
+msgid "Ripristina da backup…"
+msgstr "Ripristina da backup…"
+
+#: patch_gui/app.py:1871
+#, python-brace-format
+msgid ""
+"Ripristinare i file dalla sessione {name}?\n"
+"\n"
+"I file correnti saranno sovrascritti."
 msgstr ""
+"Ripristinare i file dalla sessione {name}?\n"
+"\n"
+"I file correnti saranno sovrascritti."
+
+#: patch_gui/app.py:1885
+msgid "Ripristino completato"
+msgstr "Ripristino completato"
+
+#: patch_gui/app.py:1107
+msgid "Root del progetto (seleziona cartella)"
+msgstr "Root del progetto (seleziona cartella)"
+
+#: patch_gui/app.py:1455 patch_gui/app.py:1605 patch_gui/app.py:1835
+msgid "Root mancante"
+msgstr "Root mancante"
+
+#: patch_gui/app.py:1366
+msgid "Root non valida"
+msgstr "Root non valida"
+
+#: patch_gui/app.py:1748
+msgid "SKIP: %s non trovato."
+msgstr "SKIP: %s non trovato."
+
+#: patch_gui/app.py:1177
+msgid "Scegli come caricare o analizzare il diff da elaborare"
+msgstr "Scegli come caricare o analizzare il diff da elaborare"
+
+#: patch_gui/app.py:1126
+msgid "Scegli la directory del progetto da utilizzare come root"
+msgstr "Scegli la directory del progetto da utilizzare come root"
+
+#: patch_gui/app.py:1119
+msgid "Scegli root…"
+msgstr "Scegli root…"
+
+#: patch_gui/app.py:1016 patch_gui/app.py:1826
+msgid "Scelta annullata (solo contesto)"
+msgstr "Scelta annullata (solo contesto)"
+
+#: patch_gui/app.py:1018 patch_gui/app.py:1828
+msgid "Scelta annullata dall'utente"
+msgstr "Scelta annullata dall'utente"
+
+#: patch_gui/executor.py:359
+#, python-brace-format
+msgid "Select the number of the file to use (1-{count}). Press Enter or type 's' to skip: "
+msgstr "Select the number of the file to use (1-{count}). Press Enter or type 's' to skip: "
+
+#: patch_gui/app.py:1858
+msgid "Seleziona backup"
+msgstr "Seleziona backup"
+
+#: patch_gui/app.py:802
+msgid "Seleziona directory di backup"
+msgstr "Seleziona directory di backup"
+
+#: patch_gui/app.py:1708 patch_gui/app.py:1753
+#, python-brace-format
+msgid "Seleziona file per {path}"
+msgstr "Seleziona file per {path}"
+
+#: patch_gui/app.py:1123
+msgid "Seleziona la cartella radice del progetto da analizzare"
+msgstr "Seleziona la cartella radice del progetto da analizzare"
+
+#: patch_gui/app.py:1456 patch_gui/app.py:1606 patch_gui/app.py:1836
+msgid "Seleziona la root del progetto."
+msgstr "Seleziona la root del progetto."
+
+#: patch_gui/app.py:576
+msgid "Seleziona posizione hunk (ambiguità)"
+msgstr "Seleziona posizione hunk (ambiguità)"
+
+#: patch_gui/app.py:1408
+msgid "Seleziona root del progetto"
+msgstr "Seleziona root del progetto"
+
+#: patch_gui/app.py:1138
+msgid "Seleziona un file .diff da aprire"
+msgstr "Seleziona un file .diff da aprire"
+
+#: patch_gui/app.py:655
+msgid "Seleziona una posizione dalla lista."
+msgstr "Seleziona una posizione dalla lista."
+
+#: patch_gui/app.py:654
+msgid "Selezione obbligatoria"
+msgstr "Selezione obbligatoria"
+
+#: patch_gui/app.py:1859
+msgid "Sessione:"
+msgstr "Sessione:"
+
+#: patch_gui/app.py:764
+msgid "Sfoglia…"
+msgstr "Sfoglia…"
+
+#: patch_gui/parser.py:65
+msgid "Show the version number and exit."
+msgstr "Show the version number and exit."
+
+#: patch_gui/parser.py:79
+msgid "Simulate the execution without modifying files or creating backups."
+msgstr "Simulate the execution without modifying files or creating backups."
+
+#: patch_gui/app.py:1212 patch_gui/app.py:749
+msgid "Soglia fuzzy"
+msgstr "Soglia fuzzy"
+
+#: patch_gui/app.py:584
+msgid ""
+"Sono state trovate più posizioni plausibili. Seleziona la posizione corretta.\n"
+"Anteprima: a sinistra il testo del file, evidenziata la finestra candidata; a destra il 'prima' del hunk."
+msgstr ""
+"Sono state trovate più posizioni plausibili. Seleziona la posizione corretta.\n"
+"Anteprima: a sinistra il testo del file, evidenziata la finestra candidata; a destra il 'prima' del hunk."
+
+#: patch_gui/app.py:688
+msgid "Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"
+msgstr "Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"
+
+#: patch_gui/patcher.py:152
+#, python-brace-format
+msgid "Started: {timestamp}"
+msgstr "Started: {timestamp}"
+
+#: patch_gui/app.py:1242
+msgid "Stato"
+msgstr "Stato"
+
+#: patch_gui/patcher.py:173
+msgid "Summary:"
+msgstr "Summary:"
+
+#: patch_gui/app.py:1449
+msgid "Testo diff pronto per analisi."
+msgstr "Testo diff pronto per analisi."
+
+#: patch_gui/cli.py:114
+#, python-brace-format
+msgid "Text: {path}"
+msgstr "Text: {path}"
+
+#: patch_gui/cli.py:62
+msgid "The --report-json/--report-txt options are incompatible with --no-report."
+msgstr "The --report-json/--report-txt options are incompatible with --no-report."
+
+#: patch_gui/cli.py:315
+msgid "The backup_base key expects exactly one value."
+msgstr "The backup_base key expects exactly one value."
+
+#: patch_gui/cli.py:302
+msgid "The log_level key expects exactly one value."
+msgstr "The log_level key expects exactly one value."
+
+#: patch_gui/cli.py:294
+msgid "The threshold key expects exactly one value."
+msgstr "The threshold key expects exactly one value."
+
+#: patch_gui/cli.py:328
+#, python-brace-format
+msgid "The {key} key expects exactly one value."
+msgstr "The {key} key expects exactly one value."
+
+#: patch_gui/parser.py:168
+msgid "Threshold must be a decimal number."
+msgstr "Threshold must be a decimal number."
+
+#: patch_gui/parser.py:172
+msgid "Threshold must be between 0 (exclusive) and 1 (inclusive)."
+msgstr "Threshold must be between 0 (exclusive) and 1 (inclusive)."
+
+#: patch_gui/executor.py:130
+#, python-brace-format
+msgid "Unexpected error while parsing the diff: {error}"
+msgstr "Unexpected error while parsing the diff: {error}"
+
+#: patch_gui/cli.py:249 patch_gui/cli.py:289 patch_gui/cli.py:337
+#, python-brace-format
+msgid "Unknown configuration key: {key}"
+msgstr "Unknown configuration key: {key}"
+
+#: patch_gui/cli.py:347
+#, python-brace-format
+msgid "Unsupported boolean value: {value}."
+msgstr "Unsupported boolean value: {value}."
+
+#: patch_gui/cli.py:307
+#, python-brace-format
+msgid "Unsupported log level: {value}."
+msgstr "Unsupported log level: {value}."
+
+#: patch_gui/cli.py:159
+msgid "Update a configuration key."
+msgstr "Update a configuration key."
+
+#: patch_gui/app.py:1223
+msgid "es. .git,.venv,node_modules"
+msgstr "es. .git,.venv,node_modules"
+
+#: patch_gui/parser.py:48
+#, python-brace-format
+msgid "{app_name}: apply a unified diff patch using the same heuristics as the GUI, but from the command line."
+msgstr "{app_name}: apply a unified diff patch using the same heuristics as the GUI, but from the command line."
+
+#: patch_gui/cli.py:264
+#, python-brace-format
+msgid "{key} reset to default."
+msgstr "{key} reset to default."
+
+#: patch_gui/cli.py:228
+#, python-brace-format
+msgid ""
+"{key} updated.\n"
+""
+msgstr ""
+"{key} updated.\n"
+""
+
+#: patch_gui/app.py:1590
+msgid "È già in corso un'applicazione di patch. Attendi il completamento."
+msgstr "È già in corso un'applicazione di patch. Attendi il completamento."
+
+#: patch_gui/executor.py:394 patch_gui/patcher.py:222
+#, python-brace-format
+msgid "… (+{count} more)"
+msgstr "… (+{count} more)"
+

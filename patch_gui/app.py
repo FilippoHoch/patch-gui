@@ -518,7 +518,8 @@ def _apply_platform_workarounds() -> None:
         return
 
     logger.debug(
-        "Rilevata esecuzione su %s: applicazione workaround High DPI.", platform_name
+        _("Rilevata esecuzione su %s: applicazione workaround High DPI."),
+        platform_name,
     )
 
     def _set_application_attribute(name: str) -> None:
@@ -544,7 +545,9 @@ def _apply_platform_workarounds() -> None:
                 )
         except AttributeError:
             logger.debug(
-                "Qt non supporta la configurazione del rounding High DPI; workaround ignorato."
+                _(
+                    "Qt non supporta la configurazione del rounding High DPI; workaround ignorato."
+                )
             )
 
 
@@ -570,7 +573,7 @@ class CandidateDialog(_QDialogBase):
         hv: HunkView,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Seleziona posizione hunk (ambiguità)")
+        self.setWindowTitle(_("Seleziona posizione hunk (ambiguità)"))
         self.setModal(True)
         self.resize(1000, 700)
         self.selected_pos: Optional[int] = None
@@ -578,8 +581,10 @@ class CandidateDialog(_QDialogBase):
         layout = QtWidgets.QVBoxLayout(self)
 
         info = QtWidgets.QLabel(
-            "Sono state trovate più posizioni plausibili. Seleziona la posizione corretta.\n"
-            "Anteprima: a sinistra il testo del file, evidenziata la finestra candidata; a destra il 'prima' del hunk."
+            _(
+                "Sono state trovate più posizioni plausibili. Seleziona la posizione corretta.\n"
+                "Anteprima: a sinistra il testo del file, evidenziata la finestra candidata; a destra il 'prima' del hunk."
+            )
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -591,7 +596,12 @@ class CandidateDialog(_QDialogBase):
         left_layout = QtWidgets.QVBoxLayout(left)
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
         for pos, score in candidates:
-            self.list.addItem(f"Linea {pos+1} – similarità {score:.3f}")
+            label = _("Linea {line} – similarità {score:.3f}").format(
+                line=pos + 1, score=score
+            )
+            item = QtWidgets.QListWidgetItem(label)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, pos)
+            self.list.addItem(item)
         self.list.setCurrentRow(0)
         left_layout.addWidget(self.list)
 
@@ -601,7 +611,9 @@ class CandidateDialog(_QDialogBase):
 
         right = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.addWidget(QtWidgets.QLabel("Hunk – contenuto atteso (prima):"))
+        right_layout.addWidget(
+            QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):"))
+        )
         self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
             "".join(hv.before_lines)
         )
@@ -638,13 +650,22 @@ class CandidateDialog(_QDialogBase):
         row = self.list.currentRow()
         if row < 0:
             QtWidgets.QMessageBox.warning(
-                self, "Selezione obbligatoria", "Seleziona una posizione dalla lista."
+                self,
+                _("Selezione obbligatoria"),
+                _("Seleziona una posizione dalla lista."),
             )
             return
-        text = self.list.currentItem().text()
-        m = re.search(r"Linea (\d+)", text)
-        if m:
-            self.selected_pos = int(m.group(1)) - 1
+        item = self.list.currentItem()
+        if item is None:
+            return
+        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if isinstance(data, int):
+            self.selected_pos = data
+        else:
+            text = item.text()
+            m = re.search(r"\d+", text)
+            if m:
+                self.selected_pos = int(m.group(0)) - 1
         super().accept()
 
 
@@ -664,7 +685,9 @@ class FileChoiceDialog(_QDialogBase):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(
             QtWidgets.QLabel(
-                "Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"
+                _(
+                    "Sono stati trovati più file con lo stesso nome. Seleziona quello corretto:"
+                )
             )
         )
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
@@ -882,7 +905,9 @@ class PatchApplyWorker(_QThreadBase):
             self._emit_progress("Applicazione diff completata.", percent=100)
             self.finished.emit(self.session)
         except Exception as exc:  # pragma: no cover - defensive guard
-            logger.exception("Errore durante l'applicazione della patch: %s", exc)
+            logger.exception(
+                _("Errore durante l'applicazione della patch: %s"), exc
+            )
             self.error.emit(str(exc))
 
     def apply_file_patch(self, pf: "PatchedFile", rel_path: str) -> FileResult:
@@ -988,9 +1013,9 @@ class PatchApplyWorker(_QThreadBase):
         if pos is None:
             decision.strategy = "failed"
             if reason == "context":
-                decision.message = "Scelta annullata (solo contesto)"
+                decision.message = _("Scelta annullata (solo contesto)")
             else:
-                decision.message = "Scelta annullata dall'utente"
+                decision.message = _("Scelta annullata dall'utente")
         return pos
 
 
@@ -1032,7 +1057,7 @@ class MainWindow(_QMainWindowBase):
         layout.addLayout(banner)
 
         if running_under_wsl():
-            wsl_heading = QtWidgets.QLabel("Patch GUI – Diff Applier")
+            wsl_heading = QtWidgets.QLabel(_("Patch GUI – Diff Applier"))
             font = QtGui.QFont(wsl_heading.font())
             font.setPointSize(20)
             font.setBold(True)
@@ -1078,7 +1103,9 @@ class MainWindow(_QMainWindowBase):
         self.addToolBar(QtCore.Qt.ToolBarArea.TopToolBarArea, self.toolbar)
 
         self.root_edit = QtWidgets.QLineEdit()
-        self.root_edit.setPlaceholderText("Root del progetto (seleziona cartella)")
+        self.root_edit.setPlaceholderText(
+            _("Root del progetto (seleziona cartella)")
+        )
         self.root_edit.setSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding,
             QtWidgets.QSizePolicy.Policy.Fixed,
@@ -1178,11 +1205,11 @@ class MainWindow(_QMainWindowBase):
 
         second = QtWidgets.QHBoxLayout()
         layout.addLayout(second)
-        self.chk_dry = QtWidgets.QCheckBox("Dry-run / anteprima")
+        self.chk_dry = QtWidgets.QCheckBox(_("Dry-run / anteprima"))
         second.addWidget(self.chk_dry)
 
         second.addSpacing(20)
-        second.addWidget(QtWidgets.QLabel("Soglia fuzzy"))
+        second.addWidget(QtWidgets.QLabel(_("Soglia fuzzy")))
         self.spin_thresh = QtWidgets.QDoubleSpinBox()
         self.spin_thresh.setRange(0.5, 1.0)
         self.spin_thresh.setSingleStep(0.01)
@@ -1191,11 +1218,13 @@ class MainWindow(_QMainWindowBase):
         second.addWidget(self.spin_thresh)
 
         second.addSpacing(20)
-        second.addWidget(QtWidgets.QLabel("Ignora directory"))
+        second.addWidget(QtWidgets.QLabel(_("Ignora directory")))
         self.exclude_edit = QtWidgets.QLineEdit()
-        self.exclude_edit.setPlaceholderText("es. .git,.venv,node_modules")
+        self.exclude_edit.setPlaceholderText(_("es. .git,.venv,node_modules"))
         self.exclude_edit.setToolTip(
-            "Elenco di directory da ignorare (relative alla root), separate da virgola."
+            _(
+                "Elenco di directory da ignorare (relative alla root), separate da virgola."
+            )
         )
         second.addWidget(self.exclude_edit, 1)
         second.addStretch(1)
@@ -1210,13 +1239,13 @@ class MainWindow(_QMainWindowBase):
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setMouseTracking(True)
         self.tree.viewport().setAttribute(QtCore.Qt.WidgetAttribute.WA_Hover, True)
-        self.tree.setHeaderLabels(["File / Hunk", "Stato"])
+        self.tree.setHeaderLabels([_("File / Hunk"), _("Stato")])
         left_layout.addWidget(self.tree, 1)
 
-        self.btn_apply = QtWidgets.QPushButton("Applica patch")
+        self.btn_apply = QtWidgets.QPushButton(_("Applica patch"))
         self.btn_apply.clicked.connect(self.apply_patch)
 
-        self.btn_restore = QtWidgets.QPushButton("Ripristina da backup…")
+        self.btn_restore = QtWidgets.QPushButton(_("Ripristina da backup…"))
         self.btn_restore.clicked.connect(self.restore_from_backup)
 
         left_btns = QtWidgets.QHBoxLayout()
@@ -1230,7 +1259,7 @@ class MainWindow(_QMainWindowBase):
 
         self.text_diff = QtWidgets.QPlainTextEdit()
         self.text_diff.setPlaceholderText(
-            "Incolla qui il diff se non stai aprendo un file…"
+            _("Incolla qui il diff se non stai aprendo un file…")
         )
         self._diff_highlighter = DiffHighlighter(self.text_diff.document())
         self.diff_tabs.addTab(self.text_diff, _("Editor diff"))
@@ -1242,7 +1271,7 @@ class MainWindow(_QMainWindowBase):
 
         right_layout.addWidget(self.diff_tabs, 1)
 
-        right_layout.addWidget(QtWidgets.QLabel("Log:"))
+        right_layout.addWidget(QtWidgets.QLabel(_("Log:")))
         self.log = QtWidgets.QPlainTextEdit()
         self.log.setReadOnly(True)
         right_layout.addWidget(self.log, 1)
@@ -1257,7 +1286,7 @@ class MainWindow(_QMainWindowBase):
         self._setup_gui_logging()
 
         status_bar = self.statusBar()
-        status_bar.showMessage("Pronto")
+        status_bar.showMessage(_("Pronto"))
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -1290,8 +1319,10 @@ class MainWindow(_QMainWindowBase):
         if worker is not None and worker.isRunning():
             QtWidgets.QMessageBox.information(
                 self,
-                "Operazione in corso",
-                "Attendi il completamento dell'applicazione della patch prima di chiudere.",
+                _("Operazione in corso"),
+                _(
+                    "Attendi il completamento dell'applicazione della patch prima di chiudere."
+                ),
             )
             event.ignore()
             return
@@ -1331,7 +1362,9 @@ class MainWindow(_QMainWindowBase):
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists() or not resolved.is_dir():
             QtWidgets.QMessageBox.warning(
-                self, "Root non valida", "La cartella selezionata non esiste."
+                self,
+                _("Root non valida"),
+                _("La cartella selezionata non esiste."),
             )
             return False
         self.project_root = resolved
@@ -1372,7 +1405,7 @@ class MainWindow(_QMainWindowBase):
 
     def choose_root(self) -> None:
         d = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Seleziona root del progetto"
+            self, _("Seleziona root del progetto")
         )
         if d:
             self.set_project_root(Path(d))
@@ -1380,47 +1413,55 @@ class MainWindow(_QMainWindowBase):
     def load_diff_file(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
             self,
-            "Apri file .diff",
-            filter="Diff files (*.diff *.patch *.txt);;Tutti (*.*)",
+            _("Apri file .diff"),
+            filter=_("Diff files (*.diff *.patch *.txt);;Tutti (*.*)"),
         )
         if not path:
             return
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             self.diff_text = f.read()
         self.text_diff.setPlainText(self.diff_text)
-        logger.info("Caricato diff da file: %s", path)
+        logger.info(_("Caricato diff da file: %s"), path)
 
     def load_from_clipboard(self) -> None:
         cb = QtGui.QGuiApplication.clipboard()
         text = cb.text()
         if not text:
             QtWidgets.QMessageBox.information(
-                self, "Appunti vuoti", "La clipboard non contiene testo."
+                self,
+                _("Appunti vuoti"),
+                _("La clipboard non contiene testo."),
             )
             return
         self.diff_text = text
         self.text_diff.setPlainText(self.diff_text)
-        logger.info("Diff caricato dagli appunti.")
+        logger.info(_("Diff caricato dagli appunti."))
 
     def parse_from_textarea(self) -> None:
         self.diff_text = self.text_diff.toPlainText()
         if not self.diff_text.strip():
             QtWidgets.QMessageBox.warning(
-                self, "Nessun testo", "Inserisci del testo diff nella textarea."
+                self,
+                _("Nessun testo"),
+                _("Inserisci del testo diff nella textarea."),
             )
             return
-        logger.info("Testo diff pronto per analisi.")
+        logger.info(_("Testo diff pronto per analisi."))
 
     def analyze_diff(self) -> None:
         if not self.project_root:
             QtWidgets.QMessageBox.warning(
-                self, "Root mancante", "Seleziona la root del progetto."
+                self,
+                _("Root mancante"),
+                _("Seleziona la root del progetto."),
             )
             return
         self.diff_text = self.text_diff.toPlainText() or self.diff_text
         if not self.diff_text.strip():
             QtWidgets.QMessageBox.warning(
-                self, "Diff mancante", "Carica o incolla un diff prima di analizzare."
+                self,
+                _("Diff mancante"),
+                _("Carica o incolla un diff prima di analizzare."),
             )
             return
         self.threshold = float(self.spin_thresh.value())
@@ -1429,14 +1470,16 @@ class MainWindow(_QMainWindowBase):
         try:
             patch = PatchSet(preprocessed.splitlines(True))
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Errore parsing diff", str(e))
+            QtWidgets.QMessageBox.critical(
+                self, _("Errore parsing diff"), str(e)
+            )
             return
         self.patch = patch
 
         self.tree.clear()
         self.preview_view.clear()
         for pf in patch:
-            rel = pf.path or pf.target_file or pf.source_file or "<sconosciuto>"
+            rel = pf.path or pf.target_file or pf.source_file or _("<sconosciuto>")
             node = QtWidgets.QTreeWidgetItem([rel, ""])
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole, rel)
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, [])
@@ -1453,7 +1496,7 @@ class MainWindow(_QMainWindowBase):
                 node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, file_hunks)
         self.tree.expandAll()
         self._update_preview_from_selection()
-        logger.info("Analisi completata. File nel diff: %s", len(self.patch))
+        logger.info(_("Analisi completata. File nel diff: %s"), len(self.patch))
 
     @_qt_slot()
     def _update_preview_from_selection(self) -> None:
@@ -1482,7 +1525,7 @@ class MainWindow(_QMainWindowBase):
         combined = "\n\n".join(part.rstrip() for part in preview_parts)
         self.preview_view.setPlainText(combined)
         summary = ", ".join(labels)
-        logger.info("Anteprima aggiornata: %s", summary)
+        logger.info(_("Anteprima aggiornata: %s"), summary)
         self.statusBar().showMessage(
             _("Anteprima aggiornata: {summary}").format(summary=summary), 5000
         )
@@ -1543,22 +1586,24 @@ class MainWindow(_QMainWindowBase):
         if self._current_worker is not None and self._current_worker.isRunning():
             QtWidgets.QMessageBox.information(
                 self,
-                "Operazione in corso",
-                "È già in corso un'applicazione di patch. Attendi il completamento.",
+                _("Operazione in corso"),
+                _(
+                    "È già in corso un'applicazione di patch. Attendi il completamento."
+                ),
             )
             return
         if not self.patch:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Analizza prima",
-                "Esegui 'Analizza diff' prima di applicare.",
+                _("Analizza prima"),
+                _("Esegui 'Analizza diff' prima di applicare."),
             )
             return
         if not self.project_root:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Root mancante",
-                "Seleziona la root del progetto.",
+                _("Root mancante"),
+                _("Seleziona la root del progetto."),
             )
             return
         dry = self.chk_dry.isChecked()
@@ -1594,7 +1639,7 @@ class MainWindow(_QMainWindowBase):
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
         self.progress_bar.setToolTip("")
-        self.statusBar().showMessage("Applicazione diff in corso…")
+        self.statusBar().showMessage(_("Applicazione diff in corso…"))
         worker.start()
 
     @_qt_slot(str, int)
@@ -1621,7 +1666,7 @@ class MainWindow(_QMainWindowBase):
             report_txt=None,
             enable_reports=self.app_config.write_reports,
         )
-        logger.info("\n=== RISULTATO ===\n%s", session.to_txt())
+        logger.info(_("\n=== RISULTATO ===\n%s"), session.to_txt())
         self._set_busy(False)
         self.progress_bar.setValue(100)
         self.progress_bar.setVisible(False)
@@ -1636,20 +1681,20 @@ class MainWindow(_QMainWindowBase):
             )
         QtWidgets.QMessageBox.information(
             self,
-            "Completato",
+            _("Completato"),
             completion_message,
         )
         self.statusBar().showMessage(_("Operazione completata"))
 
     @_qt_slot(str)
     def _on_worker_error(self, message: str) -> None:  # pragma: no cover - UI feedback
-        logger.error("Errore durante l'applicazione della patch: %s", message)
+        logger.error(_("Errore durante l'applicazione della patch: %s"), message)
         self._set_busy(False)
         self._current_worker = None
         self.progress_bar.setVisible(False)
         self.progress_bar.setToolTip("")
-        QtWidgets.QMessageBox.critical(self, "Errore", message)
-        self.statusBar().showMessage("Errore durante l'applicazione della patch")
+        QtWidgets.QMessageBox.critical(self, _("Errore"), message)
+        self.statusBar().showMessage(_("Errore durante l'applicazione della patch"))
 
     @_qt_slot(str, object)
     def _on_worker_request_file_choice(
@@ -1660,7 +1705,7 @@ class MainWindow(_QMainWindowBase):
             return
         dlg = FileChoiceDialog(
             self,
-            f"Seleziona file per {rel_path}",
+            _("Seleziona file per {path}").format(path=rel_path),
             candidates,
             base=self.project_root,
         )
@@ -1698,20 +1743,20 @@ class MainWindow(_QMainWindowBase):
         )
         if not candidates:
             fr.skipped_reason = (
-                "File non trovato nella root – salto per preferenza utente"
+                _("File non trovato nella root – salto per preferenza utente")
             )
-            logger.warning("SKIP: %s non trovato.", rel_path)
+            logger.warning(_("SKIP: %s non trovato."), rel_path)
             return fr
         if len(candidates) > 1:
             dlg = FileChoiceDialog(
                 self,
-                f"Seleziona file per {rel_path}",
+                _("Seleziona file per {path}").format(path=rel_path),
                 candidates,
                 base=self.project_root,
             )
             if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted or not dlg.chosen:
                 fr.skipped_reason = (
-                    "Ambiguità sul file, operazione annullata dall'utente"
+                    _("Ambiguità sul file, operazione annullata dall'utente")
                 )
                 return fr
             path = dlg.chosen
@@ -1725,14 +1770,16 @@ class MainWindow(_QMainWindowBase):
         try:
             raw = path.read_bytes()
         except Exception as e:
-            fr.skipped_reason = f"Impossibile leggere file: {e}"
+            fr.skipped_reason = _("Impossibile leggere file: {error}").format(error=e)
             return fr
 
         content_str, file_encoding, used_fallback = decode_bytes(raw)
         if used_fallback:
             logger.warning(
-                "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-                "alcuni caratteri potrebbero essere sostituiti.",
+                _(
+                    "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
+                    "alcuni caratteri potrebbero essere sostituiti."
+                ),
                 path,
                 file_encoding,
             )
@@ -1776,32 +1823,43 @@ class MainWindow(_QMainWindowBase):
             return dlg.selected_pos
         decision.strategy = "failed"
         if reason == "context":
-            decision.message = "Scelta annullata (solo contesto)"
+            decision.message = _("Scelta annullata (solo contesto)")
         else:
-            decision.message = "Scelta annullata dall'utente"
+            decision.message = _("Scelta annullata dall'utente")
         return None
 
     def restore_from_backup(self) -> None:
         if not self.project_root:
             QtWidgets.QMessageBox.warning(
-                self, "Root mancante", "Seleziona la root del progetto."
+                self,
+                _("Root mancante"),
+                _("Seleziona la root del progetto."),
             )
             return
         base = self.project_root / BACKUP_DIR
         if not base.exists():
             QtWidgets.QMessageBox.information(
-                self, "Nessun backup", "Cartella backup non trovata."
+                self,
+                _("Nessun backup"),
+                _("Cartella backup non trovata."),
             )
             return
         stamps = sorted([p for p in base.iterdir() if p.is_dir()], reverse=True)
         if not stamps:
             QtWidgets.QMessageBox.information(
-                self, "Nessun backup", "Nessuna sessione di backup trovata."
+                self,
+                _("Nessun backup"),
+                _("Nessuna sessione di backup trovata."),
             )
             return
         items = [str(p.name) for p in stamps]
         item, ok = QtWidgets.QInputDialog.getItem(
-            self, "Seleziona backup", "Sessione:", items, 0, False
+            self,
+            _("Seleziona backup"),
+            _("Sessione:"),
+            items,
+            0,
+            False,
         )
         if not ok or not item:
             return
@@ -1809,8 +1867,10 @@ class MainWindow(_QMainWindowBase):
         if (
             QtWidgets.QMessageBox.question(
                 self,
-                "Conferma ripristino",
-                f"Ripristinare i file dalla sessione {item}?\n\nI file correnti saranno sovrascritti.",
+                _("Conferma ripristino"),
+                _(
+                    "Ripristinare i file dalla sessione {name}?\n\nI file correnti saranno sovrascritti."
+                ).format(name=item),
             )
             != QtWidgets.QMessageBox.StandardButton.Yes
         ):
@@ -1821,7 +1881,9 @@ class MainWindow(_QMainWindowBase):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
         QtWidgets.QMessageBox.information(
-            self, "Ripristino completato", f"Backup {item} ripristinato."
+            self,
+            _("Ripristino completato"),
+            _("Backup {name} ripristinato.").format(name=item),
         )
 
 
