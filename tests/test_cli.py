@@ -1368,6 +1368,9 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
         exclude_dirs=("one", "two"),
         backup_base=tmp_path / "backups",
         log_level="debug",
+        log_file=tmp_path / "custom.log",
+        log_max_bytes=2048,
+        log_backup_count=5,
     )
     save_config(config, path=config_path)
 
@@ -1380,6 +1383,9 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
     assert payload["exclude_dirs"] == list(config.exclude_dirs)
     assert payload["backup_base"] == str(config.backup_base)
     assert payload["log_level"] == config.log_level
+    assert payload["log_file"] == str(config.log_file)
+    assert payload["log_max_bytes"] == config.log_max_bytes
+    assert payload["log_backup_count"] == config.log_backup_count
 
 
 def test_config_set_updates_values(tmp_path: Path) -> None:
@@ -1435,6 +1441,32 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
     )
     assert load_config(config_path).write_reports is False
 
+    cli.config_set(
+        "log_file",
+        [str(tmp_path / "logs" / "session.log")],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).log_file == (
+        tmp_path / "logs" / "session.log"
+    ).expanduser()
+
+    cli.config_set(
+        "log_max_bytes",
+        ["4096"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).log_max_bytes == 4096
+
+    cli.config_set(
+        "log_backup_count",
+        ["2"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).log_backup_count == 2
+
 
 def test_config_reset_values(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
@@ -1458,6 +1490,9 @@ def test_config_reset_values(tmp_path: Path) -> None:
     assert reset.backup_base == defaults.backup_base
     assert reset.dry_run_default == defaults.dry_run_default
     assert reset.write_reports == defaults.write_reports
+    assert reset.log_file == defaults.log_file
+    assert reset.log_max_bytes == defaults.log_max_bytes
+    assert reset.log_backup_count == defaults.log_backup_count
 
 
 def test_run_config_reports_invalid_log_level(
