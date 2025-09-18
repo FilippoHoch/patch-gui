@@ -24,12 +24,8 @@ _SELECTION_BG = _ACCENT_COLOR
 _SELECTION_FG = QtGui.QColor("#ffffff")
 
 _ICON_DIR = Path(__file__).with_name("icons")
-_SPIN_UP_ICON = QtCore.QUrl.fromLocalFile(
-    str((_ICON_DIR / "spin_up.svg").resolve())
-).toString()
-_SPIN_DOWN_ICON = QtCore.QUrl.fromLocalFile(
-    str((_ICON_DIR / "spin_down.svg").resolve())
-).toString()
+_SPIN_UP_ICON = (_ICON_DIR / "spin_up.svg").resolve().as_posix()
+_SPIN_DOWN_ICON = (_ICON_DIR / "spin_down.svg").resolve().as_posix()
 
 
 def _build_palette() -> QtGui.QPalette:
@@ -96,7 +92,7 @@ _RESOURCE_DIR = Path(__file__).resolve().parent / "resources"
 
 def _resource_url(name: str) -> str:
     path = (_RESOURCE_DIR / name).resolve()
-    return str(QtCore.QUrl.fromLocalFile(str(path)).toString())
+    return path.as_posix()
 
 
 def _build_stylesheet() -> str:
@@ -238,20 +234,20 @@ def _build_stylesheet() -> str:
         )
         + "\n"
         "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {"
-        "    image: url(%s);"
+        "    image: url(\"%s\");"
         "    width: 12px;"
         "    height: 12px;"
         "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {"
-        "    image: url(%s);"
+        "    image: url(\"%s\");"
         "    width: 12px;"
         "    height: 12px;"
         "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {"
-        "    image: url(%s);"
+        "    image: url(\"%s\");"
         "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {"
-        "    image: url(%s);"
+        "    image: url(\"%s\");"
         "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QTreeWidget, QTreeView, QListWidget, QListView {"
         "    background-color: %s;"
