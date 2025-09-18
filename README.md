@@ -136,6 +136,8 @@ git diff | patch-gui apply --root . --backup ~/diff_backups -
 patch-gui apply --root . --dry-run --log-level debug diff.patch
 # per disabilitare le richieste interattive in caso di ambiguità
 patch-gui apply --root . --non-interactive diff.patch
+# per accettare automaticamente il candidato migliore senza prompt
+patch-gui apply --root . --auto-accept diff.patch
 ```
 
 - `--dry-run` simula l'applicazione lasciando i file invariati; i report vengono generati a meno di `--no-report`.
@@ -146,6 +148,7 @@ patch-gui apply --root . --non-interactive diff.patch
 - `--exclude-dir NAME` permette di aggiungere directory personalizzate all'elenco di esclusione (puoi passare l'opzione più volte o separare i valori con virgole).
 - `--no-default-exclude` disabilita la lista predefinita di esclusioni (es. `.git`, `.venv`, `node_modules`, `.diff_backups`) così da poter patchare anche file normalmente ignorati.
 - `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
+- `--auto-accept` sceglie autonomamente il candidato migliore per file e hunk ambigui, includendo i casi fuzzy: nessun input richiesto, ma la patch viene comunque applicata.
 - `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
 - L'uscita termina con codice `0` solo se tutti gli hunk vengono applicati.
 
@@ -235,7 +238,7 @@ PATCH_GUI_LANG=it patch-gui apply --root . diff.patch
 
 - **Soglia fuzzy**: regola la tolleranza nel confronto del contesto (`difflib.SequenceMatcher`).
 - **EOL**: preserva lo stile originale (LF/CRLF) al salvataggio.
-- **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca per nome in modo ricorsivo; in caso di multipli chiede quale usare. Con `--non-interactive` i file ambigui vengono saltati.
+- **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca per nome in modo ricorsivo; in caso di multipli chiede quale usare. Con `--non-interactive` i file ambigui vengono saltati, mentre `--auto-accept` seleziona automaticamente il match con punteggio più alto.
 - **Formati supportati**: qualsiasi file di testo (JS, TS, HTML, CSS, MD, Rust, …).
 - **Logging**:
   - `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` o valori numerici come `20`). Default `INFO`.

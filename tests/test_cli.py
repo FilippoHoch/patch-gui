@@ -1655,3 +1655,64 @@ def test_cli_manual_resolver_handles_context_candidates(
         assert decision.strategy == "manual"
         assert decision.selected_pos == expected_pos
         assert decision.similarity is not None
+
+def test_cli_auto_accept_resolves_fuzzy_candidates(tmp_path: Path) -> None:
+    project = tmp_path / "auto_fuzzy"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "old apple1\nold banana1\nmiddle line\nold apple2\nold banana2\n",
+        encoding="utf-8",
+    )
+
+    session = executor.apply_patchset(
+        PatchSet(FUZZY_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.8,
+        write_report_files=False,
+        interactive=False,
+        auto_accept=True,
+    )
+
+    result = session.results[0]
+    assert result.hunks_applied == 1
+    assert executor.session_completed(session) is True
+    decision = result.decisions[0]
+    assert decision.selected_pos is not None
+    assert decision.similarity is not None
+    assert decision.message
+    assert "auto-accept" in decision.message
+
+
+def test_cli_auto_accept_resolves_context_candidates(tmp_path: Path) -> None:
+    project = tmp_path / "auto_context"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "line keep\n"
+        "line existing one\n"
+        "line end\n"
+        "----\n"
+        "line keep\n"
+        "line existing two\n"
+        "line end\n",
+        encoding="utf-8",
+    )
+
+    session = executor.apply_patchset(
+        PatchSet(CONTEXT_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.7,
+        write_report_files=False,
+        interactive=False,
+        auto_accept=True,
+    )
+
+    result = session.results[0]
+    assert result.hunks_applied == 1
+    assert executor.session_completed(session) is True
+    decision = result.decisions[0]
+    assert decision.selected_pos is not None
+    assert decision.similarity is not None
+    assert decision.message
+    assert "auto-accept" in decision.message

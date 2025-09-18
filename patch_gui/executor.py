@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import shutil
@@ -141,6 +142,7 @@ def apply_patchset(
     threshold: float,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
+    auto_accept: bool = False,
     report_json: Path | str | None = None,
     report_txt: Path | str | None = None,
     write_report_files: bool = True,
@@ -199,9 +201,18 @@ def apply_patchset(
         started_at=started_at,
     )
 
+    effective_interactive = interactive or auto_accept
+
     for pf in patch:
         rel = _relative_path_from_patch(pf)
-        fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
+        fr = _apply_file_patch(
+            root,
+            pf,
+            rel,
+            session,
+            interactive=effective_interactive,
+            auto_accept=auto_accept,
+        )
         session.results.append(fr)
 
     try:
@@ -282,6 +293,7 @@ def _apply_file_patch(
     session: ApplySession,
     *,
     interactive: bool,
+    auto_accept: bool,
 ) -> FileResult:
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
@@ -364,7 +376,9 @@ def _apply_file_patch(
                         )
                         return fr
                     selected_source = _prompt_candidate_selection(
-                        project_root, source_candidates
+                        project_root,
+                        source_candidates,
+                        auto_accept_first=auto_accept,
                     )
                     if selected_source is None:
                         fr.skipped_reason = _ambiguous_paths_message(
@@ -411,7 +425,9 @@ def _apply_file_patch(
         if not interactive:
             fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
             return fr
-        selected = _prompt_candidate_selection(project_root, candidates)
+        selected = _prompt_candidate_selection(
+            project_root, candidates, auto_accept_first=auto_accept
+        )
         if selected is None:
             fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
             return fr
@@ -551,11 +567,15 @@ def _apply_file_patch(
             )
             return fr
 
+    manual_resolver = functools.partial(
+        _cli_manual_resolver, auto_accept=auto_accept
+    )
+
     lines, decisions, applied = apply_hunks(
         lines,
         pf,
         threshold=session.threshold,
-        manual_resolver=_cli_manual_resolver,
+        manual_resolver=manual_resolver,
     )
 
     fr.hunks_applied = applied
@@ -636,11 +656,22 @@ def _apply_file_patch(
 
 
 def _prompt_candidate_selection(
-    project_root: Path, candidates: Sequence[Path]
+    project_root: Path,
+    candidates: Sequence[Path],
+    *,
+    auto_accept_first: bool = False,
 ) -> Optional[Path]:
     display_paths: List[str] = []
     for path in candidates:
         display_paths.append(display_relative_path(path, project_root))
+
+    if auto_accept_first and candidates:
+        selected = candidates[0]
+        message = _(
+            "Automatically selected {path} (--auto-accept)."
+        ).format(path=display_relative_path(selected, project_root))
+        print(message)
+        return selected
 
     print(_("Multiple files match the patch path:"))
     for idx, value in enumerate(display_paths, start=1):
@@ -694,9 +725,29 @@ def _cli_manual_resolver(
     candidates: List[Tuple[int, float]],
     decision: HunkDecision,
     reason: str,
+    *,
+    auto_accept: bool = False,
 ) -> Optional[int]:
     decision.candidates = list(candidates)
     decision.strategy = "manual"
+
+    if auto_accept and candidates:
+        pos, score = candidates[0]
+        try:
+            candidate_index = candidates.index((pos, score)) + 1
+        except ValueError:  # pragma: no cover - defensive fallback
+            candidate_index = 1
+        decision.selected_pos = pos
+        decision.similarity = score
+        decision.message = _(
+            "Automatically selected candidate {index} (--auto-accept)."
+        ).format(index=candidate_index)
+        print(
+            _(
+                "Auto-applied hunk {header} at position {position} (--auto-accept, candidate {index})."
+            ).format(header=hv.header, position=pos, index=candidate_index)
+        )
+        return pos
 
     header_message = _("Reviewing hunk: {header}").format(header=hv.header)
     if reason == "fuzzy":

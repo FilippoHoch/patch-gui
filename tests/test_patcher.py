@@ -426,6 +426,7 @@ def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
         rel_path,
         session,
         interactive=False,
+        auto_accept=False,
     )
 
     assert fr.skipped_reason is None
