@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import IO, Callable, Sequence, cast
 
 from .config import AppConfig, load_config, save_config
+from .downloader import (
+    DEFAULT_ASSET_NAME,
+    DEFAULT_REPO,
+    DownloadError,
+    download_latest_release_exe,
+)
 from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
 from .parser import (
@@ -26,9 +32,11 @@ __all__ = [
     "apply_patchset",
     "build_parser",
     "build_config_parser",
+    "build_download_parser",
     "load_patch",
     "run_cli",
     "run_config",
+    "run_download_exe",
     "config_show",
     "config_set",
     "config_reset",
@@ -194,6 +202,32 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     return 0 if session_completed(session) else 1
 
 
+def run_download_exe(argv: Sequence[str] | None = None) -> int:
+    """Download the Windows executable distributed with the project releases."""
+
+    parser = build_download_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    try:
+        destination = download_latest_release_exe(
+            repo=args.repo,
+            asset_name=args.asset_name,
+            destination=args.output,
+            overwrite=args.force,
+            token=args.token,
+            tag=args.tag,
+        )
+    except DownloadError as exc:
+        parser.exit(1, _("Error: {message}\n").format(message=exc))
+
+    print(
+        _("Downloaded {asset} to {path}.").format(
+            asset=args.asset_name, path=destination
+        )
+    )
+    return 0
+
+
 def run_config(argv: Sequence[str] | None = None) -> int:
     """Entry-point for ``patch-gui config`` sub-commands."""
 
@@ -264,6 +298,55 @@ def build_config_parser() -> argparse.ArgumentParser:
     )
     reset_parser.set_defaults(func=_run_config_reset)
 
+    return parser
+
+
+def build_download_parser() -> argparse.ArgumentParser:
+    """Return an ``ArgumentParser`` configured for the ``download-exe`` command."""
+
+    parser = argparse.ArgumentParser(
+        prog="patch-gui download-exe",
+        description=_(
+            "Download the Windows executable published with the project's releases."
+        ),
+    )
+    parser.add_argument(
+        "--repo",
+        default=DEFAULT_REPO,
+        help=_(
+            "GitHub repository in the form 'owner/name' from which the asset will be downloaded."
+        ),
+    )
+    parser.add_argument(
+        "--asset-name",
+        default=DEFAULT_ASSET_NAME,
+        help=_("Name of the executable asset to download."),
+    )
+    parser.add_argument(
+        "--tag",
+        default=None,
+        help=_(
+            "Specific release tag to retrieve instead of the latest published release."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=_(
+            "Destination file or directory where the executable will be stored (default: current directory)."
+        ),
+    )
+    parser.add_argument(
+        "--token",
+        default=None,
+        help=_("GitHub token used for authenticated requests (optional)."),
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=_("Overwrite the destination file if it already exists."),
+    )
     return parser
 
 

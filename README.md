@@ -149,6 +149,16 @@ patch-gui apply --root . --non-interactive diff.patch
 - `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
 - L'uscita termina con codice `0` solo se tutti gli hunk vengono applicati.
 
+### 📦 Scaricare l'eseguibile Windows
+
+Per ottenere rapidamente il file `patch-gui.exe` distribuito nelle release ufficiali usa il nuovo comando dedicato:
+
+```bash
+patch-gui download-exe
+```
+
+Per impostazione predefinita l'eseguibile viene salvato nella cartella corrente; con `--output` puoi specificare un percorso personalizzato (anche una directory). Le opzioni `--repo`, `--asset-name` e `--tag` consentono di puntare a repository o release diversi, mentre `--force` permette di sovrascrivere un file già esistente.
+
 ---
 
 ## ✅ Test
