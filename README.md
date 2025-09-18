@@ -1,8 +1,4 @@
-<h1 align="center">Patch GUI – Diff Applier</h1>
-
-<p align="center">
-  <strong>Patch GUI è l'interfaccia elegante per applicare patch <em>unified diff</em> con la stessa cura con cui revisi il codice.</strong>
-</p>
+# Patch GUI – Diff Applier
 
 <p align="center">
   <a href="https://www.python.org/">
@@ -19,347 +15,166 @@
   </a>
 </p>
 
-<p align="center">
-  <em>GUI luminosa, CLI precisa e report istantanei per tenere ogni diff sotto controllo.</em>
-</p>
+Patch GUI applica patch *unified diff* offrendo un'interfaccia Qt curata e una CLI con
+le stesse euristiche. Pensato per chi preferisce una revisione visiva ma vuole
+mantenere l'automazione nei flussi di lavoro Git.
 
----
+## Indice
 
-## 🌈 Esperienza d'uso in breve
+1. [Panoramica](#panoramica)
+2. [Requisiti](#requisiti)
+3. [Installazione](#installazione)
+4. [Avvio rapido](#avvio-rapido)
+5. [Modalità CLI](#modalità-cli)
+6. [GUI in breve](#gui-in-breve)
+7. [Backup e report](#backup-e-report)
+8. [Configurazione persistente](#configurazione-persistente)
+9. [Sviluppo e test](#sviluppo-e-test)
+10. [Risoluzione problemi](#risoluzione-problemi)
+11. [Licenza](#licenza)
 
-Patch GUI riprende la pulizia dell'interfaccia per accompagnarti dal caricamento all'applicazione del diff senza stacchi:
+## Panoramica
 
-- **Dashboard reattiva** con tre colonne: file, hunk selezionato e anteprima colorata come nell'editor.
-- **Toolbar contestuale** per scegliere soglia fuzzy, dry‑run, percorso di backup e lingua senza aprire menu nascosti.
-- **Dialoghi chiari** quando il patching richiede la tua scelta (ambiguità, conflitti, file mancanti).
-- **Report finali** coerenti con i badge della GUI: json, testo e backup ordinati per timestamp millisecondo.
-- **CLI integrata** che replica le impostazioni chiave così da allineare automazione e uso interattivo.
+- **Anteprima diff a tre colonne**: elenco file, hunk con stato e visualizzazione
+  colorata con numeri di riga reali.
+- **Dry-run di default** con opzione per applicare realmente le modifiche,
+  generando sempre report dettagliati.
+- **Ricerca file flessibile** con soglia fuzzy configurabile e gestione delle
+  ambiguità direttamente da GUI o CLI.
+- **Backup automatici e report** (`json`/`txt`) ordinati per timestamp e pronti
+  per la condivisione o l'audit.
+- **Internazionalizzazione**: interfaccia e CLI sono disponibili in italiano e
+  inglese, con traduzioni Qt aggiornabili.
 
-> 💡 Una guida con screenshot e flussi completi è disponibile in [USAGE.md](USAGE.md).
+Maggiori esempi, scorciatoie e screenshot sono raccolti in [USAGE.md](USAGE.md).
 
----
+## Requisiti
 
-## 📚 Indice
+- Python **3.10 o superiore**.
+- [PySide6](https://doc.qt.io/qtforpython/) (installato automaticamente con
+  l'extra `gui`).
+- [unidiff](https://github.com/matiasb/python-unidiff) per l'applicazione delle
+  patch.
+- Su Windows è consigliato **WSL Ubuntu** con **WSLg** attivo per usare la GUI.
 
-1. [Distribuzioni e release](#-distribuzioni-e-release)
-2. [Requisiti e dipendenze](#-requisiti-e-dipendenze)
-3. [Installazione passo-passo](#-installazione-passo-passo)
-4. [Primo avvio](#-primo-avvio)
-5. [Modalità CLI](#-modalità-cli)
-6. [Feature tour della GUI](#-feature-tour-della-gui)
-7. [Test e pre-commit](#-test-e-pre-commit)
-8. [Internazionalizzazione](#-internazionalizzazione)
-9. [Opzioni tecniche](#-opzioni-tecniche)
-10. [Risoluzione problemi](#-risoluzione-problemi)
-11. [Backup & report](#-backup--report)
-12. [Note sulla manutenzione](#-note-sulla-manutenzione)
-
----
-
-## 🚀 Distribuzioni e release
-
-Patch GUI viene distribuito sia come pacchetto Python sia come eseguibile
-precompilato per Windows. Tutti gli artifact condividono la stessa cura grafica
-e il medesimo changelog.
-
-| Canale | Formato | Cosa include | Ideale per |
-| --- | --- | --- | --- |
-| **PyPI** | `patch_gui-<version>.whl` / `patch_gui-<version>.tar.gz` | CLI, GUI (extra `gui`), traduzioni e risorse | Dev con Python 3.10+ |
-| **GitHub Releases** | `patch-gui.exe` | Applicazione GUI standalone firmata | Utenti Windows senza ambiente Python |
-| **Codice sorgente** | archivio Git (`git clone` / `git archive`) | Tutte le risorse, script e test | Contributori e audit |
-
-> Il comando `patch-gui download-exe` recupera automaticamente l'ultima
-> `patch-gui.exe` pubblicata nella sezione release.
-
-### Workflow rapido di packaging
-
-1. Assicurati di avere l'ambiente pulito (`python -m pip install --upgrade build twine`).
-2. Compila le traduzioni Qt: `python -m build_translations`.
-3. Genera i pacchetti: `python -m build`.
-4. Verifica gli artifact con `python -m twine check dist/*` e installa il wheel
-   in un virtualenv di prova.
-
-### Documentazione completa
-
-La checklist dettagliata per pubblicare una release, con suggerimenti per PyPI e
-per GitHub, è raccolta in [RELEASE.md](RELEASE.md).
-
----
-
-## 🧰 Requisiti e dipendenze
-
-- **Python 3.10+**.
-- **PySide6 6.7.3** (inclusa con l'extra `gui`) e **unidiff 0.7.5**.
-- **WSL Ubuntu** consigliato su Windows. L'app funziona anche su Linux nativo e macOS.
-- **WSLg** attivo su Windows 11/10 21H2+ per visualizzare la GUI.
-
-Pacchetti utili per Ubuntu/WSL:
+Dipendenze utili in ambienti Ubuntu/WSL:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip git libgl1 libegl1 libxkbcommon-x11-0 libxcb-xinerama0
+sudo apt install -y python3 python3-venv python3-pip git libgl1 libegl1 \
+  libxkbcommon-x11-0 libxcb-xinerama0
 ```
 
-> ℹ️ I pacchetti Qt (`libgl1`, `libegl1`, `libxkbcommon-x11-0`, `libxcb-xinerama0`) eliminano l'errore del plugin `xcb` nelle installazioni WSL.
+## Installazione
 
----
+### 1. Prepara l'ambiente virtuale
 
-## 🧪 Installazione passo-passo
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
 
-1. **Crea il virtualenv** nella root del progetto:
+### 2. Installa Patch GUI
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   python -m pip install --upgrade pip
-   ```
+```bash
+pip install .        # solo CLI
+pip install .[gui]   # CLI + interfaccia grafica PySide6
+```
 
-2. **Installa Patch GUI** nella modalità che preferisci:
+Per usare l'app come dipendenza di un progetto esterno:
 
-   ```bash
-   pip install .        # solo CLI, ideale per server/headless
-   pip install .[gui]   # CLI + interfaccia grafica PySide6
-   ```
+```bash
+pip install patch-gui
+pip install "patch-gui[gui]"  # con interfaccia grafica
+```
 
-3. **(Opzionale) Setup per VS Code** dentro WSL:
-   - `code .` dalla root del progetto.
-   - `Ctrl+Shift+P` → **Python: Select Interpreter** → `.venv/bin/python`.
-   - Suggerito `.vscode/settings.json`:
+### 3. Opzionale: configurazione VS Code (WSL)
 
-     ```json
-     {
-       "python.defaultInterpreterPath": ".venv/bin/python",
-       "python.analysis.typeCheckingMode": "basic",
-       "cSpell.language": "en,it",
-       "cSpell.words": [
-         "hunk",
-         "fuzzy",
-         "dry-run",
-         "ripristino",
-         "anteprima",
-         "PySide6",
-         "unidiff",
-         "WSLg"
-       ]
-     }
-     ```
+- Avvia `code .` dalla root del repository.
+- `Ctrl+Shift+P` → **Python: Select Interpreter** → `.venv/bin/python`.
+- Suggerimento `.vscode/settings.json`:
 
-> Se il pulsante **Run** usa ancora `/usr/bin/env python3`, esegui gli script dal terminale con l'ambiente attivo o aggiorna l'interprete nelle impostazioni dell'estensione Python.
+  ```json
+  {
+    "python.defaultInterpreterPath": ".venv/bin/python",
+    "python.analysis.typeCheckingMode": "basic",
+    "cSpell.language": "en,it"
+  }
+  ```
 
----
+## Avvio rapido
 
-## ⚡ Primo avvio
+GUI:
 
 ```bash
 source .venv/bin/activate
-patch-gui        # richiede l'extra "gui"
-# oppure, in modalità modulo
+patch-gui          # richiede l'extra "gui"
+# oppure
 python -m patch_gui
 ```
 
-Senza l'extra grafico puoi comunque applicare patch:
-
-```bash
-patch-gui apply --root /percorso/al/progetto diff.patch
-```
-
----
-
-## 🧾 Modalità CLI
-
-La CLI riproduce le stesse impostazioni principali della GUI. Tutti i comandi accettano anche input da `stdin`.
+CLI:
 
 ```bash
 patch-gui apply --root . diff.patch
 patch-gui apply --root . --dry-run --threshold 0.90 diff.patch
+# Leggi da STDIN e salva i backup altrove
 git diff | patch-gui apply --root . --backup ~/diff_backups -
-patch-gui apply --root . --dry-run --log-level debug diff.patch
-patch-gui apply --root . --non-interactive diff.patch
-# per accettare automaticamente il candidato migliore senza prompt
-patch-gui apply --root . --auto-accept diff.patch
 ```
 
-- `--dry-run` simula l'applicazione mantenendo i file intatti e produce comunque i report (se non disabilitati).
-- `--threshold` imposta la soglia fuzzy (default `0.85`).
-- `--backup` personalizza la cartella in cui vengono salvati gli originali prima della patch.
-- `--report-json` / `--report-txt` definiscono percorsi precisi per i report; per default vengono creati sotto `~/.diff_backups/reports/results/<timestamp-ms>/`.
-- `--no-report` disattiva entrambi i file di report.
-- `--exclude-dir NAME` permette di aggiungere directory personalizzate all'elenco di esclusione (puoi passare l'opzione più volte o separare i valori con virgole).
-- `--no-default-exclude` disabilita la lista predefinita di esclusioni (es. `.git`, `.venv`, `node_modules`, `.diff_backups`) così da poter patchare anche file normalmente ignorati.
-- `--non-interactive` mantiene il comportamento storico: se il percorso è ambiguo il file viene saltato senza prompt.
-- `--auto-accept` sceglie autonomamente il candidato migliore per file e hunk ambigui, includendo i casi fuzzy: nessun input richiesto, ma la patch viene comunque applicata.
-- `--log-level` imposta la verbosità del logger (`debug`, `info`, `warning`, `error`, `critical`; default `warning`). La variabile `PATCH_GUI_LOG_LEVEL` fornisce lo stesso controllo.
-- L'uscita termina con codice `0` solo se tutti gli hunk vengono applicati.
-- `--exclude-dir` aggiunge cartelle personalizzate agli esclusi. Usa l'opzione più volte o separa con virgole.
-- `--no-default-exclude` toglie `.git`, `.venv`, `node_modules`, `.diff_backups` dagli esclusi standard.
-- `--non-interactive` replica il comportamento tradizionale: i file ambigui vengono saltati senza prompt.
-- `--log-level` controlla la verbosità (`debug`, `info`, `warning`, `error`, `critical`). La variabile `PATCH_GUI_LOG_LEVEL` offre lo stesso controllo.
-Il comando termina con `0` solo se tutti gli hunk vengono applicati.
+## Modalità CLI
 
-### 📦 Scaricare l'eseguibile Windows
+`patch-gui apply` condivide le stesse euristiche della GUI. Le opzioni più
+utili:
 
-Per ottenere rapidamente il file `patch-gui.exe` distribuito nelle release ufficiali usa il nuovo comando dedicato:
+- `--dry-run`: simula l'esecuzione senza modificare i file.
+- `--threshold`: regola la tolleranza fuzzy (default `0.85`).
+- `--backup`: directory personalizzata per backup e report.
+- `--report-json` / `--report-txt`: percorsi espliciti per i report.
+- `--no-report`: disattiva la generazione dei file di report.
+- `--summary-format`: controlla il riepilogo su stdout (`text`, `json`, `none`).
+- `--exclude-dir`: aggiunge cartelle all'elenco di esclusioni.
+- `--no-default-exclude`: rimuove le esclusioni predefinite (es. `.git`,
+  `.venv`).
+- `--non-interactive`: evita prompt e salta i conflitti.
+- `--auto-accept`: accetta automaticamente il candidato migliore senza
+  richiedere input.
+- `--log-level`: livello di logging (`debug`, `info`, `warning`, `error`,
+  `critical`).
 
-```bash
-patch-gui download-exe
-```
+Comandi aggiuntivi:
 
-Per impostazione predefinita l'eseguibile viene salvato nella cartella corrente; con `--output` puoi specificare un percorso personalizzato (anche una directory). Le opzioni `--repo`, `--asset-name` e `--tag` consentono di puntare a repository o release diversi, mentre `--force` permette di sovrascrivere un file già esistente.
+- `patch-gui download-exe`: scarica l'eseguibile Windows dalla pagina delle
+  release. Usa `--output` per impostare il percorso di destinazione e `--tag`
+  per selezionare una release specifica.
+- `patch-gui config`: visualizza o modifica la configurazione persistente.
+  Esempi:
 
----
-
-## 🖥️ Feature tour della GUI
-
-1. **Layout a tre colonne**: elenco file a sinistra, hunk centrali con indicatori di stato, anteprima diff con colori neutri e badge coerenti con i pulsanti principali.
-2. **Selettore root progetto** sempre visibile per cambiare rapidamente il contesto dei percorsi.
-3. **Caricamento diff**:
-   - Apri file `.diff` o `.patch`.
-   - Incolla direttamente dagli appunti.
-   - Incolla testo nel pannello e premi **Analizza testo diff** (supporta `git diff`, `git format-patch`, blocchi `*** Begin Patch`).
-4. **Dry‑run come default**: la barra superiore evidenzia quando la patch è solo simulata.
-5. **Applicazione reale**: disattiva Dry‑run e premi **Applica patch** per scrivere i file.
-6. **Gestione ambiguità**: dialoghi modali mostrano tutte le opzioni con il contesto a colori; puoi decidere hunk per hunk.
-7. **Feedback immediato**: barra di avanzamento in status bar, notifiche toast e riepilogo finale coerente con lo stile dell'interfaccia.
-8. **Backup & report**: ogni run reale genera `~/.diff_backups/<timestamp-ms>/` con file originali e crea `apply-report.json` + `apply-report.txt`. In dry‑run vengono comunque generati report senza backup per documentare la simulazione.
-9. **Ripristino**: dal menu **File → Ripristina da backup…** scegli il timestamp da cui recuperare i file.
-
-Per i flussi completi, scorciatoie e screenshot dettagliati fai riferimento a [USAGE.md](USAGE.md).
-
----
-
-## 🧪 Test e pre-commit
-
-Esegui la suite automatizzata con:
-
-```bash
-pytest
-```
-
-> La CI ufficiale verifica la suite con Python 3.10+, in linea con il requisito minimo.
-
-Per applicare gli stessi controlli della pipeline locale:
-
-```bash
-pip install pre-commit
-pre-commit install
-pre-commit run --all-files
-```
-
-### 🔎 Verifica manuale della barra di avanzamento
-
-1. Avvia `patch-gui` e analizza un diff con più file/hunk.
-2. Premi **Applica patch** (anche in dry‑run) per osservare la barra di stato con la **QProgressBar**.
-3. Attendi la fine per verificare che la barra arrivi al 100 % e scompaia.
-
----
-
-## 🌍 Internazionalizzazione
-
-- I file Qt `.ts` risiedono in `patch_gui/translations/`.
-- L'interfaccia testuale usa `gettext` (`patch_gui/localization.py`) con inglese di default.
-- Durante `pip install .` o `python -m build` viene invocato `python -m build_translations`, che utilizza `lrelease`/`pyside6-lrelease` per produrre i `.qm`.
-- Se gli strumenti Qt mancano, la GUI ricompila i `.qm` al volo nella cache Qt.
-- Lingue incluse: **italiano** e **inglese**. Se il sistema non propone una lingua supportata, l'app resta in inglese.
-
-### ➕ Aggiungere una nuova lingua
-
-1. Copia `patch_gui/translations/patch_gui_en.ts` in `patch_gui/translations/patch_gui_<codice>.ts`.
-2. Aggiorna i blocchi `<translation>` rispettando i placeholder (es. `{app_name}`).
-3. Esegui `python -m build_translations` (richiede `lrelease` o `pyside6-lrelease` nel `PATH`).
-4. I `.qm` risultanti sono ignorati dal VCS ma inclusi nei pacchetti distribuiti.
-
-Forza una lingua senza cambiare il locale di sistema:
-
-```bash
-export PATCH_GUI_LANG=it
-patch-gui
-# oppure
-PATCH_GUI_LANG=it patch-gui apply --root . diff.patch
-```
-
----
-
-## 🧩 Opzioni tecniche
-
-- **Soglia fuzzy**: regola la tolleranza nel confronto del contesto (`difflib.SequenceMatcher`).
-- **EOL**: preserva lo stile originale (LF/CRLF) al salvataggio.
-- **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca per nome in modo ricorsivo; in caso di multipli chiede quale usare. Con `--non-interactive` i file ambigui vengono saltati, mentre `--auto-accept` seleziona automaticamente il match con punteggio più alto.
-- **Formati supportati**: qualsiasi file di testo (JS, TS, HTML, CSS, MD, Rust, …).
-- **Soglia fuzzy**: controlla la tolleranza del contesto (basata su `difflib.SequenceMatcher`).
-- **Fine linea (EOL)**: i file vengono salvati rispettando lo stile originale (LF/CRLF).
-- **Ricerca file**: tenta prima il percorso relativo esatto (ripulendo prefissi `a/`/`b/`), poi ricerca ricorsiva per nome. In modalità interattiva ti chiede quale percorso usare; con `--non-interactive` salta i conflitti.
-- **Formati supportati**: qualsiasi file di testo (JavaScript, TypeScript, HTML, CSS, Markdown, Rust, …).
-
-- **Logging**:
-  - `PATCH_GUI_LOG_LEVEL` controlla la verbosità (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` o valori numerici).
-  - `PATCH_GUI_LOG_FILE` definisce il percorso del log (default `~/.patch_gui.log`).
-
-```bash
-# Avvio GUI con log dettagliati nel percorso di default (~/.patch_gui.log)
-PATCH_GUI_LOG_LEVEL=DEBUG patch-gui
-
-# Modalità CLI con log personalizzato
-PATCH_GUI_LOG_FILE="$HOME/logs/patch_gui-app.log" PATCH_GUI_LOG_LEVEL=WARNING \
-  patch-gui apply --root . diff.patch
-```
-
----
-
-## 🛟 Risoluzione problemi
-
-### `ModuleNotFoundError: No module named 'unidiff'`
-
-1. Attiva il virtualenv:
-
-   ```bash
-   source .venv/bin/activate
-   python -c "import sys; print(sys.executable)"
-   pip show unidiff
-   ```
-
-   Se `pip show` non trova il pacchetto:
-
-   ```bash
-   pip install unidiff
-   ```
-
-2. In **VS Code** seleziona `.venv/bin/python`. Se l'esecuzione usa ancora `/usr/bin/env python3`, avvia i comandi dal terminale con l'ambiente attivo.
-
-### Errori Qt (`xcb`, display) su WSL
-
-- Installa i pacchetti elencati in [Requisiti e dipendenze](#-requisiti-e-dipendenze).
-- Verifica che **WSLg** sia abilitato. In ambienti senza WSLg puoi usare un server X esterno (meno consigliato).
-
-### Avvisi Pylance / typing
-
-- Il progetto è tipizzato per ridurre i warning. Per un'esperienza più permissiva:
-
-  ```jsonc
-  // .vscode/settings.json
-  {
-    "python.analysis.typeCheckingMode": "basic"
-  }
+  ```bash
+  patch-gui config show
+  patch-gui config set threshold 0.9
+  patch-gui config reset log_file
   ```
 
-- Per librerie senza stub (es. `unidiff`) vengono usate annotazioni conservative (`Any`).
+## GUI in breve
 
-### Code Spell Checker (cSpell) e testo in italiano
+1. **Layout a tre colonne** con elenco file, hunk e anteprima diff.
+2. **Toolbar visibile** per dry-run, soglia fuzzy, lingua e cartella di backup.
+3. **Dialoghi contestuali** per risolvere file ambigui o hunk in conflitto.
+4. **Indicatori di avanzamento** e riepilogo finale con accesso diretto ai
+   report generati.
+5. **Ripristino backup** dal menu **File → Ripristina da backup…** scegliendo
+   il timestamp desiderato.
 
-```json
-{
-  "cSpell.language": "en,it",
-  "cSpell.words": ["hunk", "ripristino", "anteprima", "ricorsiva", "similarità", "WSLg", "PySide6", "unidiff"]
-}
-```
+## Backup e report
 
----
-
-## 🗂️ Backup & report
+Struttura predefinita:
 
 ```text
 ~/.diff_backups/
   2025YYYYMMDD-HHMMSS-fff/
-    path/del/file/originale.ext
+    percorso/del/file/originale.ext
   reports/
     results/
       2025YYYYMMDD-HHMMSS-fff/
@@ -367,17 +182,73 @@ PATCH_GUI_LOG_FILE="$HOME/logs/patch_gui-app.log" PATCH_GUI_LOG_LEVEL=WARNING \
         apply-report.txt
 ```
 
----
+- I backup sono creati solo fuori dal dry-run.
+- I report vengono generati anche nelle simulazioni (puoi disattivarli con
+  `--no-report`).
+- La retention configurabile rimuove automaticamente i backup più vecchi.
 
-## 🛠️ Note sulla manutenzione
+## Configurazione persistente
 
-- Le dipendenze sono definite in `pyproject.toml` e `requirements.txt` (per ambienti legacy).
-- Il comando `python -m build_translations` rigenera i file `.qm` partendo dalle sorgenti `.ts`.
-- Usa `generate_logo_assets.py` per ricreare le icone vettoriali/bitmap quando aggiorni l'identità visiva.
-- Consulta [WARP.md](WARP.md) per linee guida sugli aggiornamenti periodici.
+Le impostazioni vengono salvate in `settings.toml` sotto:
 
----
+- Linux: `~/.config/patch-gui/`
+- macOS: `~/Library/Application Support/Patch GUI/`
+- Windows: `%APPDATA%\Patch GUI\`
 
-## 📄 Licenza
+La configurazione include soglia fuzzy, directory escluse, percorsi di backup,
+livello di log, gestione dei report e parametri di rotazione del file di log.
+Puoi modificarla dalla GUI o tramite `patch-gui config`.
+
+## Sviluppo e test
+
+```bash
+pip install -e .[gui]
+pip install -r requirements.txt
+pytest
+```
+
+Per allineare i controlli con la CI:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
+
+Le traduzioni Qt si ricompilano con:
+
+```bash
+python -m build_translations
+```
+
+Per pubblicare una release consulta la checklist in [RELEASE.md](RELEASE.md).
+
+## Risoluzione problemi
+
+### `ModuleNotFoundError: No module named 'unidiff'`
+
+Verifica l'ambiente virtuale:
+
+```bash
+source .venv/bin/activate
+pip install unidiff
+```
+
+### Errori Qt (`xcb`, display) su WSL
+
+Installa i pacchetti elencati in [Requisiti](#requisiti) e assicurati che **WSLg**
+sia attivo. In assenza di WSLg usa un server X esterno.
+
+### Avvisi Pylance / typing
+
+Imposta un controllo più permissivo in `.vscode/settings.json`:
+
+```jsonc
+{
+  "python.analysis.typeCheckingMode": "basic"
+}
+```
+
+## Licenza
 
 Patch GUI è distribuito sotto licenza [MIT](LICENSE).

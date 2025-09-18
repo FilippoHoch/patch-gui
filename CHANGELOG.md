@@ -2,26 +2,22 @@
 
 Tutte le modifiche rilevanti a questo progetto saranno documentate in questo file.
 Il formato segue le convenzioni di [Keep a Changelog](https://keepachangelog.com/it/1.1.0/)
-e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it/).
+e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
 ### Aggiunto
-- Sezione iniziale del changelog pronta per essere aggiornata con le prossime modifiche.
-- Migliorata l'esperienza del diff interattivo con badge e colori più leggibili per le aggiunte e le rimozioni.
-- Ampliate le impostazioni persistenti: ora è possibile configurare percorso del file di log, rotazione e numero di backup direttamente da CLI e GUI.
-- Sottocomando `patch-gui download-exe` per scaricare rapidamente l'eseguibile Windows dalle release del progetto.
-- Nuova opzione CLI `--auto-accept` per applicare automaticamente il candidato migliore quando il diff richiede conferma manuale.
-- Suggerimento automatico tramite IA durante la risoluzione manuale in CLI per evidenziare la posizione candidata più promettente con l'intervallo di righe coinvolte.
-- Pulizia automatica dei backup più vecchi dopo un numero configurabile di giorni, impostabile sia da interfaccia grafica sia da CLI.
-- Guida `RELEASE.md` con checklist e comandi per pubblicare pacchetti PyPI e release GitHub in modo ripetibile.
+- Sottocomando `patch-gui download-exe` per scaricare rapidamente l'eseguibile
+  Windows pubblicato nelle release ufficiali.
+- Opzione CLI `--auto-accept` per applicare automaticamente il candidato migliore
+  quando sarebbe richiesto un intervento manuale.
+- Parametri di log e conservazione backup configurabili sia dalla GUI sia da
+  riga di comando tramite `patch-gui config`.
 
 ### Modificato
-- L'anteprima diff interattiva mostra le vere linee di file coinvolte nelle modifiche con colonne numerate in stile Visual Studio, facilitando il riferimento al codice originale.
-- Raffinata l'interfaccia del diff interattivo con intestazioni e contenitori più strutturati per facilitare la lettura delle patch.
-- Resa più vivace la schermata del diff interattivo con gradienti, badge neutri e pulsanti colorati che mettono in evidenza le azioni disponibili e lo stato dei file.
-- Aggiornata la documentazione CLI per illustrare le nuove modalità di applicazione automatica delle patch e le combinazioni consigliate con `--non-interactive`.
-- Riscritto il README principale con una struttura armonizzata con la GUI, nuove sezioni di onboarding e tour dell'interfaccia.
-- README arricchito con badge delle release, panoramica dei canali di distribuzione e scorciatoia per il workflow di packaging.
+- Migliorata l'interfaccia del diff interattivo con intestazioni e indicatori
+  coerenti tra lista file, hunk e anteprima.
+- Documentazione aggiornata (README, guida CLI) con flussi di installazione,
+  uso e report più lineari.
 
 ## [0.1.0] - 2025-09-18
 ### Aggiunto
