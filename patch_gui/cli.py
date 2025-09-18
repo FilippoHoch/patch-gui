@@ -14,6 +14,8 @@ from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
 from .parser import (
     _LOG_LEVEL_CHOICES,
+    REPORT_JSON_UNSET,
+    REPORT_TXT_UNSET,
     build_parser,
     parse_exclude_dirs,
     threshold_value,
@@ -57,12 +59,50 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     parser = build_parser(config=config)
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    if args.no_report and (args.report_json or args.report_txt):
+    raw_summary_formats = list(args.summary_format) if args.summary_format else None
+    if raw_summary_formats and "none" in raw_summary_formats:
+        if len(raw_summary_formats) > 1:
+            parser.error(_("The 'none' summary format cannot be combined with others."))
+        summary_formats: list[str] = []
+        summary_controlled = True
+    elif raw_summary_formats:
+        summary_formats = []
+        for fmt in raw_summary_formats:
+            if fmt not in summary_formats:
+                summary_formats.append(fmt)
+        summary_controlled = True
+    else:
+        summary_formats = ["text"]
+        summary_controlled = False
+
+    if args.no_report and (
+        (args.report_json is not REPORT_JSON_UNSET and args.report_json is not None)
+        or (args.report_txt is not REPORT_TXT_UNSET and args.report_txt is not None)
+    ):
         parser.error(
             _(
                 "The --report-json/--report-txt options are incompatible with --no-report."
             )
         )
+
+    report_json_arg = None if args.report_json is REPORT_JSON_UNSET else args.report_json
+    report_txt_arg = None if args.report_txt is REPORT_TXT_UNSET else args.report_txt
+
+    requested_report_formats: set[str]
+    if summary_controlled:
+        requested_report_formats = {fmt for fmt in summary_formats if fmt in {"json", "text"}}
+    else:
+        requested_report_formats = {"json", "text"}
+    if args.report_json is not REPORT_JSON_UNSET:
+        if report_json_arg is None:
+            requested_report_formats.discard("json")
+        else:
+            requested_report_formats.add("json")
+    if args.report_txt is not REPORT_TXT_UNSET:
+        if report_txt_arg is None:
+            requested_report_formats.discard("text")
+        else:
+            requested_report_formats.add("text")
 
     level_name = args.log_level.upper()
     logging.basicConfig(
@@ -92,29 +132,61 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             threshold=args.threshold,
             backup_base=backup_base,
             interactive=not args.non_interactive,
-            report_json=args.report_json,
-            report_txt=args.report_txt,
+            report_json=report_json_arg,
+            report_txt=report_txt_arg,
             write_report_files=not args.no_report,
+            write_report_json="json" in requested_report_formats,
+            write_report_txt="text" in requested_report_formats,
             exclude_dirs=exclude_dirs,
             config=config,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
 
-    print(session.to_txt())
-    if args.dry_run:
-        print(_("\nDry-run mode: no files were modified and no backups were created."))
-    else:
-        print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
-        if session.report_json_path or session.report_txt_path:
-            details = []
-            if session.report_json_path:
-                details.append(_("JSON: {path}").format(path=session.report_json_path))
-            if session.report_txt_path:
-                details.append(_("Text: {path}").format(path=session.report_txt_path))
-            print(_("Reports saved to: {details}").format(details=", ".join(details)))
+    def _emit_text_summary() -> None:
+        print(session.to_txt())
+        if args.dry_run:
+            print(_("\nDry-run mode: no files were modified and no backups were created."))
         else:
-            print(_("Reports disabled (--no-report)"))
+            print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
+            if session.report_json_path or session.report_txt_path:
+                details = []
+                if session.report_json_path:
+                    details.append(_("JSON: {path}").format(path=session.report_json_path))
+                if session.report_txt_path:
+                    details.append(_("Text: {path}").format(path=session.report_txt_path))
+                print(_("Reports saved to: {details}").format(details=", ".join(details)))
+            else:
+                print(_("Reports disabled (--no-report)"))
+
+    emitted_text = False
+    for fmt in summary_formats:
+        if fmt == "text" and not emitted_text:
+            _emit_text_summary()
+            emitted_text = True
+        elif fmt == "json":
+            json_output = json.dumps(session.to_json(), ensure_ascii=False)
+            print(json_output)
+
+    if not summary_formats:
+        if args.dry_run:
+            logger.info(
+                _("Dry-run mode: no files were modified and no backups were created.")
+            )
+        else:
+            logger.info(_("Backups saved to: %s"), session.backup_dir)
+            if session.report_json_path or session.report_txt_path:
+                details = []
+                if session.report_json_path:
+                    details.append(_("JSON: {path}").format(path=session.report_json_path))
+                if session.report_txt_path:
+                    details.append(_("Text: {path}").format(path=session.report_txt_path))
+                logger.info(
+                    _("Reports saved to: %s"),
+                    ", ".join(details),
+                )
+            else:
+                logger.info(_("Reports disabled (--no-report)"))
 
     return 0 if session_completed(session) else 1
 

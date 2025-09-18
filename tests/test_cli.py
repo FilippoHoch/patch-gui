@@ -5,6 +5,7 @@ import io
 import os
 import json
 import logging
+import shutil
 import sys
 import time
 import types
@@ -1078,6 +1079,86 @@ def test_run_cli_emits_logs_to_stderr(
     assert "verbose log message" in captured.err
 
 
+def test_run_cli_prints_json_summary_and_skips_text_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "json-summary.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    utils.DEFAULT_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    before_reports = set(utils.DEFAULT_REPORTS_DIR.glob("*"))
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--summary-format",
+            "json",
+            str(patch_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    stdout = captured.out.strip()
+    assert stdout
+    data = json.loads(stdout)
+    assert isinstance(data, dict)
+    assert "files" in data
+    assert "Summary" not in captured.out
+
+    after_reports = set(utils.DEFAULT_REPORTS_DIR.glob("*"))
+    new_reports = [path for path in after_reports if path not in before_reports]
+    try:
+        assert len(new_reports) == 1
+        report_dir = new_reports[0]
+        assert (report_dir / REPORT_JSON).exists()
+        assert not (report_dir / REPORT_TXT).exists()
+    finally:
+        for path in new_reports:
+            shutil.rmtree(path, ignore_errors=True)
+
+
+def test_run_cli_text_summary_skips_json_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "text-summary.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    utils.DEFAULT_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    before_reports = set(utils.DEFAULT_REPORTS_DIR.glob("*"))
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--summary-format",
+            "text",
+            str(patch_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Summary" in captured.out
+    after_reports = set(utils.DEFAULT_REPORTS_DIR.glob("*"))
+    new_reports = [path for path in after_reports if path not in before_reports]
+    try:
+        assert len(new_reports) == 1
+        report_dir = new_reports[0]
+        assert not (report_dir / REPORT_JSON).exists()
+        assert (report_dir / REPORT_TXT).exists()
+    finally:
+        for path in new_reports:
+            shutil.rmtree(path, ignore_errors=True)
+
+
 class _DummySession:
     def __init__(self, tmp_path: Path) -> None:
         self.dry_run = True
@@ -1089,6 +1170,9 @@ class _DummySession:
 
     def to_txt(self) -> str:
         return "Summary"
+
+    def to_json(self) -> dict[str, object]:
+        return {"summary": self.to_txt()}
 
 
 def _create_dummy_session(tmp_path: Path) -> _DummySession:
@@ -1175,8 +1259,8 @@ def test_run_cli_reports_backup_creation_error(
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Failed to create backup" in captured.out
-    assert "sample.txt" in captured.out
+    assert "Failed to create backup" in captured.err
+    assert "sample.txt" in captured.err
 
 
 def test_run_cli_reports_directory_creation_error(
@@ -1201,8 +1285,8 @@ def test_run_cli_reports_directory_creation_error(
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Failed to create directory" in captured.out
-    assert "docs" in captured.out
+    assert "Failed to create directory" in captured.err
+    assert "docs" in captured.err
 
 
 def test_run_cli_reports_write_error(
@@ -1223,8 +1307,8 @@ def test_run_cli_reports_write_error(
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "Failed to write updated content" in captured.out
-    assert "sample.txt" in captured.out
+    assert "Failed to write updated content" in captured.err
+    assert "sample.txt" in captured.err
 
 
 def test_config_show_outputs_json(tmp_path: Path) -> None:
