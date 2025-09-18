@@ -832,7 +832,7 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         configured_logger = logging.getLogger()
         assert configured_logger.level == logging.DEBUG
         assert any(
-            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stderr
             for handler in configured_logger.handlers
         )
     finally:
@@ -842,6 +842,61 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         for handler in previous_handlers:
             configured_logger.addHandler(handler)
         configured_logger.setLevel(previous_level)
+
+
+def test_run_cli_emits_logs_to_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "log-output.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    monkeypatch.setattr(cli, "load_config", lambda: AppConfig())
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(
+        patch: PatchSet,
+        project_root: Path,
+        **kwargs: object,
+    ) -> _DummySession:
+        cli.logger.debug("verbose log message")
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    root_logger = logging.getLogger()
+    previous_handlers = root_logger.handlers[:]
+    previous_level = root_logger.level
+
+    try:
+        exit_code = cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--dry-run",
+                "--log-level",
+                "debug",
+                str(patch_path),
+            ]
+        )
+    finally:
+        configured_logger = logging.getLogger()
+        for handler in configured_logger.handlers[:]:
+            configured_logger.removeHandler(handler)
+        for handler in previous_handlers:
+            configured_logger.addHandler(handler)
+        configured_logger.setLevel(previous_level)
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Summary" in captured.out
+    assert "verbose log message" not in captured.out
+    assert "verbose log message" in captured.err
 
 
 class _DummySession:
