@@ -29,6 +29,31 @@ REMOVED_DIFF = """--- a/sample.txt
 -line2
 """
 
+RENAME_ONLY_DIFF = """diff --git a/sample.txt b/docs/renamed.txt
+similarity index 100%
+rename from sample.txt
+rename to docs/renamed.txt
+"""
+
+RENAME_WITH_EDIT_DIFF = """diff --git a/sample.txt b/docs/renamed.txt
+similarity index 91%
+rename from sample.txt
+rename to docs/renamed.txt
+--- a/sample.txt
++++ b/docs/renamed.txt
+@@ -1,2 +1,2 @@
+-old line
++new line
+ line2
+"""
+
+
+def _project_with_sample(tmp_path: Path) -> Path:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "sample.txt").write_text("old line\nline2\n", encoding="utf-8")
+    return project
+
 
 def test_find_candidates_returns_exact_match_first() -> None:
     file_lines = ["line1\n", "line2\n", "line3\n"]
@@ -311,6 +336,61 @@ def test_backup_file_copies_content(tmp_path: Path) -> None:
     copied = backup_root / "data.txt"
     assert copied.exists()
     assert copied.read_text(encoding="utf-8") == "hello"
+
+
+def test_apply_patchset_reports_rename_only_details(tmp_path: Path) -> None:
+    project = _project_with_sample(tmp_path)
+
+    session = executor.apply_patchset(
+        PatchSet(RENAME_ONLY_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    new_path = project / "docs" / "renamed.txt"
+    backup_path = session.backup_dir / "sample.txt"
+
+    assert new_path.exists()
+    assert backup_path.exists()
+
+    file_result = session.results[0]
+    assert file_result.decisions
+    assert file_result.decisions[0].strategy == "rename"
+
+    json_report = session.to_json()
+    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"
+    text_report = session.to_txt()
+    assert "Hunk rename -> rename" in text_report
+
+
+def test_apply_patchset_reports_rename_with_edit_details(tmp_path: Path) -> None:
+    project = _project_with_sample(tmp_path)
+
+    session = executor.apply_patchset(
+        PatchSet(RENAME_WITH_EDIT_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    new_path = project / "docs" / "renamed.txt"
+    backup_path = session.backup_dir / "sample.txt"
+
+    assert new_path.exists()
+    assert new_path.read_text(encoding="utf-8") == "new line\nline2\n"
+    assert backup_path.exists()
+
+    file_result = session.results[0]
+    assert file_result.decisions
+    assert file_result.decisions[0].strategy == "rename"
+    assert any(d.strategy != "rename" for d in file_result.decisions)
+
+    json_report = session.to_json()
+    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"
+    assert json_report["files"][0]["hunks_applied"] == 1
+    text_report = session.to_txt()
+    assert "Hunk rename -> rename" in text_report
 
 
 def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
