@@ -9,6 +9,7 @@ import sys
 import time
 import types
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from unidiff import PatchSet
@@ -41,6 +42,24 @@ AMBIGUOUS_DIFF = """--- a/app/sample.txt
 @@ -1 +1 @@
 -old line
 +new line
+"""
+
+FUZZY_MANUAL_DIFF = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,2 +1,2 @@
+-old apple
+-old banana
++new apple
++new banana
+"""
+
+CONTEXT_MANUAL_DIFF = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,3 +1,3 @@
+ line keep
+-line to replace
++line to insert
+ line end
 """
 
 NON_UTF8_DIFF = """--- a/sample.txt
@@ -1065,3 +1084,121 @@ def test_threshold_value_rejects_invalid_inputs(
         parser.threshold_value(raw)
 
     assert str(excinfo.value) == expected_message
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_applied, expected_completed, expected_pos",
+    [("2", 1, True, 3), ("", 0, False, None)],
+)
+def test_cli_manual_resolver_handles_fuzzy_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    user_input: str,
+    expected_applied: int,
+    expected_completed: bool,
+    expected_pos: Optional[int],
+) -> None:
+    project = tmp_path / "manual_fuzzy"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "old apple1\nold banana1\nmiddle line\nold apple2\nold banana2\n",
+        encoding="utf-8",
+    )
+
+    responses = iter([user_input])
+
+    def fake_input(prompt: str) -> str:
+        del prompt
+        try:
+            return next(responses)
+        except StopIteration:
+            return ""
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    session = executor.apply_patchset(
+        PatchSet(FUZZY_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.8,
+        write_report_files=False,
+    )
+
+    assert len(session.results) == 1
+    result = session.results[0]
+    assert result.hunks_total == 1
+    assert result.hunks_applied == expected_applied
+    assert executor.session_completed(session) is expected_completed
+    decision = result.decisions[0]
+    assert len(decision.candidates) > 1
+
+    if expected_pos is None:
+        assert decision.strategy == "skipped"
+        assert decision.selected_pos is None
+        assert decision.similarity is None
+    else:
+        assert decision.strategy == "manual"
+        assert decision.selected_pos == expected_pos
+        assert decision.similarity is not None
+
+
+@pytest.mark.parametrize(
+    "user_input, expected_applied, expected_completed, expected_pos",
+    [("2", 1, True, 4), ("", 0, False, None)],
+)
+def test_cli_manual_resolver_handles_context_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    user_input: str,
+    expected_applied: int,
+    expected_completed: bool,
+    expected_pos: Optional[int],
+) -> None:
+    project = tmp_path / "manual_context"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "line keep\n"
+        "line existing one\n"
+        "line end\n"
+        "----\n"
+        "line keep\n"
+        "line existing two\n"
+        "line end\n",
+        encoding="utf-8",
+    )
+
+    responses = iter([user_input])
+
+    def fake_input(prompt: str) -> str:
+        del prompt
+        try:
+            return next(responses)
+        except StopIteration:
+            return ""
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    session = executor.apply_patchset(
+        PatchSet(CONTEXT_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.7,
+        write_report_files=False,
+    )
+
+    assert len(session.results) == 1
+    result = session.results[0]
+    assert result.hunks_total == 1
+    assert result.hunks_applied == expected_applied
+    assert executor.session_completed(session) is expected_completed
+    decision = result.decisions[0]
+    assert len(decision.candidates) > 1
+
+    if expected_pos is None:
+        assert decision.strategy == "skipped"
+        assert decision.selected_pos is None
+        assert decision.similarity is None
+    else:
+        assert decision.strategy == "manual"
+        assert decision.selected_pos == expected_pos
+        assert decision.similarity is not None

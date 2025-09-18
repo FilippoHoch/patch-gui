@@ -406,17 +406,115 @@ def _cli_manual_resolver(
     decision: HunkDecision,
     reason: str,
 ) -> Optional[int]:
-    del hv, lines  # unused in CLI resolver
-    decision.candidates = candidates
-    decision.strategy = "ambiguous"
+    decision.candidates = list(candidates)
+    decision.strategy = "manual"
+
+    header_message = _("Reviewing hunk: {header}").format(header=hv.header)
     if reason == "fuzzy":
-        decision.message = _(
-            "Multiple candidate positions scored above the threshold. The CLI cannot "
-            "choose automatically."
+        context_message = _(
+            "Multiple candidate positions matched this hunk above the similarity "
+            "threshold."
         )
     else:
-        decision.message = _(
-            "Only the context matches. Use the GUI or adjust the threshold to apply this "
-            "hunk."
+        context_message = _(
+            "Only the surrounding context matched this hunk; a manual choice is "
+            "required."
         )
-    return None
+
+    print("")
+    print(header_message)
+    print(context_message)
+
+    if hv.before_lines:
+        print(_("  Original hunk lines:"))
+        for line in hv.before_lines:
+            print(f"    - {line.rstrip()}" if line.endswith("\n") else f"    - {line}")
+    if hv.after_lines:
+        print(_("  Proposed hunk lines:"))
+        for line in hv.after_lines:
+            print(f"    + {line.rstrip()}" if line.endswith("\n") else f"    + {line}")
+
+    window_len = len(hv.before_lines)
+    highlight_width = max(window_len, 1)
+    context_padding = 2
+
+    print("")
+    print(_("Available candidate positions:"))
+    for idx, (pos, score) in enumerate(candidates, start=1):
+        similarity_str = f"{score:.3f}" if score is not None else _("n/a")
+        line_number = pos + 1
+        print(
+            _("  {index}) Position {position} (line {line}, similarity {similarity})").format(
+                index=idx,
+                position=pos,
+                line=line_number,
+                similarity=similarity_str,
+            )
+        )
+
+        snippet_start = max(0, pos - context_padding)
+        snippet_end = min(len(lines), pos + highlight_width + context_padding)
+        highlight_start = pos
+        highlight_end = min(len(lines), pos + highlight_width)
+
+        if snippet_start >= snippet_end:
+            print(_("    (No surrounding lines available in the file.)"))
+        else:
+            print(_("    File context:"))
+            for current_index in range(snippet_start, snippet_end):
+                indicator = (
+                    ">"
+                    if highlight_start <= current_index < highlight_end
+                    else " "
+                )
+                raw_line = lines[current_index]
+                display_line = raw_line.rstrip("\n")
+                print(f"    {indicator}{current_index + 1:>6}: {display_line}")
+        print("")
+
+    prompt = _(
+        "Choose a candidate number (1-{count}) or press Enter to skip: "
+    ).format(count=len(candidates))
+
+    while True:
+        try:
+            raw = input(prompt)
+        except EOFError:
+            decision.strategy = "skipped"
+            decision.selected_pos = None
+            decision.similarity = None
+            decision.message = _("Manual resolution skipped (EOF received).")
+            return None
+        except KeyboardInterrupt:
+            raise
+
+        choice = raw.strip()
+        if not choice or choice.lower() in {"s", "skip", "n", "no", "q", "quit"}:
+            decision.strategy = "skipped"
+            decision.selected_pos = None
+            decision.similarity = None
+            decision.message = _("Manual resolution skipped by the user.")
+            return None
+
+        try:
+            index = int(choice)
+        except ValueError:
+            print(
+                _(
+                    "Invalid input. Enter a number between 1 and {count}, or leave "
+                    "blank to cancel."
+                ).format(count=len(candidates))
+            )
+            continue
+
+        if 1 <= index <= len(candidates):
+            pos, score = candidates[index - 1]
+            decision.strategy = "manual"
+            decision.selected_pos = pos
+            decision.similarity = score
+            decision.message = _(
+                "Applied manually via CLI using candidate {choice}."
+            ).format(choice=index)
+            return pos
+
+        print(_("Number out of range. Try again."))
