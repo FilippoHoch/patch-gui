@@ -32,6 +32,12 @@ class _Opener(Protocol):
     def __call__(self, request: Request) -> Any: ...
 
 
+def _default_urlopen(request: Request) -> Any:
+    """Wrapper around :func:`urllib.request.urlopen` matching ``_Opener``."""
+
+    return urlopen(request)
+
+
 class DownloadError(Exception):
     """Raised when a release asset cannot be retrieved."""
 
@@ -83,8 +89,8 @@ def download_latest_release_exe(
         The location of the downloaded executable.
     """
 
-    opener_fn = opener or urlopen
-    release = _fetch_release(repo=repo, token=token, tag=tag, opener=opener_fn)  # type: ignore[arg-type]
+    opener_fn = opener or _default_urlopen
+    release = _fetch_release(repo=repo, token=token, tag=tag, opener=opener_fn)
     asset = _select_asset(release, asset_name)
 
     destination_path = _resolve_destination(destination, asset.name)
