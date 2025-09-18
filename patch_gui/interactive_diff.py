@@ -51,8 +51,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         header.setStyleSheet(
             """
             QFrame#interactiveDiffHeader {
-                background-color: #f1f5f9;
-                border: 1px solid #e2e8f0;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #e0f2fe,
+                    stop: 1 #f1f5f9
+                );
+                border: 1px solid #bae6fd;
                 border-radius: 10px;
             }
             QLabel#interactiveDiffTitle {
@@ -61,7 +65,11 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
                 color: #0f172a;
             }
             QLabel#interactiveDiffSubtitle {
-                color: #475569;
+                color: #1e3a8a;
+            }
+            QLabel#interactiveDiffSubtitle .highlight {
+                color: #0ea5e9;
+                font-weight: 600;
             }
             """
         )
@@ -77,10 +85,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             _(
                 "Trascina i file nell'elenco sottostante per definire l'ordine "
                 "di applicazione della patch. Quando sei soddisfatto, premi "
-                "\"Aggiorna editor diff\" per riscrivere il testo completo."
+                "<span class=\"highlight\">\"Aggiorna editor diff\"</span> "
+                "per riscrivere il testo completo."
             )
         )
         self._info_label.setObjectName("interactiveDiffSubtitle")
+        self._info_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
         self._info_label.setWordWrap(True)
         header_layout.addWidget(self._info_label)
 
@@ -88,6 +98,17 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
 
         splitter = QtWidgets.QSplitter()
         splitter.setOrientation(QtCore.Qt.Orientation.Vertical)
+        splitter.setStyleSheet(
+            """
+            QSplitter::handle {
+                background-color: #bae6fd;
+                margin: 6px 0;
+            }
+            QSplitter::handle:hover {
+                background-color: #38bdf8;
+            }
+            """
+        )
         layout.addWidget(splitter, 1)
 
         upper = QtWidgets.QWidget()
@@ -100,8 +121,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         order_container.setStyleSheet(
             """
             QFrame#interactiveDiffOrderContainer {
-                background-color: #ffffff;
+                background-color: #f8fafc;
                 border: 1px solid #e2e8f0;
+                border-top: 4px solid #38bdf8;
                 border-radius: 10px;
             }
             QLabel#interactiveDiffOrderTitle {
@@ -122,6 +144,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             QLabel#interactiveDiffOrderLabel .diff-order-index {
                 font-weight: 600;
                 margin-right: 6px;
+                color: #1d4ed8;
+            }
+            QLabel#interactiveDiffOrderLabel .diff-order-name {
                 color: #0f172a;
             }
             QLabel#interactiveDiffOrderLabel .diff-badge {
@@ -137,6 +162,10 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
             QLabel#interactiveDiffOrderLabel .diff-badge.deletions {
                 background-color: #fee2e2;
                 color: #b91c1c;
+            }
+            QLabel#interactiveDiffOrderLabel .diff-badge.neutral {
+                background-color: #e2e8f0;
+                color: #0f172a;
             }
             """
         )
@@ -176,7 +205,10 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
                 padding: 0px;
             }
             QListWidget::item:selected {
-                background-color: transparent;
+                background-color: #dbeafe;
+            }
+            QListWidget::item:hover {
+                background-color: #e0f2fe;
             }
             """
         )
@@ -195,6 +227,23 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         self._preview.setPlaceholderText(
             _("Seleziona un file dall'elenco per vederne il diff completo.")
         )
+        self._preview.setStyleSheet(
+            """
+            QPlainTextEdit {
+                background-color: #f8fafc;
+                color: #0f172a;
+                border: 1px solid #bae6fd;
+                border-radius: 10px;
+                selection-background-color: #38bdf8;
+                selection-color: #0f172a;
+            }
+            QPlainTextEdit[enabled="false"] {
+                background-color: #f1f5f9;
+                color: #475569;
+                border-color: #cbd5f5;
+            }
+            """
+        )
         self._highlighter = DiffHighlighter(self._preview.document())
         splitter.addWidget(self._preview)
         splitter.setSizes([180, 320])
@@ -204,10 +253,52 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
         buttons.setSpacing(12)
 
         self._btn_apply = QtWidgets.QPushButton(_("Aggiorna editor diff"))
+        self._btn_apply.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #2563eb;
+                color: #ffffff;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #1d4ed8;
+            }
+            QPushButton:pressed {
+                background-color: #1e40af;
+            }
+            QPushButton:disabled {
+                background-color: #bfdbfe;
+                color: #1e3a8a;
+            }
+            """
+        )
         self._btn_apply.clicked.connect(self._apply_reordered_diff)
         buttons.addWidget(self._btn_apply)
 
         self._btn_reset = QtWidgets.QPushButton(_("Ripristina ordine iniziale"))
+        self._btn_reset.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #e2e8f0;
+                color: #0f172a;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #cbd5f5;
+            }
+            QPushButton:pressed {
+                background-color: #94a3b8;
+            }
+            QPushButton:disabled {
+                background-color: #e2e8f0;
+                color: #94a3b8;
+            }
+            """
+        )
         self._btn_reset.clicked.connect(self._reset_order)
         buttons.addWidget(self._btn_reset)
 
@@ -366,7 +457,11 @@ class _DiffListItemWidget(QtWidgets.QFrame):
         self.setStyleSheet(
             """
             QFrame#diffListItem {
-                background-color: #ffffff;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #ffffff,
+                    stop: 1 #f8fafc
+                );
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
                 padding: 8px 12px;
@@ -380,7 +475,7 @@ class _DiffListItemWidget(QtWidgets.QFrame):
                 color: #0f172a;
             }
             QLabel#diffListItemPath[selected="true"] {
-                color: #1d4ed8;
+                color: #1e3a8a;
             }
             QLabel.diffStatBadge {
                 border-radius: 10px;
@@ -388,13 +483,17 @@ class _DiffListItemWidget(QtWidgets.QFrame):
                 font-weight: 600;
                 font-size: 11px;
             }
-            QLabel.diffStatBadge.additions {
+            QLabel.diffStatBadge[badgeType="additions"] {
                 background-color: #bbf7d0;
                 color: #166534;
             }
-            QLabel.diffStatBadge.deletions {
+            QLabel.diffStatBadge[badgeType="deletions"] {
                 background-color: #fecaca;
                 color: #991b1b;
+            }
+            QLabel.diffStatBadge[badgeType="neutral"] {
+                background-color: #e2e8f0;
+                color: #0f172a;
             }
             """
         )
@@ -437,7 +536,7 @@ def _create_badge_widgets(entry: FileDiffEntry) -> list[QtWidgets.QLabel]:
     if entry.deletions:
         badges.append(_make_badge(_("-{count}").format(count=entry.deletions), "deletions"))
     if not badges:
-        badges.append(_make_badge(_("0 modifiche"), "additions"))
+        badges.append(_make_badge(_("0 modifiche"), "neutral"))
     return badges
 
 
@@ -465,6 +564,10 @@ def _make_badge(text: str, badge_type: str) -> QtWidgets.QLabel:
             background-color: #fecaca;
             color: #991b1b;
         }
+        QLabel#diffStatBadge[badgeType="neutral"] {
+            background-color: #e0e7ff;
+            color: #312e81;
+        }
         """
     )
     return badge
@@ -485,7 +588,7 @@ def _format_badges(entry: FileDiffEntry) -> str:
             )
         )
     if not badges:
-        badges.append('<span class="diff-badge additions">0</span>')
+        badges.append('<span class="diff-badge neutral">0</span>')
     return "".join(badges)
 
 
