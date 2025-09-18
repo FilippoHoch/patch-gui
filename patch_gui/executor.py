@@ -26,9 +26,12 @@ from .patcher import (
     backup_file,
     find_file_candidates,
     prepare_backup_dir,
+    prune_backup_sessions,
 )
 from .reporting import write_session_reports
 from .utils import (
+    REPORT_RESULTS_SUBDIR,
+    REPORTS_SUBDIR,
     decode_bytes,
     display_relative_path,
     normalize_newlines,
@@ -185,6 +188,20 @@ def apply_patchset(
             "Failed to prepare backup directory at {path}: {error}"
         ).format(path=failure_path, error=exc)
         raise CLIError(message) from exc
+
+    retention_days = getattr(resolved_config, "backup_retention_days", 0)
+    if retention_days > 0:
+        prune_backup_sessions(
+            backup_base_arg,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
+        reports_base = backup_base_arg / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
+        prune_backup_sessions(
+            reports_base,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
     resolved_excludes = (
         tuple(exclude_dirs)
         if exclude_dirs is not None

@@ -1371,6 +1371,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
         log_file=tmp_path / "custom.log",
         log_max_bytes=2048,
         log_backup_count=5,
+        backup_retention_days=12,
     )
     save_config(config, path=config_path)
 
@@ -1386,6 +1387,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
     assert payload["log_file"] == str(config.log_file)
     assert payload["log_max_bytes"] == config.log_max_bytes
     assert payload["log_backup_count"] == config.log_backup_count
+    assert payload["backup_retention_days"] == config.backup_retention_days
 
 
 def test_config_set_updates_values(tmp_path: Path) -> None:
@@ -1467,6 +1469,14 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
     )
     assert load_config(config_path).log_backup_count == 2
 
+    cli.config_set(
+        "backup_retention_days",
+        ["30"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).backup_retention_days == 30
+
 
 def test_config_reset_values(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
@@ -1493,6 +1503,7 @@ def test_config_reset_values(tmp_path: Path) -> None:
     assert reset.log_file == defaults.log_file
     assert reset.log_max_bytes == defaults.log_max_bytes
     assert reset.log_backup_count == defaults.log_backup_count
+    assert reset.backup_retention_days == defaults.backup_retention_days
 
 
 def test_run_config_reports_invalid_log_level(

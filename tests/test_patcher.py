@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from patch_gui.patcher import (
     find_candidates,
     find_file_candidates,
     prepare_backup_dir,
+    prune_backup_sessions,
     write_reports,
 )
 from patch_gui.utils import format_session_timestamp
@@ -304,6 +306,53 @@ def test_prepare_backup_dir_uses_millisecond_precision(tmp_path: Path) -> None:
     assert first.name == format_session_timestamp(ts_first)
     assert second.name == format_session_timestamp(ts_second)
     assert first.name != second.name
+
+
+def test_prune_backup_sessions_removes_old_directories(tmp_path: Path) -> None:
+    base_dir = tmp_path / "backups"
+    base_dir.mkdir()
+
+    reference = datetime(2024, 1, 10, 12, 0, 0)
+    old_time = reference - timedelta(days=10)
+    recent_time = reference - timedelta(days=2)
+    newest_time = reference
+
+    old_dir = base_dir / format_session_timestamp(old_time.timestamp())
+    recent_dir = base_dir / format_session_timestamp(recent_time.timestamp())
+    newest_dir = base_dir / format_session_timestamp(newest_time.timestamp())
+
+    for path in (old_dir, recent_dir, newest_dir):
+        path.mkdir(parents=True)
+        (path / "marker.txt").write_text("data", encoding="utf-8")
+
+    removed = prune_backup_sessions(
+        base_dir,
+        retention_days=5,
+        reference_timestamp=reference.timestamp(),
+    )
+
+    assert not old_dir.exists()
+    assert recent_dir.exists()
+    assert newest_dir.exists()
+    assert set(removed) == {old_dir}
+
+
+def test_prune_backup_sessions_ignores_unrelated_entries(tmp_path: Path) -> None:
+    base_dir = tmp_path / "backups"
+    base_dir.mkdir()
+
+    (base_dir / "reports").mkdir()
+    (base_dir / "123-invalid").mkdir()
+
+    result = prune_backup_sessions(
+        base_dir,
+        retention_days=1,
+        reference_timestamp=datetime.now().timestamp(),
+    )
+
+    assert result == []
+    assert (base_dir / "reports").exists()
+    assert (base_dir / "123-invalid").exists()
 
 
 def test_write_reports_dry_run_skips_backup_dir(tmp_path: Path) -> None:
