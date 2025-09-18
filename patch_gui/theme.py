@@ -234,20 +234,20 @@ def _build_stylesheet() -> str:
         )
         + "\n"
         "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {"
-        "    image: url(\"%s\");"
+        '    image: url("%s");'
         "    width: 12px;"
         "    height: 12px;"
         "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {"
-        "    image: url(\"%s\");"
+        '    image: url("%s");'
         "    width: 12px;"
         "    height: 12px;"
         "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {"
-        "    image: url(\"%s\");"
+        '    image: url("%s");'
         "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {"
-        "    image: url(\"%s\");"
+        '    image: url("%s");'
         "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QTreeWidget, QTreeView, QListWidget, QListView {"
         "    background-color: %s;"
