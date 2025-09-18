@@ -9,3 +9,5 @@ patch_gui/reports/
 .venv-upgrade
 build
 patch_gui.*
+# Generated logo assets
+images/patch_gui_logo_primary*

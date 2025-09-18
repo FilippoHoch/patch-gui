@@ -46,3 +46,19 @@ def test_running_under_wsl_returns_false_when_no_markers(
 
     monkeypatch.setattr(MODULE_PLATFORM.Path, "read_text", fake_read_text)
     assert not platform.running_under_wsl()
+
+
+@typed_parametrize("platform_value", ["win32", "win64", "cygwin"])
+def test_running_on_windows_native_detects_windows(
+    monkeypatch: pytest.MonkeyPatch, platform_value: str
+) -> None:
+    monkeypatch.setattr(MODULE_PLATFORM.sys, "platform", platform_value)
+    assert platform.running_on_windows_native()
+
+
+@typed_parametrize("platform_value", ["linux", "darwin", "freebsd12"])
+def test_running_on_windows_native_returns_false_elsewhere(
+    monkeypatch: pytest.MonkeyPatch, platform_value: str
+) -> None:
+    monkeypatch.setattr(MODULE_PLATFORM.sys, "platform", platform_value)
+    assert not platform.running_on_windows_native()

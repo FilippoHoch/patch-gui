@@ -27,7 +27,7 @@ from .highlighter import DiffHighlighter
 from .i18n import install_translators
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
-from .platform import running_under_wsl
+from .platform import running_on_windows_native, running_under_wsl
 from .theme import apply_modern_theme
 from .patcher import (
     ApplySession,
@@ -508,20 +508,32 @@ logger = logging.getLogger(__name__)
 def _apply_platform_workarounds() -> None:
     """Adjust Qt settings to improve rendering on specific platforms."""
 
-    if not running_under_wsl():
+    platform_name: str | None = None
+    if running_under_wsl():
+        platform_name = "WSL"
+    elif running_on_windows_native():
+        platform_name = "Windows"
+
+    if platform_name is None:
         return
 
-    logger.debug("Rilevata esecuzione in WSL: applicazione workaround High DPI.")
+    logger.debug(
+        "Rilevata esecuzione su %s: applicazione workaround High DPI.", platform_name
+    )
 
-    attribute = getattr(QtCore.Qt, "AA_UseHighDpiPixmaps", None)
-    if attribute is None:
-        attribute = getattr(
-            getattr(QtCore.Qt, "ApplicationAttribute", object),
-            "AA_UseHighDpiPixmaps",
-            None,
-        )
-    if attribute is not None:
-        QtCore.QCoreApplication.setAttribute(attribute)
+    def _set_application_attribute(name: str) -> None:
+        attribute = getattr(QtCore.Qt, name, None)
+        if attribute is None:
+            attribute = getattr(
+                getattr(QtCore.Qt, "ApplicationAttribute", object),
+                name,
+                None,
+            )
+        if attribute is not None:
+            QtCore.QCoreApplication.setAttribute(attribute)
+
+    for attr_name in ("AA_EnableHighDpiScaling", "AA_UseHighDpiPixmaps"):
+        _set_application_attribute(attr_name)
 
     if not os.getenv("QT_SCALE_FACTOR_ROUNDING_POLICY"):
         policy_enum = getattr(QtCore.Qt, "HighDpiScaleFactorRoundingPolicy", None)

@@ -36,93 +36,113 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
     painter.save()
     painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
-    radius = min(target.width(), target.height()) * 0.22
+    inset = min(target.width(), target.height()) * 0.04
+    rect = target.adjusted(inset, inset, -inset, -inset)
+    radius = min(rect.width(), rect.height()) * 0.24
+
+    shadow = rect.translated(rect.width() * 0.04, rect.height() * 0.05)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
+    painter.setBrush(QtGui.QColor(0, 0, 0, 55))
+    painter.drawRoundedRect(shadow, radius * 1.05, radius * 1.05)
+
     border_pen = QtGui.QPen(
-        QtGui.QColor("#061533"), max(target.width(), target.height()) * 0.045
+        QtGui.QColor("#08172c"), max(rect.width(), rect.height()) * 0.055
     )
     border_pen.setJoinStyle(QtCore.Qt.PenJoinStyle.RoundJoin)
     painter.setPen(border_pen)
 
-    background = QtGui.QLinearGradient(target.topLeft(), target.bottomRight())
-    background.setColorAt(0.0, QtGui.QColor("#102a43"))
-    background.setColorAt(1.0, QtGui.QColor("#1f4b99"))
+    background = QtGui.QLinearGradient(rect.topLeft(), rect.bottomRight())
+    background.setColorAt(0.0, QtGui.QColor("#0b1d36"))
+    background.setColorAt(1.0, QtGui.QColor("#1e4074"))
     painter.setBrush(QtGui.QBrush(background))
-    painter.drawRoundedRect(target, radius, radius)
+    painter.drawRoundedRect(rect, radius, radius)
 
-    sheet = target.adjusted(
-        target.width() * 0.17,
-        target.height() * 0.17,
-        -target.width() * 0.17,
-        -target.height() * 0.17,
+    sheet = rect.adjusted(
+        rect.width() * 0.16,
+        rect.height() * 0.16,
+        -rect.width() * 0.16,
+        -rect.height() * 0.16,
     )
     sheet_gradient = QtGui.QLinearGradient(sheet.topLeft(), sheet.bottomRight())
-    sheet_gradient.setColorAt(0.0, QtGui.QColor("#f5fbff"))
-    sheet_gradient.setColorAt(1.0, QtGui.QColor("#e3f2fd"))
+    sheet_gradient.setColorAt(0.0, QtGui.QColor("#f9fcff"))
+    sheet_gradient.setColorAt(1.0, QtGui.QColor("#e0e8ff"))
     sheet_pen = QtGui.QPen(
-        QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.03
+        QtGui.QColor("#1b365f"), max(rect.width(), rect.height()) * 0.03
     )
     sheet_pen.setJoinStyle(QtCore.Qt.PenJoinStyle.RoundJoin)
     painter.setPen(sheet_pen)
     painter.setBrush(QtGui.QBrush(sheet_gradient))
     painter.drawRoundedRect(sheet, radius * 0.7, radius * 0.7)
 
-    line_height = sheet.height() / 5.1
+    accent_rect = QtCore.QRectF(
+        sheet.left() + sheet.width() * 0.05,
+        sheet.top() + sheet.height() * 0.12,
+        sheet.width() * 0.08,
+        sheet.height() * 0.76,
+    )
+    accent_gradient = QtGui.QLinearGradient(
+        accent_rect.topLeft(), accent_rect.bottomRight()
+    )
+    accent_gradient.setColorAt(0.0, QtGui.QColor("#4aa8ff"))
+    accent_gradient.setColorAt(1.0, QtGui.QColor("#2465dd"))
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
+    painter.setBrush(QtGui.QBrush(accent_gradient))
+    painter.drawRoundedRect(
+        accent_rect, accent_rect.width() / 2.2, accent_rect.width() / 2.2
+    )
+
+    line_height = sheet.height() / 5.2
     vertical_margin = (sheet.height() - 3 * line_height) / 4
-    horizontal_margin = sheet.width() * 0.12
+    start_x = accent_rect.right() + sheet.width() * 0.06
+    end_x = sheet.right() - sheet.width() * 0.1
     accents = [
-        ("plus", QtGui.QColor("#2ecc71")),
-        ("minus", QtGui.QColor("#e74c3c")),
-        ("dots", QtGui.QColor("#2e86de")),
+        ("plus", QtGui.QColor("#3ddc97")),
+        ("minus", QtGui.QColor("#ff6b6b")),
+        ("review", QtGui.QColor("#4aa8ff")),
     ]
 
     y = sheet.top() + vertical_margin
     for kind, accent in accents:
-        line_rect = QtCore.QRectF(
-            sheet.left() + horizontal_margin,
-            y,
-            sheet.width() - 2 * horizontal_margin,
-            line_height,
-        )
+        line_rect = QtCore.QRectF(start_x, y, end_x - start_x, line_height)
         highlight = QtGui.QColor(accent)
         highlight.setAlpha(60)
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(highlight))
-        painter.drawRoundedRect(line_rect, line_height / 2.4, line_height / 2.4)
+        painter.drawRoundedRect(line_rect, line_height / 2.3, line_height / 2.3)
 
         pen = QtGui.QPen(
-            accent,
-            line_height * 0.35,
+            accent.darker(110),
+            line_height * 0.45,
             QtCore.Qt.PenStyle.SolidLine,
             QtCore.Qt.PenCapStyle.RoundCap,
         )
         painter.setPen(pen)
         centre_y = line_rect.center().y()
-        start_x = line_rect.left() + line_height * 0.6
-        end_x = line_rect.right() - line_height * 0.6
-        if kind == "dots":
-            dots = 5
-            if end_x > start_x:
-                dot_spacing = (end_x - start_x) / (dots - 1)
-            else:
-                dot_spacing = 0
+        if kind == "review":
+            dots = 4
+            dot_spacing = line_rect.width() / (dots + 1)
             for idx in range(dots):
-                painter.drawPoint(QtCore.QPointF(start_x + dot_spacing * idx, centre_y))
+                painter.drawPoint(
+                    QtCore.QPointF(
+                        line_rect.left() + dot_spacing * (idx + 1), centre_y
+                    )
+                )
         else:
             painter.drawLine(
-                QtCore.QPointF(start_x, centre_y),
-                QtCore.QPointF(end_x, centre_y),
+                QtCore.QPointF(line_rect.left() + line_height * 0.55, centre_y),
+                QtCore.QPointF(line_rect.right() - line_height * 0.55, centre_y),
             )
             if kind == "plus":
-                mid_x = (start_x + end_x) / 2
+                mid_x = (line_rect.left() + line_rect.right()) / 2
                 painter.drawLine(
-                    QtCore.QPointF(mid_x, centre_y - line_height * 0.55),
-                    QtCore.QPointF(mid_x, centre_y + line_height * 0.55),
+                    QtCore.QPointF(mid_x, centre_y - line_height * 0.6),
+                    QtCore.QPointF(mid_x, centre_y + line_height * 0.6),
                 )
         y += line_height + vertical_margin
 
     fold = QtCore.QRectF(
         sheet.right() - sheet.width() * 0.28,
-        sheet.top() + sheet.height() * 0.07,
+        sheet.top() + sheet.height() * 0.05,
         sheet.width() * 0.28,
         sheet.height() * 0.28,
     )
@@ -132,11 +152,11 @@ def _draw_logo(painter: QtGui.QPainter, target: QtCore.QRectF) -> None:
     fold_path.lineTo(fold.bottomRight())
     fold_path.closeSubpath()
     fold_gradient = QtGui.QLinearGradient(fold.topLeft(), fold.bottomRight())
-    fold_gradient.setColorAt(0.0, QtGui.QColor("#bbdefb"))
-    fold_gradient.setColorAt(1.0, QtGui.QColor("#90caf9"))
+    fold_gradient.setColorAt(0.0, QtGui.QColor("#d1ddff"))
+    fold_gradient.setColorAt(1.0, QtGui.QColor("#a8bbff"))
     painter.setBrush(QtGui.QBrush(fold_gradient))
     painter.setPen(
-        QtGui.QPen(QtGui.QColor("#0f3057"), max(target.width(), target.height()) * 0.02)
+        QtGui.QPen(QtGui.QColor("#1b365f"), max(rect.width(), rect.height()) * 0.022)
     )
     painter.drawPath(fold_path)
 
@@ -208,39 +228,43 @@ class WordmarkWidget(_QWidgetBase):
         rect = QtCore.QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
         radius = rect.height() * 0.32
 
-        background = QtGui.QLinearGradient(rect.topLeft(), rect.bottomLeft())
-        background.setColorAt(0.0, QtGui.QColor("#0f2027"))
-        background.setColorAt(1.0, QtGui.QColor("#203a43"))
+        background = QtGui.QLinearGradient(rect.topLeft(), rect.bottomRight())
+        background.setColorAt(0.0, QtGui.QColor("#0c1b2f"))
+        background.setColorAt(1.0, QtGui.QColor("#17345b"))
+        border = QtGui.QPen(QtGui.QColor("#071224"), 2.4)
+        border.setJoinStyle(QtCore.Qt.PenJoinStyle.RoundJoin)
         painter.setBrush(QtGui.QBrush(background))
-        painter.setPen(QtGui.QPen(QtGui.QColor("#071018"), 2.2))
+        painter.setPen(border)
         painter.drawRoundedRect(rect, radius, radius)
 
         accent_rect = QtCore.QRectF(
-            rect.left() + rect.width() * 0.05,
-            rect.top() + rect.height() * 0.2,
-            rect.width() * 0.02,
-            rect.height() * 0.6,
+            rect.left() + rect.width() * 0.045,
+            rect.top() + rect.height() * 0.18,
+            rect.width() * 0.022,
+            rect.height() * 0.64,
         )
         accent_gradient = QtGui.QLinearGradient(
             accent_rect.topLeft(), accent_rect.bottomRight()
         )
-        accent_gradient.setColorAt(0.0, QtGui.QColor("#26c6da"))
-        accent_gradient.setColorAt(1.0, QtGui.QColor("#00acc1"))
+        accent_gradient.setColorAt(0.0, QtGui.QColor("#52b2ff"))
+        accent_gradient.setColorAt(1.0, QtGui.QColor("#2f7df2"))
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(accent_gradient))
-        painter.drawRoundedRect(accent_rect, accent_rect.width(), accent_rect.width())
+        painter.drawRoundedRect(
+            accent_rect, accent_rect.width(), accent_rect.width()
+        )
 
         highlight_rect = QtCore.QRectF(
-            rect.left() + rect.width() * 0.13,
+            rect.left() + rect.width() * 0.12,
             rect.bottom() - rect.height() * 0.3,
-            rect.width() * 0.28,
-            rect.height() * 0.11,
+            rect.width() * 0.3,
+            rect.height() * 0.12,
         )
         highlight_gradient = QtGui.QLinearGradient(
             highlight_rect.topLeft(), highlight_rect.topRight()
         )
-        highlight_gradient.setColorAt(0.0, QtGui.QColor("#26c6da"))
-        highlight_gradient.setColorAt(1.0, QtGui.QColor("#1de9b6"))
+        highlight_gradient.setColorAt(0.0, QtGui.QColor("#4ac6ff"))
+        highlight_gradient.setColorAt(1.0, QtGui.QColor("#3ddc97"))
         painter.setBrush(QtGui.QBrush(highlight_gradient))
         painter.drawRoundedRect(
             highlight_rect, highlight_rect.height() / 2, highlight_rect.height() / 2
@@ -248,16 +272,16 @@ class WordmarkWidget(_QWidgetBase):
 
         title_rect = QtCore.QRectF(
             rect.left() + rect.width() * 0.12,
-            rect.top() + rect.height() * 0.08,
-            rect.width() * 0.83,
+            rect.top() + rect.height() * 0.1,
+            rect.width() * 0.8,
             rect.height() * 0.45,
         )
         title_font = QtGui.QFont(self.font())
         title_font.setBold(True)
-        title_font.setPointSizeF(rect.height() * 0.36)
-        title_font.setLetterSpacing(QtGui.QFont.SpacingType.PercentageSpacing, 104)
+        title_font.setPointSizeF(rect.height() * 0.34)
+        title_font.setLetterSpacing(QtGui.QFont.SpacingType.PercentageSpacing, 103)
         painter.setFont(title_font)
-        painter.setPen(QtGui.QColor("#e0f7fa"))
+        painter.setPen(QtGui.QColor("#f0f6ff"))
         painter.drawText(
             title_rect,
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter,
@@ -267,14 +291,14 @@ class WordmarkWidget(_QWidgetBase):
         subtitle_rect = QtCore.QRectF(
             rect.left() + rect.width() * 0.12,
             rect.bottom() - rect.height() * 0.34,
-            rect.width() * 0.83,
+            rect.width() * 0.78,
             rect.height() * 0.28,
         )
         subtitle_font = QtGui.QFont(self.font())
         subtitle_font.setPointSizeF(rect.height() * 0.2)
-        subtitle_font.setLetterSpacing(QtGui.QFont.SpacingType.PercentageSpacing, 104)
+        subtitle_font.setLetterSpacing(QtGui.QFont.SpacingType.PercentageSpacing, 103)
         painter.setFont(subtitle_font)
-        painter.setPen(QtGui.QColor("#b3e5fc"))
+        painter.setPen(QtGui.QColor("#a8c2ff"))
         painter.drawText(
             subtitle_rect,
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter,
