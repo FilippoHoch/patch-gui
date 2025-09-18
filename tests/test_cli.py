@@ -1371,6 +1371,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
         log_file=tmp_path / "custom.log",
         log_max_bytes=2048,
         log_backup_count=5,
+        backup_retention_days=12,
     )
     save_config(config, path=config_path)
 
@@ -1386,6 +1387,7 @@ def test_config_show_outputs_json(tmp_path: Path) -> None:
     assert payload["log_file"] == str(config.log_file)
     assert payload["log_max_bytes"] == config.log_max_bytes
     assert payload["log_backup_count"] == config.log_backup_count
+    assert payload["backup_retention_days"] == config.backup_retention_days
 
 
 def test_config_set_updates_values(tmp_path: Path) -> None:
@@ -1467,6 +1469,14 @@ def test_config_set_updates_values(tmp_path: Path) -> None:
     )
     assert load_config(config_path).log_backup_count == 2
 
+    cli.config_set(
+        "backup_retention_days",
+        ["30"],
+        path=config_path,
+        stream=io.StringIO(),
+    )
+    assert load_config(config_path).backup_retention_days == 30
+
 
 def test_config_reset_values(tmp_path: Path) -> None:
     config_path = tmp_path / "settings.toml"
@@ -1493,6 +1503,7 @@ def test_config_reset_values(tmp_path: Path) -> None:
     assert reset.log_file == defaults.log_file
     assert reset.log_max_bytes == defaults.log_max_bytes
     assert reset.log_backup_count == defaults.log_backup_count
+    assert reset.backup_retention_days == defaults.backup_retention_days
 
 
 def test_run_config_reports_invalid_log_level(
@@ -1603,6 +1614,7 @@ def test_run_download_exe_reports_error(
 def test_cli_manual_resolver_handles_fuzzy_candidates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     user_input: str,
     expected_applied: int,
     expected_completed: bool,
@@ -1634,6 +1646,9 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
         write_report_files=False,
     )
 
+    captured = capsys.readouterr()
+    assert "AI suggestion: candidate" in captured.out
+
     assert len(session.results) == 1
     result = session.results[0]
     assert result.hunks_total == 1
@@ -1659,6 +1674,7 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
 def test_cli_manual_resolver_handles_context_candidates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
     user_input: str,
     expected_applied: int,
     expected_completed: bool,
@@ -1696,6 +1712,9 @@ def test_cli_manual_resolver_handles_context_candidates(
         write_report_files=False,
     )
 
+    captured = capsys.readouterr()
+    assert "AI suggestion: candidate" in captured.out
+
     assert len(session.results) == 1
     result = session.results[0]
     assert result.hunks_total == 1
@@ -1712,3 +1731,64 @@ def test_cli_manual_resolver_handles_context_candidates(
         assert decision.strategy == "manual"
         assert decision.selected_pos == expected_pos
         assert decision.similarity is not None
+
+def test_cli_auto_accept_resolves_fuzzy_candidates(tmp_path: Path) -> None:
+    project = tmp_path / "auto_fuzzy"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "old apple1\nold banana1\nmiddle line\nold apple2\nold banana2\n",
+        encoding="utf-8",
+    )
+
+    session = executor.apply_patchset(
+        PatchSet(FUZZY_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.8,
+        write_report_files=False,
+        interactive=False,
+        auto_accept=True,
+    )
+
+    result = session.results[0]
+    assert result.hunks_applied == 1
+    assert executor.session_completed(session) is True
+    decision = result.decisions[0]
+    assert decision.selected_pos is not None
+    assert decision.similarity is not None
+    assert decision.message
+    assert "auto-accept" in decision.message
+
+
+def test_cli_auto_accept_resolves_context_candidates(tmp_path: Path) -> None:
+    project = tmp_path / "auto_context"
+    project.mkdir()
+    (project / "sample.txt").write_text(
+        "line keep\n"
+        "line existing one\n"
+        "line end\n"
+        "----\n"
+        "line keep\n"
+        "line existing two\n"
+        "line end\n",
+        encoding="utf-8",
+    )
+
+    session = executor.apply_patchset(
+        PatchSet(CONTEXT_MANUAL_DIFF),
+        project,
+        dry_run=True,
+        threshold=0.7,
+        write_report_files=False,
+        interactive=False,
+        auto_accept=True,
+    )
+
+    result = session.results[0]
+    assert result.hunks_applied == 1
+    assert executor.session_completed(session) is True
+    decision = result.decisions[0]
+    assert decision.selected_pos is not None
+    assert decision.similarity is not None
+    assert decision.message
+    assert "auto-accept" in decision.message

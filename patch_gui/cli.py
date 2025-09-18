@@ -60,6 +60,7 @@ _CONFIG_KEYS = (
     "log_file",
     "log_max_bytes",
     "log_backup_count",
+    "backup_retention_days",
 )
 
 
@@ -123,6 +124,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         force=True,
     )
 
+    interactive = not args.non_interactive
+    if args.auto_accept:
+        interactive = True
+
     try:
         patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
@@ -142,7 +147,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
             threshold=args.threshold,
             backup_base=backup_base,
-            interactive=not args.non_interactive,
+            interactive=interactive,
+            auto_accept=args.auto_accept,
             report_json=report_json_arg,
             report_txt=report_txt_arg,
             write_report_files=not args.no_report,
@@ -424,6 +430,8 @@ def config_reset(
             config.log_max_bytes = defaults.log_max_bytes
         elif key == "log_backup_count":
             config.log_backup_count = defaults.log_backup_count
+        elif key == "backup_retention_days":
+            config.backup_retention_days = defaults.backup_retention_days
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -506,7 +514,7 @@ def _apply_config_value(
         config.log_file = Path(values[0]).expanduser()
         return
 
-    if key in {"log_max_bytes", "log_backup_count"}:
+    if key in {"log_max_bytes", "log_backup_count", "backup_retention_days"}:
         if len(values) != 1:
             raise ConfigCommandError(
                 _("The {key} key expects exactly one value.").format(key=key),
@@ -514,8 +522,10 @@ def _apply_config_value(
         numeric = _parse_non_negative_int(values[0], key=key)
         if key == "log_max_bytes":
             config.log_max_bytes = numeric
-        else:
+        elif key == "log_backup_count":
             config.log_backup_count = numeric
+        else:
+            config.backup_retention_days = numeric
         return
 
     raise ValueError(_("Unknown configuration key: {key}").format(key=key))

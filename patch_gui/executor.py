@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import shutil
 import sys
 import time
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
@@ -25,9 +27,12 @@ from .patcher import (
     backup_file,
     find_file_candidates,
     prepare_backup_dir,
+    prune_backup_sessions,
 )
 from .reporting import write_session_reports
 from .utils import (
+    REPORT_RESULTS_SUBDIR,
+    REPORTS_SUBDIR,
     decode_bytes,
     display_relative_path,
     normalize_newlines,
@@ -141,6 +146,7 @@ def apply_patchset(
     threshold: float,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
+    auto_accept: bool = False,
     report_json: Path | str | None = None,
     report_txt: Path | str | None = None,
     write_report_files: bool = True,
@@ -184,6 +190,20 @@ def apply_patchset(
             "Failed to prepare backup directory at {path}: {error}"
         ).format(path=failure_path, error=exc)
         raise CLIError(message) from exc
+
+    retention_days = getattr(resolved_config, "backup_retention_days", 0)
+    if retention_days > 0:
+        prune_backup_sessions(
+            backup_base_arg,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
+        reports_base = backup_base_arg / REPORTS_SUBDIR / REPORT_RESULTS_SUBDIR
+        prune_backup_sessions(
+            reports_base,
+            retention_days=retention_days,
+            reference_timestamp=started_at,
+        )
     resolved_excludes = (
         tuple(exclude_dirs)
         if exclude_dirs is not None
@@ -199,9 +219,18 @@ def apply_patchset(
         started_at=started_at,
     )
 
+    effective_interactive = interactive or auto_accept
+
     for pf in patch:
         rel = _relative_path_from_patch(pf)
-        fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
+        fr = _apply_file_patch(
+            root,
+            pf,
+            rel,
+            session,
+            interactive=effective_interactive,
+            auto_accept=auto_accept,
+        )
         session.results.append(fr)
 
     try:
@@ -282,6 +311,7 @@ def _apply_file_patch(
     session: ApplySession,
     *,
     interactive: bool,
+    auto_accept: bool,
 ) -> FileResult:
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
@@ -364,7 +394,9 @@ def _apply_file_patch(
                         )
                         return fr
                     selected_source = _prompt_candidate_selection(
-                        project_root, source_candidates
+                        project_root,
+                        source_candidates,
+                        auto_accept_first=auto_accept,
                     )
                     if selected_source is None:
                         fr.skipped_reason = _ambiguous_paths_message(
@@ -411,7 +443,9 @@ def _apply_file_patch(
         if not interactive:
             fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
             return fr
-        selected = _prompt_candidate_selection(project_root, candidates)
+        selected = _prompt_candidate_selection(
+            project_root, candidates, auto_accept_first=auto_accept
+        )
         if selected is None:
             fr.skipped_reason = _ambiguous_paths_message(project_root, candidates)
             return fr
@@ -551,11 +585,15 @@ def _apply_file_patch(
             )
             return fr
 
+    manual_resolver = functools.partial(
+        _cli_manual_resolver, auto_accept=auto_accept
+    )
+
     lines, decisions, applied = apply_hunks(
         lines,
         pf,
         threshold=session.threshold,
-        manual_resolver=_cli_manual_resolver,
+        manual_resolver=manual_resolver,
     )
 
     fr.hunks_applied = applied
@@ -636,11 +674,22 @@ def _apply_file_patch(
 
 
 def _prompt_candidate_selection(
-    project_root: Path, candidates: Sequence[Path]
+    project_root: Path,
+    candidates: Sequence[Path],
+    *,
+    auto_accept_first: bool = False,
 ) -> Optional[Path]:
     display_paths: List[str] = []
     for path in candidates:
         display_paths.append(display_relative_path(path, project_root))
+
+    if auto_accept_first and candidates:
+        selected = candidates[0]
+        message = _(
+            "Automatically selected {path} (--auto-accept)."
+        ).format(path=display_relative_path(selected, project_root))
+        print(message)
+        return selected
 
     print(_("Multiple files match the patch path:"))
     for idx, value in enumerate(display_paths, start=1):
@@ -688,15 +737,81 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
     ).format(candidates=joined)
 
 
+def _ai_rank_candidates(
+    lines: List[str],
+    hv: HunkView,
+    candidates: List[Tuple[int, float]],
+) -> Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]]:
+    if not candidates:
+        return None
+
+    reference_lines = hv.before_lines or hv.after_lines
+    block_len = len(reference_lines)
+    if block_len == 0 and hv.after_lines:
+        block_len = len(hv.after_lines)
+    if block_len <= 0:
+        block_len = 1
+
+    reference_text = "".join(reference_lines)
+    if not reference_text:
+        reference_text = "".join(hv.after_lines)
+
+    best: Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]] = None
+    for display_index, (pos, similarity) in enumerate(candidates, start=1):
+        if similarity is not None:
+            score = float(similarity)
+        elif reference_text:
+            snippet = "".join(lines[pos : pos + block_len])
+            if not snippet and 0 <= pos < len(lines):
+                snippet = lines[pos]
+            score = SequenceMatcher(None, reference_text, snippet).ratio()
+        else:
+            # Cannot compute a heuristic score without reference text
+            continue
+
+        start_line = pos + 1
+        end_line = start_line + block_len - 1
+        if start_line > len(lines):
+            line_range: Optional[Tuple[int, int]] = None
+        else:
+            end_line = min(end_line, len(lines))
+            line_range = (start_line, end_line)
+
+        if best is None or score > best[2]:
+            best = (display_index, pos, score, line_range)
+
+    return best
+
+
 def _cli_manual_resolver(
     hv: HunkView,
     lines: List[str],
     candidates: List[Tuple[int, float]],
     decision: HunkDecision,
     reason: str,
+    *,
+    auto_accept: bool = False,
 ) -> Optional[int]:
     decision.candidates = list(candidates)
     decision.strategy = "manual"
+
+    if auto_accept and candidates:
+        pos, score = candidates[0]
+        try:
+            candidate_index = candidates.index((pos, score)) + 1
+        except ValueError:  # pragma: no cover - defensive fallback
+            candidate_index = 1
+        decision.selected_pos = pos
+        decision.similarity = score
+        decision.message = _(
+            "Automatically selected candidate {index} (--auto-accept)."
+        ).format(index=candidate_index)
+        print(
+            _(
+                "Auto-applied hunk {header} at position {position} (--auto-accept, candidate {index})."
+            ).format(header=hv.header, position=pos, index=candidate_index)
+        )
+        return pos
 
     header_message = _("Reviewing hunk: {header}").format(header=hv.header)
     if reason == "fuzzy":
@@ -726,6 +841,31 @@ def _cli_manual_resolver(
     window_len = len(hv.before_lines)
     highlight_width = max(window_len, 1)
     context_padding = 2
+
+    ai_hint = _ai_rank_candidates(lines, hv, candidates)
+    if ai_hint is not None:
+        hint_index, hint_position, hint_score, hint_range = ai_hint
+        if hint_range is None:
+            range_text = _("line {line}").format(line=hint_position + 1)
+        else:
+            start_line, end_line = hint_range
+            if start_line == end_line:
+                range_text = _("line {line}").format(line=start_line)
+            else:
+                range_text = _("lines {start}-{end}").format(
+                    start=start_line,
+                    end=end_line,
+                )
+        print(
+            _(
+                "AI suggestion: candidate {index} ({range_text}) looks like the best "
+                "match (confidence {confidence:.3f})."
+            ).format(
+                index=hint_index,
+                range_text=range_text,
+                confidence=hint_score,
+            )
+        )
 
     print("")
     print(_("Available candidate positions:"))

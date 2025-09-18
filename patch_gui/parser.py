@@ -134,6 +134,15 @@ def build_parser(
         ),
     )
     parser.add_argument(
+        "--auto-accept",
+        action="store_true",
+        help=_(
+            "Automatically accept the best candidate when manual intervention would "
+            "normally be required. Can be combined with --non-interactive to avoid "
+            "prompts entirely."
+        ),
+    )
+    parser.add_argument(
         "--encoding",
         default=None,
         help=_(

@@ -7,7 +7,7 @@ import logging
 import shutil
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Optional, Protocol, Sequence
@@ -650,6 +650,75 @@ def prepare_backup_dir(
     return backup_dir
 
 
+def _parse_session_label(label: str) -> datetime | None:
+    parts = label.split("-")
+    if len(parts) != 3:
+        return None
+    date_part, time_part, fractional_part = parts
+    if len(date_part) != 8 or len(time_part) != 6:
+        return None
+    try:
+        base = datetime.strptime(f"{date_part}-{time_part}", "%Y%m%d-%H%M%S")
+    except ValueError:
+        return None
+    try:
+        fractional = int(fractional_part)
+    except ValueError:
+        return None
+    if fractional < 0:
+        return None
+    scale = 10 ** len(fractional_part)
+    return base + timedelta(seconds=fractional / scale)
+
+
+def prune_backup_sessions(
+    base: Path,
+    *,
+    retention_days: int,
+    reference_timestamp: float | None = None,
+) -> list[Path]:
+    """Remove backup/report sessions in ``base`` older than ``retention_days``."""
+
+    if retention_days <= 0:
+        return []
+
+    reference = (
+        datetime.fromtimestamp(reference_timestamp)
+        if reference_timestamp is not None
+        else datetime.now()
+    )
+    cutoff = reference - timedelta(days=retention_days)
+
+    try:
+        entries = list(base.iterdir())
+    except FileNotFoundError:
+        return []
+    except OSError as exc:  # pragma: no cover - unexpected filesystem error
+        logger.warning("Impossibile elencare le sessioni di backup in %s: %s", base, exc)
+        return []
+
+    removed: list[Path] = []
+    for entry in entries:
+        try:
+            if not entry.is_dir():
+                continue
+        except OSError:  # pragma: no cover - entry vanished during iteration
+            continue
+        session_time = _parse_session_label(entry.name)
+        if session_time is None or session_time >= cutoff:
+            continue
+        try:
+            shutil.rmtree(entry)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:  # pragma: no cover - unexpected removal error
+            logger.warning("Impossibile rimuovere il backup %s: %s", entry, exc)
+            continue
+        removed.append(entry)
+
+    return removed
+
+
 def backup_file(project_root: Path, path: Path, backup_root: Path) -> None:
     """Copy ``path`` inside ``backup_root`` preserving the relative structure."""
 
@@ -739,6 +808,7 @@ __all__ = [
     "find_file_candidates",
     "find_candidates",
     "prepare_backup_dir",
+    "prune_backup_sessions",
     "text_similarity",
     "write_reports",
 ]

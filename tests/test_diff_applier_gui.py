@@ -148,6 +148,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
         log_file=tmp_path / "logs" / "app.log",
         log_max_bytes=1024,
         log_backup_count=2,
+        backup_retention_days=4,
     )
 
     dialog = app_module.SettingsDialog(None, config=config)
@@ -164,6 +165,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     dialog.log_file_edit.setText(str(new_log_file))
     dialog.log_max_edit.setText("8192")
     dialog.log_backup_edit.setText("5")
+    dialog.backup_retention_edit.setText("7")
 
     updated = dialog._gather_config()
 
@@ -176,6 +178,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     assert updated.log_file == new_log_file
     assert updated.log_max_bytes == 8192
     assert updated.log_backup_count == 5
+    assert updated.backup_retention_days == 7
 
 
 def test_main_window_applies_settings_dialog(
