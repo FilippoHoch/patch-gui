@@ -165,12 +165,25 @@ def apply_patchset(
 
     resolved_config = config or load_config()
     started_at = time.time()
-    backup_dir = prepare_backup_dir(
-        root,
-        dry_run=dry_run,
-        backup_base=backup_base or resolved_config.backup_base,
-        started_at=started_at,
-    )
+    backup_base_arg = backup_base or resolved_config.backup_base
+    try:
+        backup_dir = prepare_backup_dir(
+            root,
+            dry_run=dry_run,
+            backup_base=backup_base_arg,
+            started_at=started_at,
+        )
+    except (OSError, PermissionError) as exc:
+        failure_path = (
+            getattr(exc, "filename", None)
+            or getattr(exc, "filename2", None)
+            or backup_base_arg
+            or root
+        )
+        message = _(
+            "Failed to prepare backup directory at {path}: {error}"
+        ).format(path=failure_path, error=exc)
+        raise CLIError(message) from exc
     resolved_excludes = (
         tuple(exclude_dirs)
         if exclude_dirs is not None
@@ -191,14 +204,23 @@ def apply_patchset(
         fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
-    write_session_reports(
-        session,
-        report_json=report_json,
-        report_txt=report_txt,
-        enable_reports=write_report_files,
-        write_json=write_report_json,
-        write_txt=write_report_txt,
-    )
+    try:
+        write_session_reports(
+            session,
+            report_json=report_json,
+            report_txt=report_txt,
+            enable_reports=write_report_files,
+            write_json=write_report_json,
+            write_txt=write_report_txt,
+        )
+    except (OSError, PermissionError) as exc:
+        failure_path = getattr(exc, "filename", None) or getattr(exc, "filename2", None)
+        if failure_path is None:
+            failure_path = session.backup_dir
+        message = _("Failed to write session reports to {path}: {error}").format(
+            path=failure_path, error=exc
+        )
+        raise CLIError(message) from exc
 
     return session
 
@@ -292,7 +314,8 @@ def _apply_file_patch(
     rename_target = _normalize_patch_path(target_file)
     rename_flag = bool(getattr(pf, "is_rename", False))
     is_rename = (
-        not is_added_file
+        not is_copy
+        and not is_added_file
         and not is_removed_file
         and rename_source
         and rename_target
@@ -518,7 +541,15 @@ def _apply_file_patch(
                 "Failed to create backup for {path}: {error}"
             ).format(path=relative_path, error=exc)
             logger.error(message)
-            raise CLIError(message) from exc
+            fr.skipped_reason = message
+            fr.decisions.append(
+                HunkDecision(
+                    hunk_header="backup",
+                    strategy="failed",
+                    message=message,
+                )
+            )
+            return fr
 
     lines, decisions, applied = apply_hunks(
         lines,
