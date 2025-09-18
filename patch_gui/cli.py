@@ -64,11 +64,19 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             )
         )
 
+    requested_formats = args.summary_format or []
+    normalized_formats = [fmt.lower() for fmt in requested_formats]
+    if not normalized_formats:
+        normalized_formats = ["text"]
+    summary_formats = list(dict.fromkeys(normalized_formats))
+    print_text_summary = "text" in summary_formats
+    print_json_summary = "json" in summary_formats
+
     level_name = args.log_level.upper()
     logging.basicConfig(
         level=getattr(logging, level_name, logging.WARNING),
         format="%(levelname)s: %(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr if print_json_summary else sys.stdout,
         force=True,
     )
 
@@ -95,26 +103,35 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             report_json=args.report_json,
             report_txt=args.report_txt,
             write_report_files=not args.no_report,
+            write_json_report=print_json_summary,
+            write_txt_report=print_text_summary,
             exclude_dirs=exclude_dirs,
             config=config,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
 
-    print(session.to_txt())
-    if args.dry_run:
-        print(_("\nDry-run mode: no files were modified and no backups were created."))
-    else:
-        print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
-        if session.report_json_path or session.report_txt_path:
-            details = []
-            if session.report_json_path:
-                details.append(_("JSON: {path}").format(path=session.report_json_path))
-            if session.report_txt_path:
-                details.append(_("Text: {path}").format(path=session.report_txt_path))
-            print(_("Reports saved to: {details}").format(details=", ".join(details)))
+    if print_text_summary:
+        print(session.to_txt())
+        if args.dry_run:
+            print(_("\nDry-run mode: no files were modified and no backups were created."))
         else:
-            print(_("Reports disabled (--no-report)"))
+            print(_("\nBackups saved to: {path}").format(path=session.backup_dir))
+            if session.report_json_path or session.report_txt_path:
+                details = []
+                if session.report_json_path:
+                    details.append(_("JSON: {path}").format(path=session.report_json_path))
+                if session.report_txt_path:
+                    details.append(_("Text: {path}").format(path=session.report_txt_path))
+                print(_("Reports saved to: {details}").format(details=", ".join(details)))
+            else:
+                print(_("Reports disabled (--no-report)"))
+
+    if print_json_summary:
+        if print_text_summary:
+            print()
+        json_summary = json.dumps(session.to_json(), ensure_ascii=False, indent=2)
+        print(json_summary)
 
     return 0 if session_completed(session) else 1
 

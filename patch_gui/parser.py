@@ -102,6 +102,16 @@ def build_parser(
         % REPORT_TXT,
     )
     parser.add_argument(
+        "--summary-format",
+        action="append",
+        choices=("text", "json"),
+        metavar="FORMAT",
+        help=_(
+            "Summary format to print on stdout (text, json). Repeat the option to "
+            "select multiple formats. Defaults to text."
+        ),
+    )
+    parser.add_argument(
         "--no-report",
         action="store_true",
         help=_("Do not create JSON/TXT report files."),

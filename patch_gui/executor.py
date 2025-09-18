@@ -143,6 +143,8 @@ def apply_patchset(
     report_json: Path | str | None = None,
     report_txt: Path | str | None = None,
     write_report_files: bool = True,
+    write_json_report: bool = True,
+    write_txt_report: bool = True,
     exclude_dirs: Sequence[str] | None = None,
     config: AppConfig | None = None,
 ) -> ApplySession:
@@ -180,12 +182,14 @@ def apply_patchset(
         fr = _apply_file_patch(root, pf, rel, session, interactive=interactive)
         session.results.append(fr)
 
-    write_session_reports(
-        session,
-        report_json=report_json,
-        report_txt=report_txt,
-        enable_reports=write_report_files,
-    )
+        write_session_reports(
+            session,
+            report_json=report_json,
+            report_txt=report_txt,
+            enable_reports=write_report_files,
+            write_json=write_json_report,
+            write_txt=write_txt_report,
+        )
 
     return session
 

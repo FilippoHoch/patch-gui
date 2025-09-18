@@ -844,6 +844,75 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         configured_logger.setLevel(previous_level)
 
 
+def test_run_cli_text_summary_skips_json_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "text-summary.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    json_report = tmp_path / "reports" / "apply.json"
+    text_report = tmp_path / "reports" / "apply.txt"
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--log-level",
+            "error",
+            "--report-json",
+            str(json_report),
+            "--report-txt",
+            str(text_report),
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Report –" in captured.out
+    assert json_report.exists() is False
+    assert text_report.exists() is True
+
+
+def test_run_cli_json_summary_prints_json_only(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "json-summary.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    json_report = tmp_path / "reports" / "apply.json"
+    text_report = tmp_path / "reports" / "apply.txt"
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--log-level",
+            "error",
+            "--summary-format",
+            "json",
+            "--report-json",
+            str(json_report),
+            "--report-txt",
+            str(text_report),
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["dry_run"] is True
+    assert "Report –" not in captured.out
+    assert json_report.exists() is True
+    assert text_report.exists() is False
+
 class _DummySession:
     def __init__(self, tmp_path: Path) -> None:
         self.dry_run = True
