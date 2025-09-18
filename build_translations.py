@@ -147,31 +147,38 @@ if TYPE_CHECKING:
 
         def run(self) -> None: ...
 
-elif _SetuptoolsBuildPy is not None:
+else:
 
-    class BuildPy(_SetuptoolsBuildPy):
-        """Custom build command that ensures Qt translations are generated."""
+    def _create_build_py_class() -> type[_BuildCommandProtocol]:
+        if _SetuptoolsBuildPy is not None:
 
-        def run(self) -> None:
-            compile_translations(announcer=self.announce)
-            super().run()
+            class _RuntimeBuildPy(_SetuptoolsBuildPy):
+                """Custom build command that ensures Qt translations are generated."""
 
-else:  # pragma: no cover - setuptools not installed when running CLI only
+                def run(self) -> None:
+                    compile_translations(announcer=self.announce)
+                    super().run()
 
-    class BuildPy:  # type: ignore[no-redef]
-        """Placeholder used when setuptools is not available."""
+            return _RuntimeBuildPy
 
-        announce: Callable[[str, int], None]
+        class _PlaceholderBuildPy:
+            """Placeholder used when setuptools is not available."""
 
-        def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError(
-                "setuptools is required to use the custom build command."
-            )
+            announce: Callable[[str, int], None]
 
-        def run(self) -> None:
-            raise RuntimeError(
-                "setuptools is required to use the custom build command."
-            )
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                raise RuntimeError(
+                    "setuptools is required to use the custom build command."
+                )
+
+            def run(self) -> None:
+                raise RuntimeError(
+                    "setuptools is required to use the custom build command."
+                )
+
+        return cast("type[_BuildCommandProtocol]", _PlaceholderBuildPy)
+
+    BuildPy = _create_build_py_class()
 
 
 if TYPE_CHECKING:
@@ -181,31 +188,38 @@ if TYPE_CHECKING:
 
         def run(self) -> None: ...
 
-elif _SetuptoolsSDist is not None:
+else:
 
-    class SDist(_SetuptoolsSDist):
-        """Custom sdist command that ensures Qt translations are generated."""
+    def _create_sdist_class() -> type[_SDistCommandProtocol]:
+        if _SetuptoolsSDist is not None:
 
-        def run(self) -> None:
-            compile_translations(announcer=self.announce)
-            super().run()
+            class _RuntimeSDist(_SetuptoolsSDist):
+                """Custom sdist command that ensures Qt translations are generated."""
 
-else:  # pragma: no cover - setuptools not installed when running CLI only
+                def run(self) -> None:
+                    compile_translations(announcer=self.announce)
+                    super().run()
 
-    class SDist:  # type: ignore[no-redef]
-        """Placeholder used when setuptools is not available."""
+            return _RuntimeSDist
 
-        announce: Callable[[str, int], None]
+        class _PlaceholderSDist:
+            """Placeholder used when setuptools is not available."""
 
-        def __init__(self, *args: object, **kwargs: object) -> None:
-            raise RuntimeError(
-                "setuptools is required to use the custom sdist command."
-            )
+            announce: Callable[[str, int], None]
 
-        def run(self) -> None:
-            raise RuntimeError(
-                "setuptools is required to use the custom sdist command."
-            )
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                raise RuntimeError(
+                    "setuptools is required to use the custom sdist command."
+                )
+
+            def run(self) -> None:
+                raise RuntimeError(
+                    "setuptools is required to use the custom sdist command."
+                )
+
+        return cast("type[_SDistCommandProtocol]", _PlaceholderSDist)
+
+    SDist = _create_sdist_class()
 
 
 def main(argv: Optional[List[str]] = None) -> int:

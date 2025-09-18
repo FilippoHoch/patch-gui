@@ -10,19 +10,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import (
-    Callable,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-)
+from typing import Callable, Iterable, Iterator, Optional, Protocol, Sequence
 
-from .localization import gettext as _
-from .utils import (
+from patch_gui.localization import gettext as _
+from patch_gui.utils import (
     APP_NAME,
     REPORT_JSON,
     REPORT_TXT,
@@ -71,7 +62,7 @@ class HunkDecision:
     strategy: str  # exact | context | fuzzy | manual | failed | skipped
     selected_pos: Optional[int] = None
     similarity: Optional[float] = None
-    candidates: List[Tuple[int, float]] = field(default_factory=list)  # (pos, score)
+    candidates: list[tuple[int, float]] = field(default_factory=list)  # (pos, score)
     message: str = ""
 
 
@@ -93,7 +84,7 @@ class FileResult:
     file_type: str = "text"
     hunks_applied: int = 0
     hunks_total: int = 0
-    decisions: List[HunkDecision] = field(default_factory=list)
+    decisions: list[HunkDecision] = field(default_factory=list)
     skipped_reason: Optional[str] = None
 
 
@@ -118,7 +109,7 @@ class ApplySession:
     threshold: float
     started_at: float
     exclude_dirs: Sequence[str] = field(default_factory=lambda: DEFAULT_EXCLUDE_DIRS)
-    results: List[FileResult] = field(default_factory=list)
+    results: list[FileResult] = field(default_factory=list)
     report_json_path: Optional[Path] = None
     report_txt_path: Optional[Path] = None
 
@@ -155,7 +146,7 @@ class ApplySession:
         }
 
     def to_txt(self) -> str:
-        lines = []
+        lines: list[str] = []
         lines.append(_("Report – {app_name}").format(app_name=APP_NAME))
         lines.append(
             _("Started: {timestamp}").format(
@@ -220,7 +211,7 @@ class ApplySession:
                     )
                 if d.candidates:
                     max_display = 5
-                    displayed = [
+                    displayed: list[str] = [
                         _("(position {position}, similarity {similarity:.3f})").format(
                             position=p, similarity=s
                         )
@@ -242,22 +233,22 @@ class ApplySession:
 @dataclass
 class HunkView:
     header: str
-    before_lines: List[str]
-    after_lines: List[str]
-    context_lines: List[str] = field(default_factory=list)
+    before_lines: list[str]
+    after_lines: list[str]
+    context_lines: list[str] = field(default_factory=list)
 
 
 ManualResolver = Callable[
-    ["HunkView", List[str], List[Tuple[int, float]], HunkDecision, str], Optional[int]
+    ["HunkView", list[str], list[tuple[int, float]], HunkDecision, str], Optional[int]
 ]
 
 
 def build_hunk_view(hunk: _HunkLike) -> HunkView:
     """Construct lists of strings for the "before" and "after" sequences for a hunk."""
 
-    before: List[str] = []
-    after: List[str] = []
-    context: List[str] = []
+    before: list[str] = []
+    after: list[str] = []
+    context: list[str] = []
     for line in hunk:
         tag = line.line_type  # ' ', '+', '-', '\\'
         value = line.value
@@ -287,10 +278,10 @@ def text_similarity(a: str, b: str) -> float:
 
 def find_candidates(
     file_lines: Sequence[str], before_lines: Sequence[str], threshold: float
-) -> List[Tuple[int, float]]:
+) -> list[tuple[int, float]]:
     """Return candidate start positions with similarity >= threshold, sorted by score desc."""
 
-    candidates: List[Tuple[int, float]] = []
+    candidates: list[tuple[int, float]] = []
     if not before_lines:
         logger.debug("Nessuna linea 'before' fornita, nessun candidato generato")
         return candidates
@@ -329,7 +320,7 @@ def find_candidates(
 
 def apply_hunk_at_position(
     file_lines: Sequence[str], hv: HunkView, pos: int
-) -> List[str]:
+) -> list[str]:
     """Apply the hunk at the given starting line index."""
 
     window_len = len(hv.before_lines)
@@ -337,21 +328,21 @@ def apply_hunk_at_position(
     if end > len(file_lines):
         raise IndexError("Hunk window beyond end of file")
 
-    new_chunk: List[str] = hv.after_lines
+    new_chunk: list[str] = hv.after_lines
     return list(file_lines[:pos]) + list(new_chunk) + list(file_lines[end:])
 
 
 def apply_hunks(
-    file_lines: List[str],
+    file_lines: list[str],
     hunks: Iterable[_HunkLike],
     *,
     threshold: float,
     manual_resolver: Optional[ManualResolver] = None,
-) -> Tuple[List[str], List[HunkDecision], int]:
+) -> tuple[list[str], list[HunkDecision], int]:
     """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions."""
 
-    current_lines = file_lines
-    decisions: List[HunkDecision] = []
+    current_lines: list[str] = file_lines
+    decisions: list[HunkDecision] = []
     applied_count = 0
 
     hunks = list(hunks)
@@ -362,13 +353,13 @@ def apply_hunks(
     )
 
     def _apply(
-        lines: List[str],
+        lines: list[str],
         hv: HunkView,
         decision: HunkDecision,
         pos: int,
         similarity: Optional[float],
         strategy: Optional[str],
-    ) -> Tuple[List[str], bool]:
+    ) -> tuple[list[str], bool]:
         try:
             new_lines = apply_hunk_at_position(lines, hv, pos)
         except Exception as exc:
@@ -470,7 +461,7 @@ def apply_hunks(
             continue
 
         context_lines = hv.context_lines
-        context_candidates: List[Tuple[int, float]] = []
+        context_candidates: list[tuple[int, float]] = []
         if context_lines:
             context_candidates = find_candidates(
                 current_lines, context_lines, threshold=threshold
@@ -549,7 +540,7 @@ def find_file_candidates(
     rel_path: str,
     *,
     exclude_dirs: Sequence[str] = DEFAULT_EXCLUDE_DIRS,
-) -> List[Path]:
+) -> list[Path]:
     """Return possible file matches for ``rel_path`` relative to ``project_root``."""
 
     rel = rel_path.strip()
@@ -583,7 +574,7 @@ def find_file_candidates(
 
     name = Path(rel).name
 
-    normalized_excludes: List[Tuple[str, ...]] = []
+    normalized_excludes: list[tuple[str, ...]] = []
     for raw in exclude_dirs:
         if not raw:
             continue
@@ -617,7 +608,7 @@ def find_file_candidates(
         logger.info("Nessun file trovato per %s", rel)
         return []
 
-    suffix_matches = []
+    suffix_matches: list[Path] = []
     for path in matches:
         try:
             relative = path.relative_to(project_root)
@@ -647,13 +638,13 @@ def prepare_backup_dir(
     collisions between multiple runs that start within the same second.
     """
 
-    base = (
+    base: Path = (
         backup_base.expanduser() if backup_base is not None else default_backup_base()
     )
-    timestamp = format_session_timestamp(
+    timestamp: str = format_session_timestamp(
         started_at if started_at is not None else time.time()
     )
-    backup_dir = base / timestamp
+    backup_dir: Path = base / timestamp
     if not dry_run:
         backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir

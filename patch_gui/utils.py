@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 import re
 from pathlib import Path
-from typing import Callable, List, Optional, Protocol, Tuple, cast
+from typing import Callable, Optional, Protocol, cast
 
 
 class _CharsetMatch(Protocol):
@@ -14,7 +14,7 @@ class _CharsetMatch(Protocol):
 
 class _CharsetMatches(Protocol):
     def best(self) -> Optional[_CharsetMatch]:
-        """Return the best match for the analysed bytes if available."""
+        """Return the best match for the analyzed bytes if available."""
 
 
 _CNFromBytes = Callable[[bytes], _CharsetMatches]
@@ -87,7 +87,7 @@ _BOM_PREFIXES = [
 ]
 
 
-def detect_encoding(data: bytes) -> Tuple[str, bool]:
+def detect_encoding(data: bytes) -> tuple[str, bool]:
     """Return the detected encoding for ``data`` and whether it was a fallback."""
 
     if _cn_from_bytes is not None:
@@ -112,7 +112,7 @@ def detect_encoding(data: bytes) -> Tuple[str, bool]:
     return "utf-8", True
 
 
-def decode_bytes(data: bytes) -> Tuple[str, str, bool]:
+def decode_bytes(data: bytes) -> tuple[str, str, bool]:
     """Decode ``data`` and return the text, encoding, and fallback flag."""
 
     encoding, used_fallback = detect_encoding(data)
@@ -138,7 +138,7 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _hunk_body_line_effect(line: str) -> Tuple[bool, int, int]:
+def _hunk_body_line_effect(line: str) -> tuple[bool, int, int]:
     """Return whether ``line`` is part of the hunk body and its line counters."""
 
     if line.startswith("@@"):
@@ -157,7 +157,7 @@ def _hunk_body_line_effect(line: str) -> Tuple[bool, int, int]:
     return True, old_increment, new_increment
 
 
-def _scan_hunk_body(lines: List[str], start: int) -> Tuple[int, int, int]:
+def _scan_hunk_body(lines: list[str], start: int) -> tuple[int, int, int]:
     """Return the end index and counters for the hunk body starting at ``start``."""
 
     index = start
@@ -186,7 +186,7 @@ def _normalize_hunk_line_counts(text: str) -> str:
         return text
 
     trailing_newline = text.endswith("\n")
-    normalized: List[str] = []
+    normalized: list[str] = []
     index = 0
     total = len(lines)
 
@@ -313,7 +313,7 @@ def preprocess_patch_text(raw_text: str) -> str:
     if not BEGIN_PATCH_RE.search(text):
         return _normalize_hunk_line_counts(text)
 
-    parts = []
+    parts: list[str] = []
     pos = 0
     while True:
         m_begin = BEGIN_PATCH_RE.search(text, pos)
@@ -336,14 +336,14 @@ def preprocess_patch_text(raw_text: str) -> str:
             if not hunks:
                 continue
             header = f"--- a/{filename}\n+++ b/{filename}\n"
-            raw_lines = []
+            raw_lines: list[str] = []
             for line in hunks.splitlines():
                 if line.startswith("@@") or line.startswith(("+", "-", " ", "\\")):
                     raw_lines.append(line)
             if not raw_lines:
                 continue
 
-            def finalize_hunk(lines: List[str]) -> List[str]:
+            def finalize_hunk(lines: list[str]) -> list[str]:
                 if not lines:
                     return []
                 header_line = lines[0]
@@ -359,8 +359,8 @@ def preprocess_patch_text(raw_text: str) -> str:
                         header_line += f" {suffix}"
                 return [header_line, *body]
 
-            normalized_lines: List[str] = []
-            current_hunk: List[str] = []
+            normalized_lines: list[str] = []
+            current_hunk: list[str] = []
             for line in raw_lines:
                 if line.startswith("@@"):
                     if current_hunk:
