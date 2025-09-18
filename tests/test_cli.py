@@ -65,6 +65,30 @@ REMOVED_DIFF = """--- a/sample.txt
 -line2
 """
 
+RENAME_DIFF = """diff --git a/sample.txt b/renamed.txt
+similarity index 83%
+rename from sample.txt
+rename to renamed.txt
+--- a/sample.txt
++++ b/renamed.txt
+@@ -1,2 +1,2 @@
+-old line
++renamed line
+ line2
+"""
+
+COPY_DIFF = """diff --git a/sample.txt b/docs/copied.txt
+similarity index 83%
+copy from sample.txt
+copy to docs/copied.txt
+--- a/sample.txt
++++ b/docs/copied.txt
+@@ -1,2 +1,2 @@
+-old line
++copied line
+ line2
+"""
+
 EXISTING_EMPTY_DIFF = """--- a/docs/empty.txt
 +++ b/docs/empty.txt
 @@ -0,0 +1,2 @@
@@ -361,6 +385,53 @@ def test_apply_patchset_real_run_adds_new_file(tmp_path: Path) -> None:
     assert file_result.file_type == "text"
     assert len(file_result.decisions) == 1
     assert file_result.decisions[0].strategy == "new-file"
+
+
+def test_apply_patchset_handles_rename(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(RENAME_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    renamed = project / "renamed.txt"
+    original = project / "sample.txt"
+    assert renamed.exists()
+    assert renamed.read_text(encoding="utf-8") == "renamed line\nline2\n"
+    assert not original.exists()
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.relative_to_root == "renamed.txt"
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+
+
+def test_apply_patchset_handles_copy(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    session = cli.apply_patchset(
+        PatchSet(COPY_DIFF),
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    new_file = project / "docs" / "copied.txt"
+    source = project / "sample.txt"
+    assert source.exists()
+    assert source.read_text(encoding="utf-8") == "old line\nline2\n"
+    assert new_file.exists()
+    assert new_file.read_text(encoding="utf-8") == "copied line\nline2\n"
+
+    assert len(session.results) == 1
+    file_result = session.results[0]
+    assert file_result.skipped_reason is None
+    assert file_result.relative_to_root == "docs/copied.txt"
+    assert file_result.hunks_applied == file_result.hunks_total == 1
 
 
 def test_apply_patchset_rejects_paths_outside_root(tmp_path: Path) -> None:
