@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
-__all__ = ["running_under_wsl"]
+__all__ = ["running_on_windows_native", "running_under_wsl"]
 
 _WSL_INDICATOR_FILES = (
     Path("/proc/sys/kernel/osrelease"),
@@ -28,3 +29,9 @@ def running_under_wsl() -> bool:
             return True
 
     return False
+
+
+def running_on_windows_native() -> bool:
+    """Return ``True`` when running on a Windows host outside of WSL."""
+
+    return sys.platform.startswith(("win", "cygwin"))

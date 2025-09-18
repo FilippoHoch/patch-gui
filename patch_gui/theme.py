@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .platform import running_under_wsl
+from .platform import running_on_windows_native, running_under_wsl
 
 
 _ACCENT_COLOR = QtGui.QColor("#3d7dca")
@@ -69,16 +69,21 @@ def _build_palette() -> QtGui.QPalette:
 
 
 def _resolve_default_font(app: QtWidgets.QApplication) -> QtGui.QFont:
-    general_font = QtGui.QFontDatabase.systemFont(
-        QtGui.QFontDatabase.SystemFont.GeneralFont
-    )
-    if general_font.family():
-        font = QtGui.QFont(general_font)
+    if running_on_windows_native():
+        font = QtGui.QFont("Segoe UI")
+        if font.pointSize() <= 0:
+            font.setPointSize(10)
     else:
-        font = QtGui.QFont(app.font())
+        general_font = QtGui.QFontDatabase.systemFont(
+            QtGui.QFontDatabase.SystemFont.GeneralFont
+        )
+        if general_font.family():
+            font = QtGui.QFont(general_font)
+        else:
+            font = QtGui.QFont(app.font())
 
-    if font.pointSize() <= 0:
-        font.setPointSize(10)
+        if font.pointSize() <= 0:
+            font.setPointSize(10)
     font.setHintingPreference(QtGui.QFont.HintingPreference.PreferFullHinting)
     font.setStyleHint(
         QtGui.QFont.StyleHint.SansSerif, QtGui.QFont.StyleStrategy.PreferAntialias
