@@ -20,6 +20,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.log_file == defaults.log_file
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
+    assert loaded.backup_retention_days == defaults.backup_retention_days
 
 
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
@@ -36,6 +37,7 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         log_file=tmp_path / "custom.log",
         log_max_bytes=1048576,
         log_backup_count=3,
+        backup_retention_days=14,
     )
 
     save_config(original, path=config_path)
@@ -59,6 +61,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 'log_file = "   "',
                 "log_max_bytes = -1",
                 "log_backup_count = -5",
+                "backup_retention_days = -10",
                 "",
             ]
         ),
@@ -77,6 +80,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.log_file == defaults.log_file
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
+    assert loaded.backup_retention_days == defaults.backup_retention_days
 
 
 def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
@@ -94,6 +98,7 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
                 'log_file = "' + str(tmp_path / "log.txt") + '"',
                 "log_max_bytes = 1024",
                 "log_backup_count = 4",
+                "backup_retention_days = 30",
                 "",
             ]
         ),
@@ -111,3 +116,4 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.log_file == (tmp_path / "log.txt")
     assert loaded.log_max_bytes == 1024
     assert loaded.log_backup_count == 4
+    assert loaded.backup_retention_days == 30

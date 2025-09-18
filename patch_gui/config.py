@@ -42,6 +42,7 @@ _DEFAULT_WRITE_REPORTS = True
 _DEFAULT_LOG_FILE_NAME = ".patch_gui.log"
 _DEFAULT_LOG_MAX_BYTES = 0
 _DEFAULT_LOG_BACKUP_COUNT = 0
+_DEFAULT_BACKUP_RETENTION_DAYS = 0
 
 
 def _default_log_file() -> Path:
@@ -51,10 +52,12 @@ def _default_log_file() -> Path:
 DEFAULT_LOG_FILE: Path = _default_log_file()
 DEFAULT_LOG_MAX_BYTES: int = _DEFAULT_LOG_MAX_BYTES
 DEFAULT_LOG_BACKUP_COUNT: int = _DEFAULT_LOG_BACKUP_COUNT
+DEFAULT_BACKUP_RETENTION_DAYS: int = _DEFAULT_BACKUP_RETENTION_DAYS
 
 
 __all__ = [
     "AppConfig",
+    "DEFAULT_BACKUP_RETENTION_DAYS",
     "DEFAULT_LOG_BACKUP_COUNT",
     "DEFAULT_LOG_FILE",
     "DEFAULT_LOG_MAX_BYTES",
@@ -80,6 +83,7 @@ class AppConfig:
     log_file: Path = field(default_factory=_default_log_file)
     log_max_bytes: int = DEFAULT_LOG_MAX_BYTES
     log_backup_count: int = DEFAULT_LOG_BACKUP_COUNT
+    backup_retention_days: int = DEFAULT_BACKUP_RETENTION_DAYS
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -102,6 +106,9 @@ class AppConfig:
         log_backup_count = _coerce_non_negative_int(
             data.get("log_backup_count"), base.log_backup_count
         )
+        backup_retention_days = _coerce_non_negative_int(
+            data.get("backup_retention_days"), base.backup_retention_days
+        )
 
         return cls(
             threshold=threshold,
@@ -113,6 +120,7 @@ class AppConfig:
             log_file=log_file,
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
+            backup_retention_days=backup_retention_days,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -128,6 +136,7 @@ class AppConfig:
             "log_file": str(self.log_file),
             "log_max_bytes": int(self.log_max_bytes),
             "log_backup_count": int(self.log_backup_count),
+            "backup_retention_days": int(self.backup_retention_days),
         }
 
 
@@ -193,6 +202,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     log_file_repr = json.dumps(mapping["log_file"])
     log_max_bytes_repr = json.dumps(mapping["log_max_bytes"])
     log_backup_count_repr = json.dumps(mapping["log_backup_count"])
+    backup_retention_repr = json.dumps(mapping["backup_retention_days"])
 
     content_lines = [
         f"[{_CONFIG_SECTION}]",
@@ -205,6 +215,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"log_file = {log_file_repr}",
         f"log_max_bytes = {log_max_bytes_repr}",
         f"log_backup_count = {log_backup_count_repr}",
+        f"backup_retention_days = {backup_retention_repr}",
         "",
     ]
 

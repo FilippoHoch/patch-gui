@@ -47,11 +47,14 @@ from .patcher import (
     build_hunk_view as patcher_build_hunk_view,
     find_file_candidates,
     prepare_backup_dir,
+    prune_backup_sessions,
 )
 from .reporting import write_session_reports
 from .utils import (
     APP_NAME,
     BACKUP_DIR,
+    REPORT_RESULTS_SUBDIR,
+    REPORTS_SUBDIR,
     decode_bytes,
     display_path,
     display_relative_path,
@@ -773,6 +776,16 @@ class SettingsDialog(_QDialogBase):
         backup_widget.setLayout(backup_layout)
         form.addRow(_("Directory backup"), backup_widget)
 
+        self.backup_retention_edit = QtWidgets.QLineEdit(
+            str(self._original_config.backup_retention_days)
+        )
+        self.backup_retention_edit.setPlaceholderText(
+            _("Giorni di conservazione backup (0 = illimitato)")
+        )
+        form.addRow(
+            _("Conservazione backup (giorni)"), self.backup_retention_edit
+        )
+
         self.log_file_edit = QtWidgets.QLineEdit(str(self._original_config.log_file))
         self.log_file_edit.setPlaceholderText(_("Percorso del file di log"))
         log_file_layout = QtWidgets.QHBoxLayout()
@@ -878,6 +891,10 @@ class SettingsDialog(_QDialogBase):
         log_backup_count = self._parse_non_negative_int(
             self.log_backup_edit.text(), self._original_config.log_backup_count
         )
+        backup_retention_days = self._parse_non_negative_int(
+            self.backup_retention_edit.text(),
+            self._original_config.backup_retention_days,
+        )
 
         return AppConfig(
             threshold=threshold,
@@ -889,6 +906,7 @@ class SettingsDialog(_QDialogBase):
             log_file=log_file,
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
+            backup_retention_days=backup_retention_days,
         )
 
     @staticmethod
@@ -1777,6 +1795,23 @@ class MainWindow(_QMainWindowBase):
             backup_base=self.app_config.backup_base,
             started_at=started_at,
         )
+        retention_days = self.app_config.backup_retention_days
+        if retention_days > 0:
+            prune_backup_sessions(
+                self.app_config.backup_base,
+                retention_days=retention_days,
+                reference_timestamp=started_at,
+            )
+            reports_base = (
+                self.app_config.backup_base
+                / REPORTS_SUBDIR
+                / REPORT_RESULTS_SUBDIR
+            )
+            prune_backup_sessions(
+                reports_base,
+                retention_days=retention_days,
+                reference_timestamp=started_at,
+            )
         session = ApplySession(
             project_root=self.project_root,
             backup_dir=backup_dir,
