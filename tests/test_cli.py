@@ -178,6 +178,18 @@ def test_apply_patchset_dry_run(tmp_path: Path) -> None:
     assert file_result.file_type == "text"
 
 
+def test_apply_patchset_invalid_threshold(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+
+    with pytest.raises(executor.CLIError):
+        executor.apply_patchset(
+            PatchSet(SAMPLE_DIFF),
+            project,
+            dry_run=True,
+            threshold=0.0,
+        )
+
+
 def test_session_report_highlights_missing_changes(tmp_path: Path) -> None:
     session = executor.ApplySession(
         project_root=tmp_path,
