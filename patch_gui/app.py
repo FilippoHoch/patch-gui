@@ -894,18 +894,47 @@ class PatchApplyWorker(_QThreadBase):
             fr.skipped_reason = "Patch binaria non supportata nella GUI"
             return fr
 
+        is_added_file = bool(getattr(pf, "is_added_file", False))
+        is_removed_file = bool(getattr(pf, "is_removed_file", False))
+        source_file = getattr(pf, "source_file", None)
+        target_file = getattr(pf, "target_file", None)
+        if isinstance(source_file, str) and source_file.strip() == "/dev/null":
+            is_added_file = True
+        if isinstance(target_file, str) and target_file.strip() == "/dev/null":
+            is_removed_file = True
+
+        project_root = self.session.project_root
         candidates = find_file_candidates(
-            self.session.project_root,
+            project_root,
             rel_path,
             exclude_dirs=self.session.exclude_dirs,
         )
+
+        path: Optional[Path] = None
+        is_new_file = False
+
         if not candidates:
-            fr.skipped_reason = (
-                "File non trovato nella root – salto per preferenza utente"
-            )
-            logger.warning("SKIP: %s non trovato.", rel_path)
-            return fr
-        if len(candidates) > 1:
+            if is_added_file and rel_path:
+                candidate = project_root / rel_path
+                resolved_candidate = candidate.resolve()
+                try:
+                    resolved_candidate.relative_to(project_root)
+                except ValueError:
+                    fr.skipped_reason = (
+                        "Percorso della patch fuori dalla root del progetto"
+                    )
+                    logger.warning("SKIP: %s fuori dalla root del progetto", rel_path)
+                    return fr
+
+                path = resolved_candidate
+                is_new_file = True
+            else:
+                fr.skipped_reason = (
+                    "File non trovato nella root – salto per preferenza utente"
+                )
+                logger.warning("SKIP: %s non trovato.", rel_path)
+                return fr
+        elif len(candidates) > 1:
             selected = self._wait_for_file_choice(rel_path, candidates)
             if selected is None:
                 fr.skipped_reason = (
@@ -916,29 +945,44 @@ class PatchApplyWorker(_QThreadBase):
         else:
             path = candidates[0]
 
-        fr.file_path = path
-        fr.relative_to_root = display_relative_path(path, self.session.project_root)
-        fr.hunks_total = len(pf)
-
-        try:
-            raw = path.read_bytes()
-        except Exception as e:
-            fr.skipped_reason = f"Impossibile leggere file: {e}"
+        if path is None:
+            fr.skipped_reason = (
+                "File non trovato nella root – salto per preferenza utente"
+            )
+            logger.warning("SKIP: %s non risolto.", rel_path)
             return fr
 
-        content_str, file_encoding, used_fallback = decode_bytes(raw)
-        if used_fallback:
-            logger.warning(
-                "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
-                "alcuni caratteri potrebbero essere sostituiti.",
-                path,
-                file_encoding,
-            )
-        orig_eol = "\r\n" if "\r\n" in content_str else "\n"
-        lines = normalize_newlines(content_str).splitlines(keepends=True)
+        fr.file_path = path
+        fr.relative_to_root = display_relative_path(path, project_root)
+        fr.hunks_total = len(pf)
 
-        if not self.session.dry_run:
-            backup_file(self.session.project_root, path, self.session.backup_dir)
+        lines: List[str]
+        file_encoding = "utf-8"
+        orig_eol = "\n"
+
+        if not is_new_file:
+            try:
+                raw = path.read_bytes()
+            except Exception as e:
+                fr.skipped_reason = f"Impossibile leggere file: {e}"
+                return fr
+
+            content_str, file_encoding, used_fallback = decode_bytes(raw)
+            if used_fallback:
+                logger.warning(
+                    "Decodifica del file %s eseguita con fallback UTF-8 (encoding %s); "
+                    "alcuni caratteri potrebbero essere sostituiti.",
+                    path,
+                    file_encoding,
+                )
+            orig_eol = "\r\n" if "\r\n" in content_str else "\n"
+            lines = normalize_newlines(content_str).splitlines(keepends=True)
+        else:
+            file_encoding = getattr(pf, "encoding", None) or "utf-8"
+            lines = []
+
+        if not self.session.dry_run and not is_new_file:
+            backup_file(project_root, path, self.session.backup_dir)
 
         lines, decisions, applied = apply_hunks(
             lines,
@@ -951,9 +995,34 @@ class PatchApplyWorker(_QThreadBase):
         fr.decisions.extend(decisions)
 
         if not self.session.dry_run and applied:
-            new_text = "".join(lines)
-            new_text = new_text.replace("\n", orig_eol)
-            write_text_preserving_encoding(path, new_text, file_encoding)
+            should_remove = (
+                is_removed_file and fr.hunks_total and applied == fr.hunks_total
+            )
+            if should_remove:
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError as exc:
+                    message = (
+                        "Impossibile eliminare il file dopo l'applicazione della patch: "
+                        f"{exc}"
+                    )
+                    fr.skipped_reason = message
+                    hunk_header = pf[0].header if len(pf) else rel_path
+                    fr.decisions.append(
+                        HunkDecision(
+                            hunk_header=hunk_header,
+                            strategy="failed",
+                            message=message,
+                        )
+                    )
+            else:
+                if is_new_file:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                new_text = "".join(lines)
+                if not is_new_file:
+                    new_text = new_text.replace("\n", orig_eol)
+                write_text_preserving_encoding(path, new_text, file_encoding)
 
         return fr
 
