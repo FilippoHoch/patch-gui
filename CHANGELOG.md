@@ -13,6 +13,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 - Nuova opzione CLI `--auto-accept` per applicare automaticamente il candidato migliore quando il diff richiede conferma manuale.
 - Suggerimento automatico tramite IA durante la risoluzione manuale in CLI per evidenziare la posizione candidata più promettente con l'intervallo di righe coinvolte.
 - Pulizia automatica dei backup più vecchi dopo un numero configurabile di giorni, impostabile sia da interfaccia grafica sia da CLI.
+- Guida `RELEASE.md` con checklist e comandi per pubblicare pacchetti PyPI e release GitHub in modo ripetibile.
 
 ### Modificato
 - L'anteprima diff interattiva mostra le vere linee di file coinvolte nelle modifiche con colonne numerate in stile Visual Studio, facilitando il riferimento al codice originale.
@@ -20,6 +21,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 - Resa più vivace la schermata del diff interattivo con gradienti, badge neutri e pulsanti colorati che mettono in evidenza le azioni disponibili e lo stato dei file.
 - Aggiornata la documentazione CLI per illustrare le nuove modalità di applicazione automatica delle patch e le combinazioni consigliate con `--non-interactive`.
 - Riscritto il README principale con una struttura armonizzata con la GUI, nuove sezioni di onboarding e tour dell'interfaccia.
+- README arricchito con badge delle release, panoramica dei canali di distribuzione e scorciatoia per il workflow di packaging.
 
 ## [0.1.0] - 2025-09-18
 ### Aggiunto
