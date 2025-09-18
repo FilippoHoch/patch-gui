@@ -6,6 +6,9 @@ e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+### Aggiunto
+- Suggerimenti automatici per i conflitti dei hunk con testo copiabile in CLI e GUI, inclusi nei log e nei report di sessione.
+
 ## [0.2.0] - 2025-09-18
 ### Aggiunto
 - Sottocomando `patch-gui download-exe` per scaricare rapidamente l'eseguibile

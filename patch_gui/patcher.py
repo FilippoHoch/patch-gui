@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Optional, Protocol, Sequence
 
+from patch_gui.ai_conflict_helper import build_conflict_suggestion
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -364,7 +365,11 @@ def apply_hunks(
             new_lines = apply_hunk_at_position(lines, hv, pos)
         except Exception as exc:
             decision.strategy = "failed"
-            decision.message = f"Errore durante l'applicazione del hunk: {exc}"
+            previous_message = decision.message
+            message = f"Errore durante l'applicazione del hunk: {exc}"
+            decision.message = message
+            if decision.message != previous_message:
+                _attach_ai_suggestion(message)
             logger.exception("Errore applicando l'hunk %s in pos %d", hv.header, pos)
             return lines, False
         if strategy:
@@ -385,6 +390,21 @@ def apply_hunks(
         hv = build_hunk_view(hunk)
         decision = HunkDecision(hunk_header=hv.header, strategy="")
         logger.debug("Processo hunk: %s", hv.header)
+        original_diff = str(hunk)
+
+        def _attach_ai_suggestion(reason: str) -> None:
+            suggestion = build_conflict_suggestion(
+                current_lines,
+                failure_reason=reason,
+                before_lines=hv.before_lines,
+                after_lines=hv.after_lines,
+                header=hv.header,
+                diff_text=original_diff,
+            )
+            suggestion_text = suggestion.as_text()
+            if suggestion_text:
+                decision.message = suggestion_text
+                logger.debug("Suggerimento AI generato per hunk %s", hv.header)
 
         if not current_lines and not hv.before_lines:
             logger.debug(
@@ -456,7 +476,22 @@ def apply_hunks(
                 continue
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
-                decision.message = "Applicazione annullata per ambiguità fuzzy."
+                previous_message = decision.message
+                message = "Applicazione annullata per ambiguità fuzzy."
+                decision.message = message
+                if decision.message != previous_message:
+                    _attach_ai_suggestion(message)
+            ai_prefix = _("Motivo del fallimento:")
+            if decision.strategy in {"failed", "manual"} and (
+                not decision.message
+                or not decision.message.startswith(ai_prefix)
+            ):
+                fallback_reason = (
+                    decision.message
+                    if decision.message
+                    else _("Ambiguità fuzzy: nessun candidato selezionato.")
+                )
+                _attach_ai_suggestion(fallback_reason)
             decisions.append(decision)
             continue
 
@@ -488,10 +523,25 @@ def apply_hunks(
                 continue
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
-                decision.message = "Applicazione annullata (solo contesto)."
+                previous_message = decision.message
+                message = "Applicazione annullata (solo contesto)."
+                decision.message = message
+                if decision.message != previous_message:
+                    _attach_ai_suggestion(message)
                 logger.info(
                     "Applicazione annullata per hunk %s: solo contesto", hv.header
                 )
+            ai_prefix = _("Motivo del fallimento:")
+            if decision.strategy in {"failed", "manual"} and (
+                not decision.message
+                or not decision.message.startswith(ai_prefix)
+            ):
+                fallback_reason = (
+                    decision.message
+                    if decision.message
+                    else _("Solo contesto: nessuna scelta effettuata.")
+                )
+                _attach_ai_suggestion(fallback_reason)
             decisions.append(decision)
             continue
 
@@ -522,10 +572,13 @@ def apply_hunks(
                 continue
 
         decision.strategy = "failed"
+        ai_prefix = _("Motivo del fallimento:")
         if not decision.message:
-            decision.message = (
-                "Nessun candidato compatibile trovato sopra la soglia impostata."
-            )
+            message = "Nessun candidato compatibile trovato sopra la soglia impostata."
+            decision.message = message
+            _attach_ai_suggestion(message)
+        elif not decision.message.startswith(ai_prefix):
+            _attach_ai_suggestion(decision.message)
         logger.info("Hunk %s fallito: %s", hv.header, decision.message)
         decisions.append(decision)
 
