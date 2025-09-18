@@ -149,6 +149,8 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
         log_max_bytes=1024,
         log_backup_count=2,
         backup_retention_days=4,
+        ai_assistant_enabled=True,
+        ai_auto_apply=False,
     )
 
     dialog = app_module.SettingsDialog(None, config=config)
@@ -166,6 +168,8 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     dialog.log_max_edit.setText("8192")
     dialog.log_backup_edit.setText("5")
     dialog.backup_retention_edit.setText("7")
+    dialog.ai_assistant_check.setChecked(False)
+    dialog.ai_auto_check.setChecked(True)
 
     updated = dialog._gather_config()
 
@@ -179,6 +183,8 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     assert updated.log_max_bytes == 8192
     assert updated.log_backup_count == 5
     assert updated.backup_retention_days == 7
+    assert updated.ai_assistant_enabled is False
+    assert updated.ai_auto_apply is True
 
 
 def test_main_window_applies_settings_dialog(
@@ -228,6 +234,8 @@ def test_main_window_applies_settings_dialog(
         log_file=tmp_path / "logs" / "app.log",
         log_max_bytes=0,
         log_backup_count=0,
+        ai_assistant_enabled=False,
+        ai_auto_apply=False,
     )
 
     window = app_module.MainWindow(app_config=original)
@@ -242,6 +250,8 @@ def test_main_window_applies_settings_dialog(
         log_file=tmp_path / "logs" / "custom.log",
         log_max_bytes=2048,
         log_backup_count=3,
+        ai_assistant_enabled=True,
+        ai_auto_apply=True,
     )
 
     class _FakeDialog:
@@ -261,6 +271,8 @@ def test_main_window_applies_settings_dialog(
     assert window.chk_dry.isChecked() is new_config.dry_run_default
     assert window.exclude_edit.text() == ", ".join(new_config.exclude_dirs)
     assert window.reports_enabled is new_config.write_reports
+    assert window.ai_assistant_enabled is new_config.ai_assistant_enabled
+    assert window.ai_auto_apply is new_config.ai_auto_apply
     assert configured_invocations == [
         {
             "level": new_config.log_level,

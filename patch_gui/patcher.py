@@ -64,6 +64,10 @@ class HunkDecision:
     similarity: Optional[float] = None
     candidates: list[tuple[int, float]] = field(default_factory=list)  # (pos, score)
     message: str = ""
+    ai_recommendation: Optional[int] = None
+    ai_confidence: Optional[float] = None
+    ai_explanation: Optional[str] = None
+    ai_source: Optional[str] = None
 
 
 @dataclass
@@ -137,6 +141,10 @@ class ApplySession:
                             "similarity": d.similarity,
                             "candidates": d.candidates,
                             "message": d.message,
+                            "ai_recommendation": d.ai_recommendation,
+                            "ai_confidence": d.ai_confidence,
+                            "ai_explanation": d.ai_explanation,
+                            "ai_source": d.ai_source,
                         }
                         for d in fr.decisions
                     ],
@@ -226,6 +234,31 @@ class ApplySession:
                     )
                 if d.message:
                     lines.append(_("      Notes: {notes}").format(notes=d.message))
+                if d.ai_recommendation is not None:
+                    origin = d.ai_source or "assistant"
+                    if d.ai_confidence is not None:
+                        lines.append(
+                            _(
+                                "      AI suggestion ({origin}): pos {position} (confidence {confidence:.3f})"
+                            ).format(
+                                origin=origin,
+                                position=d.ai_recommendation,
+                                confidence=d.ai_confidence,
+                            )
+                        )
+                    else:
+                        lines.append(
+                            _(
+                                "      AI suggestion ({origin}): pos {position}"
+                            ).format(
+                                origin=origin,
+                                position=d.ai_recommendation,
+                            )
+                        )
+                    if d.ai_explanation:
+                        lines.append(
+                            _("        Explanation: {text}").format(text=d.ai_explanation)
+                        )
             lines.append("")
         return "\n".join(lines)
 

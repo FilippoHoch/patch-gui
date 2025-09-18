@@ -39,7 +39,8 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    - Durante l'esecuzione la barra di stato mostra una barra di avanzamento numerica con la percentuale di file/hunk già elaborati.
 6. **Gestisci eventuali ambiguità**
    - Se la patch può essere applicata in più punti plausibili, viene aperto un dialog che mostra tutte le opzioni con il relativo contesto.
-   - Scegli manualmente il posizionamento corretto.
+   - Se l'assistente AI è abilitato nelle preferenze, il dialog evidenzia la scelta consigliata con confidenza ed eventuale spiegazione; puoi applicarla con il pulsante *Applica suggerimento*.
+   - In assenza di conferma manuale puoi sempre scegliere il posizionamento corretto tra le alternative presentate.
 7. **Consulta backup e report**
    - Ogni esecuzione reale crea una cartella `~/.diff_backups/<timestamp-ms>/` con copie dei file originali (a meno di impostare un percorso diverso con `--backup`). Il suffisso `<timestamp-ms>` usa il formato `YYYYMMDD-HHMMSS-fff`, includendo i millisecondi per evitare collisioni.
    - I report `apply-report.json` e `apply-report.txt` vengono salvati in `~/.diff_backups/reports/results/<timestamp-ms>/`
@@ -77,3 +78,9 @@ Oltre a usare la GUI, puoi ispezionare e modificare le impostazioni persistenti 
 - `patch-gui config reset [chiave]` ripristina un singolo valore o l'intera configurazione ai default.
 
 Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi `--config-path /percorso/custom/settings.toml` dopo il nome del sottocomando.
+
+## Assistente AI (sperimentale)
+
+- L'assistente può essere abilitato o disabilitato sia dalla GUI (Preferenze → *Suggerisci automaticamente con l'assistente AI*) sia tramite CLI con `--ai-assistant` / `--no-ai-assistant`.
+- Per applicare automaticamente il suggerimento migliore quando viene richiesta una scelta manuale usa la spunta *Applica il suggerimento AI senza chiedere* nella GUI o la flag `--ai-select` in CLI.
+- Il servizio AI utilizza l'endpoint configurato tramite la variabile d'ambiente `PATCH_GUI_AI_ENDPOINT` (opzionalmente con token `PATCH_GUI_AI_TOKEN`). Se non è disponibile, il programma ricade su una valutazione locale basata sulla similarità del testo.

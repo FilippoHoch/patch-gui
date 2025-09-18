@@ -61,6 +61,8 @@ _CONFIG_KEYS = (
     "log_max_bytes",
     "log_backup_count",
     "backup_retention_days",
+    "ai_assistant_enabled",
+    "ai_auto_apply",
 )
 
 
@@ -132,6 +134,11 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     if args.auto_accept:
         interactive = True
 
+    ai_assistant_enabled = bool(getattr(args, "ai_assistant", False))
+    ai_auto_select = bool(getattr(args, "ai_select", False))
+    if ai_auto_select:
+        ai_assistant_enabled = True
+
     try:
         patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
@@ -160,6 +167,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             write_report_txt="text" in requested_report_formats,
             exclude_dirs=exclude_dirs,
             config=config,
+            ai_assistant=ai_assistant_enabled,
+            ai_auto_select=ai_auto_select,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
@@ -448,6 +457,10 @@ def config_reset(
             config.log_backup_count = defaults.log_backup_count
         elif key == "backup_retention_days":
             config.backup_retention_days = defaults.backup_retention_days
+        elif key == "ai_assistant_enabled":
+            config.ai_assistant_enabled = defaults.ai_assistant_enabled
+        elif key == "ai_auto_apply":
+            config.ai_auto_apply = defaults.ai_auto_apply
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -520,6 +533,18 @@ def _apply_config_value(
             config.dry_run_default = config_value
         else:
             config.write_reports = config_value
+        return
+
+    if key in {"ai_assistant_enabled", "ai_auto_apply"}:
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The {key} key expects exactly one value.").format(key=key),
+            )
+        config_value = _parse_bool(values[0])
+        if key == "ai_assistant_enabled":
+            config.ai_assistant_enabled = config_value
+        else:
+            config.ai_auto_apply = config_value
         return
 
     if key == "log_file":

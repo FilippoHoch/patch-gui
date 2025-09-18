@@ -8,13 +8,13 @@ import os
 import shutil
 import sys
 import time
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
+from .ai_candidate_selector import AISuggestion, rank_candidates
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -154,6 +154,8 @@ def apply_patchset(
     write_report_txt: bool | None = None,
     exclude_dirs: Sequence[str] | None = None,
     config: AppConfig | None = None,
+    ai_assistant: bool | None = None,
+    ai_auto_select: bool | None = None,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`.
 
@@ -228,6 +230,9 @@ def apply_patchset(
             session,
             interactive=effective_interactive,
             auto_accept=auto_accept,
+            config=resolved_config,
+            ai_assistant=ai_assistant,
+            ai_auto_select=ai_auto_select,
         )
         session.results.append(fr)
 
@@ -310,6 +315,9 @@ def _apply_file_patch(
     *,
     interactive: bool,
     auto_accept: bool,
+    config: AppConfig,
+    ai_assistant: bool | None = None,
+    ai_auto_select: bool | None = None,
 ) -> FileResult:
     fr = FileResult(file_path=Path(), relative_to_root=rel_path)
     fr.hunks_total = len(pf)
@@ -579,7 +587,19 @@ def _apply_file_patch(
             )
             return fr
 
-    manual_resolver = functools.partial(_cli_manual_resolver, auto_accept=auto_accept)
+    resolved_ai_assistant = (
+        config.ai_assistant_enabled if ai_assistant is None else ai_assistant
+    )
+    resolved_ai_auto = config.ai_auto_apply if ai_auto_select is None else ai_auto_select
+    if resolved_ai_auto:
+        resolved_ai_assistant = True
+
+    manual_resolver = functools.partial(
+        _cli_manual_resolver,
+        auto_accept=auto_accept,
+        ai_enabled=resolved_ai_assistant,
+        ai_auto_select=resolved_ai_auto,
+    )
 
     lines, decisions, applied = apply_hunks(
         lines,
@@ -735,46 +755,20 @@ def _ai_rank_candidates(
     lines: List[str],
     hv: HunkView,
     candidates: List[Tuple[int, float]],
-) -> Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]]:
+    *,
+    ai_enabled: bool,
+) -> Optional[AISuggestion]:
     if not candidates:
         return None
 
-    reference_lines = hv.before_lines or hv.after_lines
-    block_len = len(reference_lines)
-    if block_len == 0 and hv.after_lines:
-        block_len = len(hv.after_lines)
-    if block_len <= 0:
-        block_len = 1
-
-    reference_text = "".join(reference_lines)
-    if not reference_text:
-        reference_text = "".join(hv.after_lines)
-
-    best: Optional[Tuple[int, int, float, Optional[Tuple[int, int]]]] = None
-    for display_index, (pos, similarity) in enumerate(candidates, start=1):
-        if similarity is not None:
-            score = float(similarity)
-        elif reference_text:
-            snippet = "".join(lines[pos : pos + block_len])
-            if not snippet and 0 <= pos < len(lines):
-                snippet = lines[pos]
-            score = SequenceMatcher(None, reference_text, snippet).ratio()
-        else:
-            # Cannot compute a heuristic score without reference text
-            continue
-
-        start_line = pos + 1
-        end_line = start_line + block_len - 1
-        if start_line > len(lines):
-            line_range: Optional[Tuple[int, int]] = None
-        else:
-            end_line = min(end_line, len(lines))
-            line_range = (start_line, end_line)
-
-        if best is None or score > best[2]:
-            best = (display_index, pos, score, line_range)
-
-    return best
+    suggestion = rank_candidates(
+        lines,
+        hv,
+        candidates,
+        use_ai=ai_enabled,
+        logger_override=logger,
+    )
+    return suggestion
 
 
 def _cli_manual_resolver(
@@ -785,9 +779,90 @@ def _cli_manual_resolver(
     reason: str,
     *,
     auto_accept: bool = False,
+    ai_enabled: bool = False,
+    ai_auto_select: bool = False,
 ) -> Optional[int]:
     decision.candidates = list(candidates)
     decision.strategy = "manual"
+
+    ai_hint = _ai_rank_candidates(lines, hv, candidates, ai_enabled=ai_enabled)
+    if ai_hint is not None:
+        decision.ai_recommendation = ai_hint.position
+        decision.ai_confidence = ai_hint.confidence
+        decision.ai_explanation = ai_hint.explanation
+        decision.ai_source = ai_hint.source
+
+        block_len = len(hv.before_lines) or len(hv.after_lines) or 1
+        start_line = ai_hint.position + 1
+        end_line = start_line + block_len - 1
+        if start_line > len(lines):
+            line_range: Optional[Tuple[int, int]] = None
+        else:
+            end_line = min(end_line, len(lines))
+            line_range = (start_line, end_line)
+
+        if line_range is None:
+            range_text = _("line {line}").format(line=start_line)
+        else:
+            start_display, end_display = line_range
+            if start_display == end_display:
+                range_text = _("line {line}").format(line=start_display)
+            else:
+                range_text = _("lines {start}-{end}").format(
+                    start=start_display,
+                    end=end_display,
+                )
+
+        origin_label = (
+            _("AI assistant") if ai_hint.source == "assistant" else _("local heuristic")
+        )
+        print(
+            _(
+                "AI suggestion ({origin}): candidate {index} ({range_text}) "
+                "confidence {confidence:.3f}."
+            ).format(
+                origin=origin_label,
+                index=ai_hint.candidate_index,
+                range_text=range_text,
+                confidence=ai_hint.confidence,
+            )
+        )
+        if ai_hint.explanation:
+            print(
+                _("  Explanation: {text}").format(text=ai_hint.explanation)
+            )
+
+        if ai_auto_select:
+            chosen_pos = ai_hint.position
+            similarity = next(
+                (score for pos, score in candidates if pos == chosen_pos), None
+            )
+            if similarity is None:
+                logger.warning(
+                    "AI suggestion did not match any candidate for hunk %s", hv.header
+                )
+            else:
+                decision.selected_pos = chosen_pos
+                decision.similarity = similarity
+                decision.message = _(
+                    "Automatically selected candidate {index} (--ai-select)."
+                ).format(index=ai_hint.candidate_index)
+                logger.info(
+                    "AI assistant selected candidate %d for %s (confidence %.3f)",
+                    ai_hint.candidate_index,
+                    hv.header,
+                    ai_hint.confidence,
+                )
+                print(
+                    _(
+                        "Auto-applied hunk {header} at position {position} (--ai-select, candidate {index})."
+                    ).format(
+                        header=hv.header,
+                        position=chosen_pos,
+                        index=ai_hint.candidate_index,
+                    )
+                )
+                return chosen_pos
 
     if auto_accept and candidates:
         pos, score = candidates[0]
@@ -835,31 +910,6 @@ def _cli_manual_resolver(
     window_len = len(hv.before_lines)
     highlight_width = max(window_len, 1)
     context_padding = 2
-
-    ai_hint = _ai_rank_candidates(lines, hv, candidates)
-    if ai_hint is not None:
-        hint_index, hint_position, hint_score, hint_range = ai_hint
-        if hint_range is None:
-            range_text = _("line {line}").format(line=hint_position + 1)
-        else:
-            start_line, end_line = hint_range
-            if start_line == end_line:
-                range_text = _("line {line}").format(line=start_line)
-            else:
-                range_text = _("lines {start}-{end}").format(
-                    start=start_line,
-                    end=end_line,
-                )
-        print(
-            _(
-                "AI suggestion: candidate {index} ({range_text}) looks like the best "
-                "match (confidence {confidence:.3f})."
-            ).format(
-                index=hint_index,
-                range_text=range_text,
-                confidence=hint_score,
-            )
-        )
 
     print("")
     print(_("Available candidate positions:"))

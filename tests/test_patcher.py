@@ -7,6 +7,7 @@ import pytest
 from unidiff import PatchSet
 
 import patch_gui.executor as executor
+from patch_gui.config import AppConfig
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -476,6 +477,7 @@ def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
         session,
         interactive=False,
         auto_accept=False,
+        config=AppConfig(),
     )
 
     assert fr.skipped_reason is None

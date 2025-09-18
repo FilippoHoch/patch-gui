@@ -21,6 +21,8 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
     assert loaded.backup_retention_days == defaults.backup_retention_days
+    assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
+    assert loaded.ai_auto_apply == defaults.ai_auto_apply
 
 
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
@@ -38,6 +40,8 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         log_max_bytes=1048576,
         log_backup_count=3,
         backup_retention_days=14,
+        ai_assistant_enabled=True,
+        ai_auto_apply=True,
     )
 
     save_config(original, path=config_path)
@@ -62,6 +66,8 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 "log_max_bytes = -1",
                 "log_backup_count = -5",
                 "backup_retention_days = -10",
+                'ai_assistant_enabled = "maybe"',
+                'ai_auto_apply = "\""',
                 "",
             ]
         ),
@@ -81,6 +87,8 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
     assert loaded.backup_retention_days == defaults.backup_retention_days
+    assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
+    assert loaded.ai_auto_apply == defaults.ai_auto_apply
 
 
 def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
@@ -99,6 +107,8 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
                 "log_max_bytes = 1024",
                 "log_backup_count = 4",
                 "backup_retention_days = 30",
+                "ai_assistant_enabled = true",
+                "ai_auto_apply = true",
                 "",
             ]
         ),
@@ -117,3 +127,5 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.log_max_bytes == 1024
     assert loaded.log_backup_count == 4
     assert loaded.backup_retention_days == 30
+    assert loaded.ai_assistant_enabled is True
+    assert loaded.ai_auto_apply is True
