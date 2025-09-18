@@ -68,7 +68,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=getattr(logging, level_name, logging.WARNING),
         format="%(levelname)s: %(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr,
         force=True,
     )
 
