@@ -6,6 +6,9 @@ e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 
+- Arricchita la vista diff interattiva con note opzionali generate da un client
+  AI condiviso e abilitate da una nuova preferenza dell'applicazione.
+
 ## [0.2.0] - 2025-09-18
 ### Aggiunto
 - Sottocomando `patch-gui download-exe` per scaricare rapidamente l'eseguibile

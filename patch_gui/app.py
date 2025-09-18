@@ -32,7 +32,7 @@ from .config import (
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
 from .i18n import install_translators
-from .interactive_diff import InteractiveDiffWidget
+from .interactive_diff import AINoteProvider, InteractiveDiffWidget
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
@@ -896,6 +896,12 @@ class SettingsDialog(_QDialogBase):
         self.reports_check.setChecked(self._original_config.write_reports)
         form.addRow("", self.reports_check)
 
+        self.ai_notes_check = QtWidgets.QCheckBox(
+            _("Mostra note AI nella vista diff interattiva (sperimentale)")
+        )
+        self.ai_notes_check.setChecked(self._original_config.ai_diff_notes)
+        form.addRow("", self.ai_notes_check)
+
         self.buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -965,6 +971,7 @@ class SettingsDialog(_QDialogBase):
             log_level=log_level,
             dry_run_default=self.dry_run_check.isChecked(),
             write_reports=self.reports_check.isChecked(),
+            ai_diff_notes=self.ai_notes_check.isChecked(),
             log_file=log_file,
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
@@ -1256,8 +1263,10 @@ class MainWindow(_QMainWindowBase):
         self.threshold: float = self.app_config.threshold
         self.exclude_dirs: tuple[str, ...] = self.app_config.exclude_dirs
         self.reports_enabled: bool = self.app_config.write_reports
+        self.ai_notes_enabled: bool = self.app_config.ai_diff_notes
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
+        self._ai_note_client: AINoteProvider | None = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -1489,6 +1498,7 @@ class MainWindow(_QMainWindowBase):
 
         self.interactive_diff = InteractiveDiffWidget()
         self.interactive_diff.diffReordered.connect(self._on_diff_reordered)
+        self._configure_interactive_diff_ai_notes()
         self.diff_tabs.addTab(self.interactive_diff, _("Diff interattivo"))
 
         right_layout.addWidget(self.diff_tabs, 1)
@@ -1559,13 +1569,26 @@ class MainWindow(_QMainWindowBase):
         self.threshold = float(self.app_config.threshold)
         self.exclude_dirs = tuple(self.app_config.exclude_dirs)
         self.reports_enabled = bool(self.app_config.write_reports)
+        self.ai_notes_enabled = bool(self.app_config.ai_diff_notes)
         self.spin_thresh.setValue(self.threshold)
         excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
         self.exclude_edit.setText(excludes_text)
         self.chk_dry.setChecked(self.app_config.dry_run_default)
+        self._configure_interactive_diff_ai_notes()
 
     def _create_settings_dialog(self) -> SettingsDialog:
         return SettingsDialog(self, config=self.app_config)
+
+    def set_ai_note_client(self, client: AINoteProvider | None) -> None:
+        """Inject or clear the shared AI client used for diff annotations."""
+
+        self._ai_note_client = client
+        self._configure_interactive_diff_ai_notes()
+
+    def _configure_interactive_diff_ai_notes(self) -> None:
+        provider = self._ai_note_client if self.ai_notes_enabled else None
+        if hasattr(self, "interactive_diff"):
+            self.interactive_diff.set_ai_note_provider(provider)
 
     def open_settings_dialog(self) -> None:
         dialog = self._create_settings_dialog()
@@ -1625,9 +1648,11 @@ class MainWindow(_QMainWindowBase):
             self.app_config.log_level = level_name.lower()
         self.app_config.dry_run_default = self.chk_dry.isChecked()
         self.app_config.write_reports = self.reports_enabled
+        self.app_config.ai_diff_notes = self.ai_notes_enabled
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
+        self.ai_notes_enabled = self.app_config.ai_diff_notes
         save_config(self.app_config)
 
     def choose_root(self) -> None:
@@ -1694,6 +1719,7 @@ class MainWindow(_QMainWindowBase):
         self.threshold = float(self.spin_thresh.value())
 
         self.interactive_diff.clear()
+        self._configure_interactive_diff_ai_notes()
 
         preprocessed = preprocess_patch_text(self.diff_text)
         try:

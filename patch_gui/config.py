@@ -84,6 +84,7 @@ class AppConfig:
     log_max_bytes: int = DEFAULT_LOG_MAX_BYTES
     log_backup_count: int = DEFAULT_LOG_BACKUP_COUNT
     backup_retention_days: int = DEFAULT_BACKUP_RETENTION_DAYS
+    ai_diff_notes: bool = False
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -99,6 +100,7 @@ class AppConfig:
             data.get("dry_run_default"), base.dry_run_default
         )
         write_reports = _coerce_bool(data.get("write_reports"), base.write_reports)
+        ai_diff_notes = _coerce_bool(data.get("ai_diff_notes"), base.ai_diff_notes)
         log_file = _coerce_path(data.get("log_file"), base.log_file)
         log_max_bytes = _coerce_non_negative_int(
             data.get("log_max_bytes"), base.log_max_bytes
@@ -117,6 +119,7 @@ class AppConfig:
             log_level=log_level,
             dry_run_default=dry_run_default,
             write_reports=write_reports,
+            ai_diff_notes=ai_diff_notes,
             log_file=log_file,
             log_max_bytes=log_max_bytes,
             log_backup_count=log_backup_count,
@@ -133,6 +136,7 @@ class AppConfig:
             "log_level": str(self.log_level),
             "dry_run_default": bool(self.dry_run_default),
             "write_reports": bool(self.write_reports),
+            "ai_diff_notes": bool(self.ai_diff_notes),
             "log_file": str(self.log_file),
             "log_max_bytes": int(self.log_max_bytes),
             "log_backup_count": int(self.log_backup_count),
@@ -198,6 +202,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     log_level_repr = json.dumps(mapping["log_level"])
     dry_run_repr = json.dumps(mapping["dry_run_default"])
     write_reports_repr = json.dumps(mapping["write_reports"])
+    ai_diff_notes_repr = json.dumps(mapping["ai_diff_notes"])
     backup_repr = json.dumps(mapping["backup_base"])
     log_file_repr = json.dumps(mapping["log_file"])
     log_max_bytes_repr = json.dumps(mapping["log_max_bytes"])
@@ -212,6 +217,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"log_level = {log_level_repr}",
         f"dry_run_default = {dry_run_repr}",
         f"write_reports = {write_reports_repr}",
+        f"ai_diff_notes = {ai_diff_notes_repr}",
         f"log_file = {log_file_repr}",
         f"log_max_bytes = {log_max_bytes_repr}",
         f"log_backup_count = {log_backup_count_repr}",
