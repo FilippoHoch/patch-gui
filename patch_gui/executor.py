@@ -388,7 +388,15 @@ def _apply_file_patch(
         lines = []
 
     if not session.dry_run and not is_new_file:
-        backup_file(project_root, path, session.backup_dir)
+        try:
+            backup_file(project_root, path, session.backup_dir)
+        except OSError as exc:
+            relative_path = display_relative_path(path, project_root)
+            message = _(
+                "Failed to create backup for {path}: {error}"
+            ).format(path=relative_path, error=exc)
+            logger.error(message)
+            raise CLIError(message) from exc
 
     lines, decisions, applied = apply_hunks(
         lines,
@@ -421,11 +429,27 @@ def _apply_file_patch(
                 )
         else:
             if is_new_file:
-                path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                except OSError as exc:
+                    relative_dir = display_relative_path(path.parent, project_root)
+                    message = _(
+                        "Failed to create directory for {path}: {error}"
+                    ).format(path=relative_dir, error=exc)
+                    logger.error(message)
+                    raise CLIError(message) from exc
             new_text = "".join(lines)
             if not is_new_file:
                 new_text = new_text.replace("\n", orig_eol)
-            write_text_preserving_encoding(path, new_text, file_encoding)
+            try:
+                write_text_preserving_encoding(path, new_text, file_encoding)
+            except OSError as exc:
+                relative_path = display_relative_path(path, project_root)
+                message = _(
+                    "Failed to write updated content to {path}: {error}"
+                ).format(path=relative_path, error=exc)
+                logger.error(message)
+                raise CLIError(message) from exc
 
     return fr
 
