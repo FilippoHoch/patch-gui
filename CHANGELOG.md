@@ -9,6 +9,7 @@ e il progetto aderisce alla [Versionamento Semantico](https://semver.org/lang/it
 - Sezione iniziale del changelog pronta per essere aggiornata con le prossime modifiche.
 - Migliorata l'esperienza del diff interattivo con badge e colori più leggibili per le aggiunte e le rimozioni.
 - Ampliate le impostazioni persistenti: ora è possibile configurare percorso del file di log, rotazione e numero di backup direttamente da CLI e GUI.
+- Suggerimento automatico tramite IA durante la risoluzione manuale in CLI per evidenziare la posizione candidata più promettente con l'intervallo di righe coinvolte.
 
 ### Modificato
 - L'anteprima diff interattiva mostra le vere linee di file coinvolte nelle modifiche con colonne numerate in stile Visual Studio, facilitando il riferimento al codice originale.
