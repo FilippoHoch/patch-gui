@@ -57,6 +57,7 @@ _CONFIG_KEYS = (
     "log_level",
     "dry_run_default",
     "write_reports",
+    "ai_notes_enabled",
     "log_file",
     "log_max_bytes",
     "log_backup_count",
@@ -440,6 +441,8 @@ def config_reset(
             config.dry_run_default = defaults.dry_run_default
         elif key == "write_reports":
             config.write_reports = defaults.write_reports
+        elif key == "ai_notes_enabled":
+            config.ai_notes_enabled = defaults.ai_notes_enabled
         elif key == "log_file":
             config.log_file = defaults.log_file
         elif key == "log_max_bytes":
@@ -510,7 +513,7 @@ def _apply_config_value(
         config.exclude_dirs = parsed
         return
 
-    if key in {"dry_run_default", "write_reports"}:
+    if key in {"dry_run_default", "write_reports", "ai_notes_enabled"}:
         if len(values) != 1:
             raise ConfigCommandError(
                 _("The {key} key expects exactly one value.").format(key=key),
@@ -518,8 +521,10 @@ def _apply_config_value(
         config_value = _parse_bool(values[0])
         if key == "dry_run_default":
             config.dry_run_default = config_value
-        else:
+        elif key == "write_reports":
             config.write_reports = config_value
+        else:
+            config.ai_notes_enabled = config_value
         return
 
     if key == "log_file":

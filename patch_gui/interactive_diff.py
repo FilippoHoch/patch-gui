@@ -11,27 +11,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from .highlighter import DiffHighlighter
 from .localization import gettext as _
 from .diff_formatting import format_diff_with_line_numbers
-
-
-@dataclass(frozen=True, slots=True)
-class FileDiffEntry:
-    """Store information about a file diff block."""
-
-    file_label: str
-    diff_text: str
-    annotated_diff_text: str
-    additions: int
-    deletions: int
-
-    @property
-    def display_text(self) -> str:
-        additions = _("+{count}").format(count=self.additions)
-        deletions = _("-{count}").format(count=self.deletions)
-        return _("{name} · {additions} / {deletions}").format(
-            name=self.file_label,
-            additions=additions,
-            deletions=deletions,
-        )
+from .interactive_diff_models import FileDiffEntry, populate_ai_note
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +145,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._original_entries: list[FileDiffEntry] = []
+        self._ai_notes_enabled = False
         self._colors = _build_diff_palette(self)
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -380,10 +361,38 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         splitter.addWidget(upper)
 
+        preview_panel = QtWidgets.QWidget()
+        preview_layout = QtWidgets.QVBoxLayout(preview_panel)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(6)
+
+        self._ai_note_label = QtWidgets.QLabel("")
+        self._ai_note_label.setObjectName("interactiveDiffAiNote")
+        self._ai_note_label.setWordWrap(True)
+        self._ai_note_label.setVisible(False)
+        self._ai_note_label.setStyleSheet(
+            """
+            QLabel#interactiveDiffAiNote {
+                background-color: %(surface)s;
+                border: 1px solid %(border)s;
+                border-radius: 8px;
+                padding: 6px 8px;
+                color: %(text_secondary)s;
+                font-style: italic;
+            }
+            """
+            % {
+                "surface": self._colors.surface,
+                "border": self._colors.border_subtle,
+                "text_secondary": self._colors.text_secondary,
+            }
+        )
+        preview_layout.addWidget(self._ai_note_label)
+
         self._preview = QtWidgets.QPlainTextEdit()
         self._preview.setReadOnly(True)
         self._preview.setPlaceholderText(
-            _("Seleziona un file dall'elenco per vederne il diff completo.")
+            _("Seleziona un file dall'elenco per vederne il diff completo."),
         )
         self._preview.setStyleSheet(
             """
@@ -413,7 +422,8 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
             }
         )
         self._highlighter = DiffHighlighter(self._preview.document())
-        splitter.addWidget(self._preview)
+        preview_layout.addWidget(self._preview, 1)
+        splitter.addWidget(preview_panel)
         splitter.setSizes([180, 320])
 
         buttons = QtWidgets.QHBoxLayout()
@@ -508,6 +518,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._original_entries = []
         self._list_widget.clear()
         self._preview.clear()
+        self._update_note_display(None)
         self._order_label.clear()
         self._update_enabled_state()
 
@@ -527,15 +538,16 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 diff_text += "\n"
             additions, deletions = _count_changes(diff_text)
             annotated_text = format_diff_with_line_numbers(patched_file, diff_text)
-            entries.append(
-                FileDiffEntry(
-                    file_label=file_label,
-                    diff_text=diff_text,
-                    annotated_diff_text=annotated_text,
-                    additions=additions,
-                    deletions=deletions,
-                )
+            entry = FileDiffEntry(
+                file_label=file_label,
+                diff_text=diff_text,
+                annotated_diff_text=annotated_text,
+                additions=additions,
+                deletions=deletions,
             )
+            if self._ai_notes_enabled:
+                entry = populate_ai_note(entry)
+            entries.append(entry)
 
         self._original_entries = list(entries)
         self._populate(entries)
@@ -546,12 +558,16 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
             item = QtWidgets.QListWidgetItem()
             item.setData(QtCore.Qt.ItemDataRole.UserRole, entry)
             widget = _DiffListItemWidget(entry, self._colors)
+            widget.update_ai_note(entry.ai_note if self._ai_notes_enabled else None)
             item.setSizeHint(widget.sizeHint())
             self._list_widget.addItem(item)
             self._list_widget.setItemWidget(item, widget)
 
         if entries:
             self._list_widget.setCurrentRow(0)
+            self._update_note_display(entries[0])
+        else:
+            self._update_note_display(None)
         self._refresh_item_selection()
         self._update_order_label()
         self._update_enabled_state()
@@ -602,11 +618,61 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         del previous
         if current is None:
             self._preview.clear()
+            self._update_note_display(None)
             return
         entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
         if isinstance(entry, FileDiffEntry):
             self._preview.setPlainText(entry.annotated_diff_text)
+            self._update_note_display(entry)
         self._refresh_item_selection()
+
+    def _update_note_display(self, entry: FileDiffEntry | None) -> None:
+        if not self._ai_notes_enabled or entry is None:
+            self._ai_note_label.clear()
+            self._ai_note_label.setVisible(False)
+            return
+        note = entry.ai_note
+        if note:
+            self._ai_note_label.setText(note)
+            self._ai_note_label.setVisible(True)
+        else:
+            self._ai_note_label.clear()
+            self._ai_note_label.setVisible(False)
+
+    def set_ai_notes_enabled(self, enabled: bool) -> None:
+        if self._ai_notes_enabled == enabled:
+            return
+        self._ai_notes_enabled = enabled
+        fetch_notes = enabled
+
+        updated_originals: list[FileDiffEntry] = []
+        for entry in self._original_entries:
+            updated_originals.append(populate_ai_note(entry) if fetch_notes else entry)
+        self._original_entries = updated_originals
+
+        for idx in range(self._list_widget.count()):
+            item = self._list_widget.item(idx)
+            entry = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if not isinstance(entry, FileDiffEntry):
+                continue
+            new_entry = populate_ai_note(entry) if fetch_notes else entry
+            if new_entry is not entry:
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, new_entry)
+            widget = self._list_widget.itemWidget(item)
+            if isinstance(widget, _DiffListItemWidget):
+                widget.update_ai_note(new_entry.ai_note if enabled else None)
+
+        current_entry = self._current_entry()
+        self._update_note_display(current_entry)
+
+    def _current_entry(self) -> FileDiffEntry | None:
+        current = self._list_widget.currentItem()
+        if current is None:
+            return None
+        entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
+        if isinstance(entry, FileDiffEntry):
+            return entry
+        return None
 
     def _apply_reordered_diff(self) -> None:
         entries = self._current_entries()
@@ -671,6 +737,11 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
             QLabel#diffListItemPath[selected="true"] {
                 color: %(accent)s;
             }
+            QLabel#diffListItemNote {
+                color: %(note_color)s;
+                font-size: 11px;
+                font-style: italic;
+            }
             QLabel.diffStatBadge {
                 border-radius: 10px;
                 padding: 2px 10px;
@@ -700,6 +771,7 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
                 "selected_bg": colors.list_selected_bg,
                 "text": colors.text_primary,
                 "accent": colors.accent,
+                "note_color": colors.text_secondary,
                 "badge_neutral_bg": colors.badge_neutral_bg,
                 "badge_neutral_fg": colors.badge_neutral_fg,
                 "badge_add_bg": colors.badge_add_bg,
@@ -718,7 +790,23 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
         self._path_label.setTextInteractionFlags(
             QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        layout.addWidget(self._path_label, 1)
+
+        text_container = QtWidgets.QWidget()
+        text_layout = QtWidgets.QVBoxLayout(text_container)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(2)
+        text_layout.addWidget(self._path_label)
+
+        self._note_label = QtWidgets.QLabel("")
+        self._note_label.setObjectName("diffListItemNote")
+        self._note_label.setWordWrap(True)
+        self._note_label.setVisible(False)
+        self._note_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        text_layout.addWidget(self._note_label)
+
+        layout.addWidget(text_container, 1)
 
         badges_container = QtWidgets.QWidget()
         badges_layout = QtWidgets.QHBoxLayout(badges_container)
@@ -728,7 +816,9 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
             badges_layout.addWidget(badge)
         layout.addWidget(badges_container, 0, QtCore.Qt.AlignmentFlag.AlignRight)
 
-        self.setToolTip(entry.display_text)
+        self._base_tooltip = entry.display_text
+        self._ai_note: str | None = None
+        self.update_ai_note(entry.ai_note)
 
     def setSelected(self, selected: bool) -> None:
         self.setProperty("selected", selected)
@@ -738,6 +828,19 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
         self._path_label.style().unpolish(self._path_label)
         self._path_label.style().polish(self._path_label)
         self.update()
+
+    def update_ai_note(self, note: str | None) -> None:
+        self._ai_note = note or None
+        if self._ai_note:
+            self._note_label.setText(self._ai_note)
+            self._note_label.setVisible(True)
+        else:
+            self._note_label.clear()
+            self._note_label.setVisible(False)
+        tooltip = self._base_tooltip
+        if self._ai_note:
+            tooltip = f"{tooltip}\n\n{self._ai_note}"
+        self.setToolTip(tooltip)
 
 
 def _create_badge_widgets(

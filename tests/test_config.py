@@ -17,6 +17,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.log_level == defaults.log_level
     assert loaded.dry_run_default == defaults.dry_run_default
     assert loaded.write_reports == defaults.write_reports
+    assert loaded.ai_notes_enabled == defaults.ai_notes_enabled
     assert loaded.log_file == defaults.log_file
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
@@ -38,6 +39,7 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         log_max_bytes=1048576,
         log_backup_count=3,
         backup_retention_days=14,
+        ai_notes_enabled=True,
     )
 
     save_config(original, path=config_path)
@@ -58,6 +60,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 "log_level = 123",
                 'dry_run_default = "maybe"',
                 'write_reports = "sometimes"',
+                'ai_notes_enabled = "maybe"',
                 'log_file = "   "',
                 "log_max_bytes = -1",
                 "log_backup_count = -5",
@@ -77,6 +80,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.log_level == defaults.log_level
     assert loaded.dry_run_default == defaults.dry_run_default
     assert loaded.write_reports == defaults.write_reports
+    assert loaded.ai_notes_enabled == defaults.ai_notes_enabled
     assert loaded.log_file == defaults.log_file
     assert loaded.log_max_bytes == defaults.log_max_bytes
     assert loaded.log_backup_count == defaults.log_backup_count
@@ -95,6 +99,7 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
                 'log_level = "warning"',
                 "dry_run_default = false",
                 "write_reports = true",
+                "ai_notes_enabled = true",
                 'log_file = "' + str(tmp_path / "log.txt") + '"',
                 "log_max_bytes = 1024",
                 "log_backup_count = 4",
@@ -117,3 +122,4 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.log_max_bytes == 1024
     assert loaded.log_backup_count == 4
     assert loaded.backup_retention_days == 30
+    assert loaded.ai_notes_enabled is True
