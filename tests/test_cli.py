@@ -832,7 +832,7 @@ def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
         configured_logger = logging.getLogger()
         assert configured_logger.level == logging.DEBUG
         assert any(
-            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stdout
+            isinstance(handler, logging.StreamHandler) and handler.stream is sys.stderr
             for handler in configured_logger.handlers
         )
     finally:
