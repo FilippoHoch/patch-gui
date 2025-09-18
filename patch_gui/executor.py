@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -224,6 +225,13 @@ def _apply_file_patch(
 
     is_added_file = bool(getattr(pf, "is_added_file", False))
     is_removed_file = bool(getattr(pf, "is_removed_file", False))
+    is_rename = bool(getattr(pf, "is_rename", False))
+    is_copy = bool(getattr(pf, "is_copy", False))
+    patch_info = getattr(pf, "patch_info", None)
+    if not is_copy and isinstance(patch_info, list):
+        lowered = [entry.lower() for entry in patch_info if isinstance(entry, str)]
+        if any(line.startswith("copy from") for line in lowered):
+            is_copy = True
     source_file = getattr(pf, "source_file", None)
     target_file = getattr(pf, "target_file", None)
     if isinstance(source_file, str) and source_file.strip() == "/dev/null":
@@ -239,9 +247,58 @@ def _apply_file_patch(
 
     path: Optional[Path] = None
     is_new_file = False
+    pending_operation: Optional[str] = None
+    operation_source: Optional[Path] = None
 
     if not candidates:
-        if is_added_file and rel_path:
+        if (is_rename or is_copy) and isinstance(source_file, str):
+            source_rel = source_file.strip()
+            if source_rel and source_rel != "/dev/null":
+                source_candidates = find_file_candidates(
+                    project_root,
+                    source_rel,
+                    exclude_dirs=session.exclude_dirs,
+                )
+                if not source_candidates:
+                    fr.skipped_reason = _(
+                        "Source file for rename/copy not found in the project root"
+                    )
+                    return fr
+                if len(source_candidates) > 1:
+                    if not interactive:
+                        fr.skipped_reason = _ambiguous_paths_message(
+                            project_root, source_candidates
+                        )
+                        return fr
+                    selected_source = _prompt_candidate_selection(
+                        project_root, source_candidates
+                    )
+                    if selected_source is None:
+                        fr.skipped_reason = _ambiguous_paths_message(
+                            project_root, source_candidates
+                        )
+                        return fr
+                    source_path = selected_source
+                else:
+                    source_path = source_candidates[0]
+
+                if rel_path:
+                    candidate = project_root / rel_path
+                    resolved_candidate = candidate.resolve()
+                    try:
+                        resolved_candidate.relative_to(project_root)
+                    except ValueError:
+                        fr.skipped_reason = _(
+                            "Patch targets a path outside the project root"
+                        )
+                        return fr
+                    path = resolved_candidate
+                    pending_operation = "copy" if is_copy else "rename"
+                    operation_source = source_path
+                else:
+                    fr.skipped_reason = _("File not found in the project root")
+                    return fr
+        if path is None and is_added_file and rel_path:
             candidate = project_root / rel_path
             resolved_candidate = candidate.resolve()
             try:
@@ -254,7 +311,7 @@ def _apply_file_patch(
             fr.file_path = path
             fr.relative_to_root = display_relative_path(path, project_root)
             is_new_file = True
-        else:
+        if path is None:
             fr.skipped_reason = _("File not found in the project root")
             return fr
     elif len(candidates) > 1:
@@ -280,9 +337,28 @@ def _apply_file_patch(
     file_encoding = "utf-8"
     orig_eol = "\n"
 
+    content_path = path
+    if pending_operation and operation_source is not None:
+        if session.dry_run:
+            content_path = operation_source
+        else:
+            if operation_source.resolve() != path:
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    if pending_operation == "rename":
+                        operation_source.replace(path)
+                    else:
+                        shutil.copy2(operation_source, path)
+                except OSError as exc:
+                    fr.skipped_reason = _(
+                        "Failed to prepare file for rename/copy patch: {error}"
+                    ).format(error=exc)
+                    return fr
+            content_path = path
+
     if not is_new_file:
         try:
-            raw = path.read_bytes()
+            raw = content_path.read_bytes()
         except Exception as exc:
             fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
             return fr
