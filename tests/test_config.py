@@ -23,6 +23,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == defaults.backup_retention_days
     assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
     assert loaded.ai_auto_apply == defaults.ai_auto_apply
+    assert loaded.ai_diff_notes_enabled == defaults.ai_diff_notes_enabled
 
 
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
@@ -42,6 +43,7 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         backup_retention_days=14,
         ai_assistant_enabled=True,
         ai_auto_apply=True,
+        ai_diff_notes_enabled=True,
     )
 
     save_config(original, path=config_path)
@@ -68,6 +70,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 "backup_retention_days = -10",
                 'ai_assistant_enabled = "maybe"',
                 'ai_auto_apply = "\""',
+                'ai_diff_notes_enabled = "sure"',
                 "",
             ]
         ),
@@ -89,6 +92,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == defaults.backup_retention_days
     assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
     assert loaded.ai_auto_apply == defaults.ai_auto_apply
+    assert loaded.ai_diff_notes_enabled == defaults.ai_diff_notes_enabled
 
 
 def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
@@ -109,6 +113,7 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
                 "backup_retention_days = 30",
                 "ai_assistant_enabled = true",
                 "ai_auto_apply = true",
+                "ai_diff_notes_enabled = true",
                 "",
             ]
         ),
@@ -129,3 +134,4 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == 30
     assert loaded.ai_assistant_enabled is True
     assert loaded.ai_auto_apply is True
+    assert loaded.ai_diff_notes_enabled is True
