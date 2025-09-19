@@ -1345,6 +1345,7 @@ class MainWindow(_QMainWindowBase):
         self.ai_diff_notes_enabled: bool = self.app_config.ai_diff_notes_enabled
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
+        self._log_messages: List[str] = []
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -1582,7 +1583,19 @@ class MainWindow(_QMainWindowBase):
 
         right_layout.addWidget(self.diff_tabs, 1)
 
-        right_layout.addWidget(QtWidgets.QLabel(_("Log:")))
+        log_header = QtWidgets.QHBoxLayout()
+        log_header.addWidget(QtWidgets.QLabel(_("Log:")))
+        log_header.addStretch(1)
+        self.log_filter_edit = QtWidgets.QLineEdit()
+        self.log_filter_edit.setPlaceholderText(_("Filtra log…"))
+        self.log_filter_edit.setClearButtonEnabled(True)
+        self.log_filter_edit.textChanged.connect(self._on_log_filter_changed)
+        log_header.addWidget(self.log_filter_edit)
+        self.log_clear_button = QtWidgets.QPushButton(_("Pulisci"))
+        self.log_clear_button.setToolTip(_("Svuota il log visualizzato"))
+        self.log_clear_button.clicked.connect(self._clear_log)
+        log_header.addWidget(self.log_clear_button)
+        right_layout.addLayout(log_header)
         self.log = QtWidgets.QPlainTextEdit()
         self.log.setReadOnly(True)
         right_layout.addWidget(self.log, 1)
@@ -1616,11 +1629,48 @@ class MainWindow(_QMainWindowBase):
         logging.getLogger().addHandler(handler)
         self._qt_log_handler = handler
 
+    def _append_log_message(self, message: str) -> None:
+        if message is None:
+            return
+        self._log_messages.append(message)
+        self._refresh_log_view(scroll_to_end=True)
+
+    def _refresh_log_view(self, *, scroll_to_end: bool = False) -> None:
+        filter_edit = getattr(self, "log_filter_edit", None)
+        if filter_edit is None:
+            return
+        normalized_filter = filter_edit.text().strip().casefold()
+        if normalized_filter:
+            messages = [
+                entry
+                for entry in self._log_messages
+                if normalized_filter in entry.casefold()
+            ]
+        else:
+            messages = list(self._log_messages)
+        content = "\n".join(messages)
+        scroll_bar = self.log.verticalScrollBar()
+        was_at_bottom = scroll_bar.value() == scroll_bar.maximum()
+        self.log.setPlainText(content)
+        if scroll_to_end or was_at_bottom:
+            scroll_bar.setValue(scroll_bar.maximum())
+
+    @_qt_slot(str)
+    def _on_log_filter_changed(self, _text: str) -> None:
+        self._refresh_log_view()
+
+    def _clear_log(self) -> None:
+        if not self._log_messages and not self.log.toPlainText():
+            return
+        self._log_messages.clear()
+        self._refresh_log_view()
+        self.statusBar().showMessage(_("Log pulito"), 3000)
+
     @_qt_slot(str, int)
     def _handle_log_message(
         self, message: str, level: int
     ) -> None:  # pragma: no cover - UI feedback
-        self.log.appendPlainText(message)
+        self._append_log_message(message)
         lines = [line for line in message.strip().splitlines() if line]
         if lines:
             self.statusBar().showMessage(lines[0][:100])
@@ -1999,7 +2049,7 @@ class MainWindow(_QMainWindowBase):
     ) -> None:  # pragma: no cover - UI feedback
         if not message:
             return
-        self.log.appendPlainText(message)
+        self._append_log_message(message)
         self.statusBar().showMessage(message[:100])
         clamped = max(0, min(int(percent), 100))
         self.progress_bar.setVisible(True)
@@ -2031,17 +2081,17 @@ class MainWindow(_QMainWindowBase):
         if session.ai_summary:
             text = _("Sintesi AI: {text}").format(text=session.ai_summary)
             logger.info(text)
-            self.log.appendPlainText(text)
+            self._append_log_message(text)
         if session.file_summaries:
             per_file_header = _("Dettaglio sintesi AI per file:")
             logger.info(per_file_header)
-            self.log.appendPlainText(per_file_header)
+            self._append_log_message(per_file_header)
             for path, summary_text in session.file_summaries.items():
                 detail = _("- {path}: {summary}").format(
                     path=path, summary=summary_text
                 )
                 logger.info(detail)
-                self.log.appendPlainText(detail)
+                self._append_log_message(detail)
         logger.info(_("\n=== RISULTATO ===\n%s"), session.to_txt())
         self._set_busy(False)
         self.progress_bar.setValue(100)
