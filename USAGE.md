@@ -30,6 +30,11 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 3. **Analizza il diff**
    - Nel pannello sinistro vengono elencati i file e gli hunk trovati.
    - Selezionando un elemento puoi vedere il contesto e le modifiche.
+   - L'anteprima **Split diff** mostra le versioni precedente e nuova in due
+     colonne sincronizzate; ogni hunk include i pulsanti *Applica* e *Salta* per
+     decidere in tempo reale cosa includere nell'esportazione finale.
+   - Usa l'interruttore *Vista impilata* (nell'intestazione) per portare il diff
+     sotto l'elenco quando lo spazio orizzontale è limitato.
 4. **Configura l'esecuzione**
    - La modalità **Dry‑run** è abilitata di default e consente di simulare l'applicazione senza modificare i file.
    - Imposta la **Soglia fuzzy** (es. `0.85`) per controllare la tolleranza nel matching del contesto. I valori validi sono maggiori di 0 e non superano 1.
@@ -37,6 +42,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    - Con Dry‑run attivo clicca **Applica patch** per vedere l'anteprima dei risultati.
    - Quando sei soddisfatto, disattiva Dry‑run e premi nuovamente **Applica patch** per modificare realmente i file.
    - Durante l'esecuzione la barra di stato mostra una barra di avanzamento numerica con la percentuale di file/hunk già elaborati.
+   - Dopo aver riordinato i file o escluso degli hunk, premi **Aggiorna editor diff** per riscrivere il testo del diff con l'ordine e le scelte correnti.
 6. **Gestisci eventuali ambiguità**
    - Se la patch può essere applicata in più punti plausibili, viene aperto un dialog che mostra tutte le opzioni con il relativo contesto.
    - Se l'assistente AI è abilitato nelle preferenze, il dialog evidenzia la scelta consigliata con confidenza ed eventuale spiegazione; puoi applicarla con il pulsante *Applica suggerimento*.
