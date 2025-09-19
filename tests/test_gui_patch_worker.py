@@ -8,7 +8,9 @@ from typing import Any
 import pytest
 from unidiff import PatchSet
 
+from patch_gui.binary_patch import attach_binary_patch_data
 from patch_gui.patcher import ApplySession, prepare_backup_dir
+from tests._binary_fixture import BINARY_DIFF, NEW_BYTES, OLD_BYTES
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtWidgets as _QtWidgets
@@ -104,6 +106,37 @@ def test_worker_applies_added_file_and_creates_directories(
 
     backup_contents = list(session.backup_dir.rglob("*"))
     assert all(not item.is_file() for item in backup_contents)
+
+
+def test_worker_applies_binary_patch_and_preserves_backup(
+    qt_app: Any, tmp_path: Path
+) -> None:
+    from patch_gui.app import PatchApplyWorker
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    target = project_root / "asset.bin"
+    target.write_bytes(OLD_BYTES)
+
+    patch = PatchSet(BINARY_DIFF)
+    attach_binary_patch_data(patch, BINARY_DIFF)
+    pf = patch[0]
+    rel_path = _relative_from_patch(pf)
+
+    session = _build_session(project_root, dry_run=False)
+    worker = PatchApplyWorker(patch, session)
+
+    result = worker.apply_file_patch(pf, rel_path)
+
+    assert result.skipped_reason is None
+    assert result.file_type == "binary"
+    assert result.hunks_applied == result.hunks_total == 1
+    assert target.read_bytes() == NEW_BYTES
+
+    backup_copy = session.backup_dir / "asset.bin"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == OLD_BYTES
 
 
 def test_worker_removes_file_and_preserves_backup(qt_app: Any, tmp_path: Path) -> None:
