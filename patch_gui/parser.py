@@ -79,12 +79,28 @@ def build_parser(
         required=True,
         help=_("Project root where the patch should be applied."),
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help=_("Simulate the execution without modifying files or creating backups."),
-    )
     resolved_config = config or load_config()
+    dry_run_group = parser.add_mutually_exclusive_group()
+    dry_run_group.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help=(
+            _(
+                "Simulate the execution without modifying files or creating backups"
+                " (default follows the configuration)."
+            )
+        ),
+    )
+    dry_run_group.add_argument(
+        "--apply",
+        dest="dry_run",
+        action="store_false",
+        help=_(
+            "Apply changes even when dry-run mode is enabled in the configuration."
+        ),
+    )
+    parser.set_defaults(dry_run=resolved_config.dry_run_default)
     parser.add_argument(
         "--threshold",
         type=threshold_value,
