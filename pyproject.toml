@@ -62,6 +62,7 @@ include = ["patch_gui*"]
 
 [tool.setuptools.package-data]
 "patch_gui" = [
+    "py.typed",
     "translations/*.ts",
     "translations/*.qm",
     "resources/*.svg",
