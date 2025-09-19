@@ -6,6 +6,7 @@ import ast
 import json
 import os
 import sys
+from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
@@ -244,7 +245,22 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         "",
     ]
 
-    target.write_text("\n".join(content_lines), encoding="utf-8")
+    content = "\n".join(content_lines)
+
+    with NamedTemporaryFile(
+        "w", encoding="utf-8", dir=target.parent, delete=False
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
+        temp_file.write(content)
+        temp_file.flush()
+        os.fsync(temp_file.fileno())
+
+    try:
+        os.replace(temp_path, target)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
     return target
 
 
