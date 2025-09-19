@@ -82,7 +82,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     bootstrap_args, _remaining = bootstrap_parser.parse_known_args(argument_list)
     config_path = bootstrap_args.config_path
 
-    config = load_config(config_path)
+    if config_path is None:
+        config = load_config()
+    else:
+        config = load_config(config_path)
     parser = build_parser(config=config, config_path=config_path)
     args = parser.parse_args(argument_list)
 
