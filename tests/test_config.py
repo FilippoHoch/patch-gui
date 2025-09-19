@@ -67,7 +67,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 "log_backup_count = -5",
                 "backup_retention_days = -10",
                 'ai_assistant_enabled = "maybe"',
-                'ai_auto_apply = "\""',
+                'ai_auto_apply = """',
                 "",
             ]
         ),

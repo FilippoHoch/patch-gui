@@ -61,7 +61,9 @@ def _build_payload(session: ApplySession) -> dict[str, object]:
 
         file_payload: dict[str, object] = {
             "path": file_result.relative_to_root,
-            "absolute_path": str(file_result.file_path) if file_result.file_path else "",
+            "absolute_path": (
+                str(file_result.file_path) if file_result.file_path else ""
+            ),
             "file_type": file_result.file_type,
             "hunks_applied": file_result.hunks_applied,
             "hunks_total": file_result.hunks_total,
