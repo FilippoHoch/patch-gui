@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import logging
 import os
+import re
 import shutil
 import sys
 import time
@@ -55,6 +56,25 @@ __all__ = [
 
 class CLIError(Exception):
     """Raised for recoverable CLI usage errors."""
+
+
+def _translate_unidiff_error(exc: UnidiffParseError) -> str:
+    """Return a localized, user-friendly message for :class:`UnidiffParseError`."""
+
+    message = str(exc).strip()
+    if not message:
+        return _("Invalid diff: {error}").format(error=exc)
+
+    unexpected_hunk = re.search(r"Unexpected hunk found:\s*(.*)", message)
+    if unexpected_hunk:
+        hunk_header = unexpected_hunk.group(1) or _("(unknown hunk header)")
+        return _(
+            "Invalid diff: found the hunk header {hunk} before any file header. "
+            "This usually means the patch is missing the lines starting with '---' "
+            "and '+++' that identify which file to modify, so the diff cannot be applied."
+        ).format(hunk=hunk_header)
+
+    return _("Invalid diff: {error}").format(error=exc)
 
 
 def load_patch(source: str, encoding: str | None = None) -> PatchSet:
@@ -131,7 +151,7 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     try:
         patch = PatchSet(processed)
     except UnidiffParseError as exc:
-        raise CLIError(_("Invalid diff: {error}").format(error=exc)) from exc
+        raise CLIError(_translate_unidiff_error(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard for unexpected errors
         raise CLIError(
             _("Unexpected error while parsing the diff: {error}").format(error=exc)
