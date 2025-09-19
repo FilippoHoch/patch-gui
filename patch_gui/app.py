@@ -650,6 +650,8 @@ class CandidateDialog(_QDialogBase):
         hv: HunkView,
         *,
         ai_hint: AISuggestion | None = None,
+        assistant_message: str | None = None,
+        assistant_patch: str | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(_("Seleziona posizione hunk (ambiguità)"))
@@ -657,6 +659,8 @@ class CandidateDialog(_QDialogBase):
         self.resize(1000, 700)
         self.selected_pos: Optional[int] = None
         self.ai_hint: AISuggestion | None = ai_hint
+        self.assistant_message = assistant_message
+        self.assistant_patch = assistant_patch
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -668,6 +672,49 @@ class CandidateDialog(_QDialogBase):
         )
         info.setWordWrap(True)
         layout.addWidget(info)
+
+        if assistant_message or assistant_patch:
+            suggestion_group = QtWidgets.QGroupBox(_("Suggerimento assistente"))
+            suggestion_layout = QtWidgets.QVBoxLayout(suggestion_group)
+            suggestion_layout.setContentsMargins(8, 8, 8, 8)
+            suggestion_layout.setSpacing(6)
+            if assistant_message:
+                message_edit = QtWidgets.QPlainTextEdit(assistant_message)
+                message_edit.setReadOnly(True)
+                message_edit.setMinimumHeight(80)
+                suggestion_layout.addWidget(message_edit)
+
+                copy_message_btn = QtWidgets.QPushButton(_("Copia testo"))
+
+                def _copy_message() -> None:  # pragma: no cover - GUI clipboard
+                    QtWidgets.QApplication.clipboard().setText(assistant_message)
+
+                copy_message_btn.clicked.connect(_copy_message)
+                suggestion_layout.addWidget(
+                    copy_message_btn,
+                    alignment=QtCore.Qt.AlignmentFlag.AlignLeft,
+                )
+            if assistant_patch:
+                patch_label = QtWidgets.QLabel(
+                    _("Diff suggerito – applicazione manuale:"))
+                patch_label.setWordWrap(True)
+                suggestion_layout.addWidget(patch_label)
+                patch_edit = QtWidgets.QPlainTextEdit(assistant_patch)
+                patch_edit.setReadOnly(True)
+                patch_edit.setMinimumHeight(120)
+                suggestion_layout.addWidget(patch_edit)
+
+                copy_patch_btn = QtWidgets.QPushButton(_("Copia diff"))
+
+                def _copy_patch() -> None:  # pragma: no cover - GUI clipboard
+                    QtWidgets.QApplication.clipboard().setText(assistant_patch)
+
+                copy_patch_btn.clicked.connect(_copy_patch)
+                suggestion_layout.addWidget(
+                    copy_patch_btn,
+                    alignment=QtCore.Qt.AlignmentFlag.AlignLeft,
+                )
+            layout.addWidget(suggestion_group)
 
         if self.ai_hint is not None:
             block_len = len(hv.before_lines) or len(hv.after_lines) or 1
@@ -1073,7 +1120,7 @@ class PatchApplyWorker(_QThreadBase):
     finished = QtCore.Signal(object)
     error = QtCore.Signal(str)
     request_file_choice = QtCore.Signal(str, object)
-    request_hunk_choice = QtCore.Signal(str, object, object, object)
+    request_hunk_choice = QtCore.Signal(str, object, object, object, object, object)
 
     def __init__(
         self,
@@ -1307,11 +1354,15 @@ class PatchApplyWorker(_QThreadBase):
         lines: List[str],
         candidates: List[Tuple[int, float]],
         ai_hint: AISuggestion | None,
+        assistant_message: str | None,
+        assistant_patch: str | None,
     ) -> Optional[int]:
         self._hunk_choice_result = None
         self._hunk_choice_event.clear()
         file_text = "".join(lines)
-        self.request_hunk_choice.emit(file_text, candidates, hv, ai_hint)
+        self.request_hunk_choice.emit(
+            file_text, candidates, hv, ai_hint, assistant_message, assistant_patch
+        )
         self._hunk_choice_event.wait()
         return self._hunk_choice_result
 
@@ -1322,7 +1373,9 @@ class PatchApplyWorker(_QThreadBase):
         candidates: List[Tuple[int, float]],
         decision: HunkDecision,
         reason: str,
+        original_diff: str,
     ) -> Optional[int]:
+        unused_original_diff = original_diff  # noqa: F841 - parity with CLI resolver
         ai_hint: AISuggestion | None = None
         if candidates:
             ai_hint = rank_candidates(
@@ -1361,7 +1414,14 @@ class PatchApplyWorker(_QThreadBase):
                     )
                     return ai_hint.position
 
-        pos = self._wait_for_hunk_choice(hv, lines, candidates, ai_hint)
+        pos = self._wait_for_hunk_choice(
+            hv,
+            lines,
+            candidates,
+            ai_hint,
+            decision.assistant_message,
+            decision.assistant_patch,
+        )
         if pos is None:
             decision.strategy = "failed"
             if reason == "context":
@@ -2111,18 +2171,28 @@ class MainWindow(_QMainWindowBase):
             choice = dlg.chosen
         worker.provide_file_choice(choice)
 
-    @_qt_slot(str, object, object, object)
+    @_qt_slot(str, object, object, object, object, object)
     def _on_worker_request_hunk_choice(
         self,
         file_text: str,
         candidates: List[Tuple[int, float]],
         hv: HunkView,
         ai_hint: AISuggestion | None,
+        assistant_message: str | None,
+        assistant_patch: str | None,
     ) -> None:  # pragma: no cover - UI feedback
         worker = self._current_worker
         if worker is None:
             return
-        dlg = CandidateDialog(self, file_text, candidates, hv, ai_hint=ai_hint)
+        dlg = CandidateDialog(
+            self,
+            file_text,
+            candidates,
+            hv,
+            ai_hint=ai_hint,
+            assistant_message=assistant_message,
+            assistant_patch=assistant_patch,
+        )
         if (
             dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
             and dlg.selected_pos is not None
@@ -2214,9 +2284,18 @@ class MainWindow(_QMainWindowBase):
         candidates: List[Tuple[int, float]],
         decision: HunkDecision,
         reason: str,
+        original_diff: str,
     ) -> Optional[int]:
+        unused_original_diff = original_diff  # noqa: F841 - parity with CLI resolver
         file_text = "".join(lines)
-        dlg = CandidateDialog(self, file_text, candidates, hv)
+        dlg = CandidateDialog(
+            self,
+            file_text,
+            candidates,
+            hv,
+            assistant_message=decision.assistant_message,
+            assistant_patch=decision.assistant_patch,
+        )
         if (
             dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted
             and dlg.selected_pos is not None
