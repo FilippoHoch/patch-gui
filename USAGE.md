@@ -40,6 +40,7 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 4. **Configura l'esecuzione**
    - La modalità **Dry‑run** è abilitata di default e consente di simulare l'applicazione senza modificare i file.
    - Imposta la **Soglia fuzzy** (es. `0.85`) per controllare la tolleranza nel matching del contesto. I valori validi sono maggiori di 0 e non superano 1.
+   - Le caselle di controllo *Rapidfuzz* e *Ancora* accanto alla soglia consentono di abilitare il matcher ottimizzato e le ancore strutturali anche dalla GUI (default: entrambe attive se `rapidfuzz` è disponibile).
 5. **Applica la patch**
    - Con Dry‑run attivo clicca **Applica patch** per vedere l'anteprima dei risultati.
    - Quando sei soddisfatto, disattiva Dry‑run e premi nuovamente **Applica patch** per modificare realmente i file.

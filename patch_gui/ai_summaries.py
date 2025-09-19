@@ -93,7 +93,16 @@ def _build_payload(session: ApplySession) -> dict[str, object]:
             }
             candidates = decision.candidates[:_MAX_CANDIDATES_PER_DECISION]
             if candidates:
-                entry["candidates"] = [list(candidate) for candidate in candidates]
+                entry["candidates"] = [
+                    {
+                        "position": candidate.position,
+                        "score": candidate.score,
+                        "metadata": dict(candidate.metadata),
+                    }
+                    for candidate in candidates
+                ]
+            if decision.matching_metadata:
+                entry["matching_metadata"] = dict(decision.matching_metadata)
             if decision.ai_explanation:
                 entry["ai_explanation"] = decision.ai_explanation
             decisions.append(entry)

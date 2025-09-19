@@ -22,9 +22,11 @@ from .filetypes import inspect_file_type
 from .localization import gettext as _
 from .patcher import (
     ApplySession,
+    CandidateMatch,
     FileResult,
     HunkDecision,
     HunkView,
+    MatchingOptions,
     apply_hunks,
     backup_file,
     find_file_candidates,
@@ -165,6 +167,8 @@ def apply_patchset(
     *,
     dry_run: bool,
     threshold: float,
+    use_rapidfuzz: bool | None = None,
+    use_structural_anchors: bool | None = None,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
     auto_accept: bool = False,
@@ -191,6 +195,17 @@ def apply_patchset(
         raise CLIError(_("Threshold must be between 0 (exclusive) and 1 (inclusive)."))
 
     resolved_config = config or load_config()
+    resolved_use_rapidfuzz = (
+        resolved_config.use_rapidfuzz_matcher
+        if use_rapidfuzz is None
+        else use_rapidfuzz
+    )
+    resolved_use_anchors = (
+        resolved_config.use_structural_anchors
+        if use_structural_anchors is None
+        else use_structural_anchors
+    )
+
     started_at = time.time()
     backup_base_arg = backup_base or resolved_config.backup_base
     try:
@@ -238,6 +253,10 @@ def apply_patchset(
         threshold=threshold,
         exclude_dirs=resolved_excludes,
         started_at=started_at,
+        matching_options=MatchingOptions(
+            use_rapidfuzz=resolved_use_rapidfuzz,
+            enable_structural_anchors=resolved_use_anchors,
+        ),
     )
     session.summary_diff_digest = compute_diff_digest(patch)
 
@@ -645,6 +664,7 @@ def _apply_file_patch(
         lines,
         pf,
         threshold=session.threshold,
+        matching_options=session.matching_options,
         manual_resolver=manual_resolver,
     )
 
@@ -794,7 +814,7 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
 def _ai_rank_candidates(
     lines: List[str],
     hv: HunkView,
-    candidates: List[Tuple[int, float]],
+    candidates: Sequence[CandidateMatch],
     *,
     ai_enabled: bool,
 ) -> Optional[AISuggestion]:
@@ -814,7 +834,7 @@ def _ai_rank_candidates(
 def _cli_manual_resolver(
     hv: HunkView,
     lines: List[str],
-    candidates: List[Tuple[int, float]],
+    candidates: List[CandidateMatch],
     decision: HunkDecision,
     reason: str,
     *,
@@ -873,55 +893,60 @@ def _cli_manual_resolver(
         if ai_hint.explanation:
             print(_("  Explanation: {text}").format(text=ai_hint.explanation))
 
-        if ai_auto_select:
-            chosen_pos = ai_hint.position
-            similarity = next(
-                (score for pos, score in candidates if pos == chosen_pos), None
+    if ai_auto_select:
+        chosen_pos = ai_hint.position
+        selected = next(
+            (cand for cand in candidates if cand.position == chosen_pos), None
+        )
+        similarity = selected.score if selected is not None else None
+        if similarity is None:
+            logger.warning(
+                "AI suggestion did not match any candidate for hunk %s", hv.header
             )
-            if similarity is None:
-                logger.warning(
-                    "AI suggestion did not match any candidate for hunk %s", hv.header
+        else:
+            decision.selected_pos = chosen_pos
+            decision.similarity = similarity
+            if selected is not None:
+                decision.selected_metadata = dict(selected.metadata)
+            decision.message = _(
+                "Automatically selected candidate {index} (--ai-select)."
+            ).format(index=ai_hint.candidate_index)
+            logger.info(
+                "AI assistant selected candidate %d for %s (confidence %.3f)",
+                ai_hint.candidate_index,
+                hv.header,
+                ai_hint.confidence,
+            )
+            print(
+                _(
+                    "Auto-applied hunk {header} at position {position} (--ai-select, candidate {index})."
+                ).format(
+                    header=hv.header,
+                    position=chosen_pos,
+                    index=ai_hint.candidate_index,
                 )
-            else:
-                decision.selected_pos = chosen_pos
-                decision.similarity = similarity
-                decision.message = _(
-                    "Automatically selected candidate {index} (--ai-select)."
-                ).format(index=ai_hint.candidate_index)
-                logger.info(
-                    "AI assistant selected candidate %d for %s (confidence %.3f)",
-                    ai_hint.candidate_index,
-                    hv.header,
-                    ai_hint.confidence,
-                )
-                print(
-                    _(
-                        "Auto-applied hunk {header} at position {position} (--ai-select, candidate {index})."
-                    ).format(
-                        header=hv.header,
-                        position=chosen_pos,
-                        index=ai_hint.candidate_index,
-                    )
-                )
-                return chosen_pos
+            )
+            return chosen_pos
 
     if auto_accept and candidates:
-        pos, score = candidates[0]
-        try:
-            candidate_index = candidates.index((pos, score)) + 1
-        except ValueError:  # pragma: no cover - defensive fallback
-            candidate_index = 1
-        decision.selected_pos = pos
-        decision.similarity = score
+        first_candidate = candidates[0]
+        candidate_index = 1
+        decision.selected_pos = first_candidate.position
+        decision.similarity = first_candidate.score
+        decision.selected_metadata = dict(first_candidate.metadata)
         decision.message = _(
             "Automatically selected candidate {index} (--auto-accept)."
         ).format(index=candidate_index)
         print(
             _(
                 "Auto-applied hunk {header} at position {position} (--auto-accept, candidate {index})."
-            ).format(header=hv.header, position=pos, index=candidate_index)
+            ).format(
+                header=hv.header,
+                position=first_candidate.position,
+                index=candidate_index,
+            )
         )
-        return pos
+        return first_candidate.position
 
     header_message = _("Reviewing hunk: {header}").format(header=hv.header)
     if reason == "fuzzy":
@@ -964,17 +989,23 @@ def _cli_manual_resolver(
 
     print("")
     print(_("Available candidate positions:"))
-    for idx, (pos, score) in enumerate(candidates, start=1):
+    for idx, candidate in enumerate(candidates, start=1):
+        pos = candidate.position
+        score = candidate.score
         similarity_str = f"{score:.3f}" if score is not None else _("n/a")
         line_number = pos + 1
+        anchor_suffix = ""
+        if candidate.metadata.get("derived_from_anchor"):
+            anchor_suffix = _(" (anchor)")
         print(
             _(
-                "  {index}) Position {position} (line {line}, similarity {similarity})"
+                "  {index}) Position {position} (line {line}, similarity {similarity}{anchor})"
             ).format(
                 index=idx,
                 position=pos,
                 line=line_number,
                 similarity=similarity_str,
+                anchor=anchor_suffix,
             )
         )
 
@@ -1032,10 +1063,13 @@ def _cli_manual_resolver(
             continue
 
         if 1 <= index <= len(candidates):
-            pos, score = candidates[index - 1]
+            selected_candidate = candidates[index - 1]
+            pos = selected_candidate.position
+            score = selected_candidate.score
             decision.strategy = "manual"
             decision.selected_pos = pos
             decision.similarity = score
+            decision.selected_metadata = dict(selected_candidate.metadata)
             decision.message = _(
                 "Applied manually via CLI using candidate {choice}."
             ).format(choice=index)

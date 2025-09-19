@@ -10,6 +10,7 @@ from unidiff import PatchSet
 
 import patch_gui.executor as executor
 from patch_gui.config import AppConfig
+from patch_gui.matching import CandidateMatch, MatchingOptions, find_candidates as find_matching_candidates
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -63,7 +64,8 @@ def _project_with_sample(tmp_path: Path) -> Path:
 def test_find_candidates_returns_exact_match_first() -> None:
     file_lines = ["line1\n", "line2\n", "line3\n"]
     before_lines = ["line2\n"]
-    assert find_candidates(file_lines, before_lines, threshold=0.5) == [(1, 1.0)]
+    result = find_candidates(file_lines, before_lines, threshold=0.5)
+    assert [(c.position, c.score) for c in result] == [(1, 1.0)]
 
 
 def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
@@ -71,14 +73,46 @@ def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
     before_lines = ["abc\n", "def\n"]
     result = find_candidates(file_lines, before_lines, threshold=0.5)
     assert len(result) >= 2
-    assert result[0][0] == 3
-    assert result[0][1] == pytest.approx(0.9333333333)
-    assert result[1][0] == 0
-    assert result[1][1] == pytest.approx(0.875)
+    assert result[0].position == 3
+    assert result[0].score == pytest.approx(0.9333333333)
+    assert result[1].position == 0
+    assert result[1].score == pytest.approx(0.875)
 
 
 def test_find_candidates_with_empty_before_lines_returns_empty() -> None:
     assert find_candidates(["line\n"], [], threshold=0.5) == []
+
+
+def test_matching_is_deterministic() -> None:
+    file_lines = [f"line {i}\n" for i in range(20)]
+    before_lines = ["line 5\n", "line 6\n", "line 7\n"]
+    options = MatchingOptions(use_rapidfuzz=False)
+    result_one = find_matching_candidates(file_lines, before_lines, threshold=0.6, options=options)
+    result_two = find_matching_candidates(file_lines, before_lines, threshold=0.6, options=options)
+    assert [c.position for c in result_one.candidates] == [c.position for c in result_two.candidates]
+    assert [c.score for c in result_one.candidates] == [c.score for c in result_two.candidates]
+
+
+def test_structural_anchors_reduce_scoring_work() -> None:
+    file_lines = [f"noise {i}\n" for i in range(5000)]
+    anchor_index = 2500
+    file_lines[anchor_index] = "target anchor\n"
+    before_lines = ["irrelevant\n", "target anchor\n", "neighbor\n"]
+    file_lines[anchor_index + 1] = "neighbor\n"
+
+    options_with_anchors = MatchingOptions(use_rapidfuzz=False, enable_structural_anchors=True)
+    options_without_anchors = MatchingOptions(use_rapidfuzz=False, enable_structural_anchors=False)
+
+    anchored = find_matching_candidates(
+        file_lines, before_lines, threshold=0.4, options=options_with_anchors
+    )
+    brute = find_matching_candidates(
+        file_lines, before_lines, threshold=0.4, options=options_without_anchors
+    )
+
+    assert anchored.metadata["scored_windows"] <= anchored.metadata["candidate_windows"]
+    assert brute.metadata["scored_windows"] >= anchored.metadata["scored_windows"]
+    assert anchored.metadata["scored_windows"] < brute.metadata["scored_windows"]
 
 
 def test_apply_hunk_at_position_replaces_expected_window() -> None:
@@ -110,12 +144,12 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
     pf = patch[0]
     file_lines = ["bx\n", "cc\n", "bb\n", "cx\n"]
 
-    calls: list[tuple[HunkView, list[str], list[tuple[int, float]], str]] = []
+    calls: list[tuple[HunkView, list[str], list[CandidateMatch], str]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -151,12 +185,12 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     pf = patch[0]
     file_lines = ["line keep\n", "line end\n"]
 
-    captured: list[tuple[str, list[tuple[int, float]], HunkView]] = []
+    captured: list[tuple[str, list[CandidateMatch], HunkView]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -176,8 +210,20 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     hv = captured[0][2]
     assert hv.context_lines == ["line keep\n", "line end\n"]
     expected_candidates = find_candidates(file_lines, hv.context_lines, threshold=0.9)
-    assert captured[0][1] == expected_candidates
-    assert decisions[0].candidates == expected_candidates
+    assert [
+        (cand.position, pytest.approx(cand.score))
+        for cand in captured[0][1]
+    ] == [
+        (cand.position, pytest.approx(cand.score))
+        for cand in expected_candidates
+    ]
+    assert [
+        (cand.position, pytest.approx(cand.score))
+        for cand in decisions[0].candidates
+    ] == [
+        (cand.position, pytest.approx(cand.score))
+        for cand in expected_candidates
+    ]
     assert decisions[0].message.startswith("context review")
     assert decisions[0].assistant_message
 

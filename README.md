@@ -132,6 +132,10 @@ utili:
 - `--apply`: forza l'applicazione reale anche se la configurazione predefinisce il
   dry-run.
 - `--threshold`: regola la tolleranza fuzzy (default `0.85`).
+- `--rapidfuzz` / `--no-rapidfuzz`: abilita il matcher basato su `rapidfuzz`
+  (quando installato) oppure forza il fallback legacy `difflib`.
+- `--anchors` / `--no-anchors`: controlla l'uso delle ancore strutturali per
+  ridurre il numero di confronti nelle ricerche dei candidati.
 - `--backup`: directory personalizzata per backup e report.
 - `--config-path`: usa un file di configurazione alternativo per i default.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
