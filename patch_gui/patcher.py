@@ -90,6 +90,7 @@ class FileResult:
     hunks_total: int = 0
     decisions: list[HunkDecision] = field(default_factory=list)
     skipped_reason: Optional[str] = None
+    ai_summary: Optional[str] = None
 
 
 @dataclass
@@ -116,6 +117,8 @@ class ApplySession:
     results: list[FileResult] = field(default_factory=list)
     report_json_path: Optional[Path] = None
     report_txt_path: Optional[Path] = None
+    ai_summary: Optional[str] = None
+    file_summaries: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -125,6 +128,8 @@ class ApplySession:
             "threshold": self.threshold,
             "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
+            "ai_summary": self.ai_summary,
+            "file_summaries": self.file_summaries,
             "files": [
                 {
                     "file": fr.relative_to_root,
@@ -133,6 +138,7 @@ class ApplySession:
                     "hunks_applied": fr.hunks_applied,
                     "hunks_total": fr.hunks_total,
                     "skipped_reason": fr.skipped_reason,
+                    "ai_summary": fr.ai_summary,
                     "decisions": [
                         {
                             "hunk": d.hunk_header,
@@ -190,6 +196,16 @@ class ApplySession:
         )
         if not total_hunks or not applied_hunks:
             lines.append(_("  No changes were applied to the files."))
+        if self.ai_summary:
+            lines.append("")
+            lines.append(_("AI summary: {text}").format(text=self.ai_summary))
+        if self.file_summaries:
+            lines.append("")
+            lines.append(_("AI summaries per file:"))
+            for path, summary in self.file_summaries.items():
+                lines.append(
+                    _("  {path}: {summary}").format(path=path, summary=summary)
+                )
         lines.append("")
         for fr in self.results:
             lines.append(_("File: {path}").format(path=fr.relative_to_root))
@@ -201,6 +217,10 @@ class ApplySession:
                     applied=fr.hunks_applied, total=fr.hunks_total
                 )
             )
+            if fr.ai_summary:
+                lines.append(
+                    _("  AI summary: {summary}").format(summary=fr.ai_summary)
+                )
             for d in fr.decisions:
                 lines.append(
                     _("    Hunk {header} -> {strategy}").format(
