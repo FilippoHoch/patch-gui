@@ -2,7 +2,71 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Tuple
+
 from unidiff.patch import Hunk, Line as UnidiffLine, PatchedFile
+
+
+@dataclass(frozen=True, slots=True)
+class RenderedHunk:
+    """Container for the rendered representation of a diff hunk."""
+
+    header: str
+    raw_text: str
+    annotated_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class RenderedDiff:
+    """Split representation of a ``PatchedFile`` ready for display/export."""
+
+    header_text: str
+    annotated_header_text: str
+    hunks: Tuple[RenderedHunk, ...]
+
+
+def render_diff_segments(patched_file: PatchedFile) -> RenderedDiff:
+    """Return header and hunk segments for ``patched_file``.
+
+    The returned object contains both the raw diff data and the annotated
+    representation enriched with line numbers. Callers can combine the pieces to
+    generate a full diff string or render hunks individually.
+    """
+
+    patch_info = getattr(patched_file, "patch_info", "")
+    header_lines = []
+    if patch_info:
+        header_lines.extend(str(patch_info).splitlines())
+
+    source_file = getattr(patched_file, "source_file", None) or "-"
+    target_file = getattr(patched_file, "target_file", None) or "-"
+    header_lines.append(f"--- {source_file}")
+    header_lines.append(f"+++ {target_file}")
+
+    header_text = "\n".join(header_lines) + "\n"
+
+    hunks: list[RenderedHunk] = []
+    for hunk in patched_file:
+        header = _format_hunk_header(hunk)
+        annotated_lines = [header]
+        for diff_line in hunk:
+            annotated_lines.append(_format_numbered_line(diff_line))
+        annotated_text = "\n".join(annotated_lines) + "\n"
+        raw_text = str(hunk)
+        hunks.append(
+            RenderedHunk(
+                header=header,
+                raw_text=raw_text,
+                annotated_text=annotated_text,
+            )
+        )
+
+    return RenderedDiff(
+        header_text=header_text,
+        annotated_header_text=header_text,
+        hunks=tuple(hunks),
+    )
 
 
 def format_diff_with_line_numbers(patched_file: PatchedFile, fallback_text: str) -> str:
@@ -15,24 +79,12 @@ def format_diff_with_line_numbers(patched_file: PatchedFile, fallback_text: str)
         return fallback_text
 
     try:
-        lines: list[str] = []
-
-        patch_info = getattr(patched_file, "patch_info", "")
-        if patch_info:
-            for info_line in str(patch_info).splitlines():
-                lines.append(info_line)
-
-        source_file = getattr(patched_file, "source_file", None) or "-"
-        target_file = getattr(patched_file, "target_file", None) or "-"
-        lines.append(f"--- {source_file}")
-        lines.append(f"+++ {target_file}")
-
-        for hunk in patched_file:
-            lines.append(_format_hunk_header(hunk))
-            for diff_line in hunk:
-                lines.append(_format_numbered_line(diff_line))
-
-        return "\n".join(lines) + "\n"
+        rendered = render_diff_segments(patched_file)
+        if not rendered.hunks:
+            return fallback_text
+        parts = [rendered.annotated_header_text]
+        parts.extend(h.annotated_text for h in rendered.hunks)
+        return "".join(parts)
     except Exception:  # pragma: no cover - defensive, falls back to raw diff text
         return fallback_text
 
