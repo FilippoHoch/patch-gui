@@ -17,6 +17,12 @@ from unidiff.errors import UnidiffParseError
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
 from .ai_summaries import compute_diff_digest, generate_session_summary
+from .binary_patch import (
+    BinaryPatchData,
+    BinaryPatchError,
+    attach_binary_patch_data,
+    get_attached_binary_patch,
+)
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -150,6 +156,9 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
     processed = preprocess_patch_text(text)
     try:
         patch = PatchSet(processed)
+        attach_binary_patch_data(patch, processed)
+    except BinaryPatchError as exc:
+        raise CLIError(_("Invalid binary patch: {error}").format(error=exc)) from exc
     except UnidiffParseError as exc:
         raise CLIError(_translate_unidiff_error(exc)) from exc
     except Exception as exc:  # pragma: no cover - defensive guard for unexpected errors
@@ -360,10 +369,7 @@ def _apply_file_patch(
 
     file_type_info = inspect_file_type(pf)
     fr.file_type = file_type_info.name
-
-    if file_type_info.name == "binary":
-        fr.skipped_reason = _("Binary patches are not supported in CLI mode")
-        return fr
+    is_binary_file = file_type_info.name == "binary"
 
     is_added_file = bool(getattr(pf, "is_added_file", False))
     is_removed_file = bool(getattr(pf, "is_removed_file", False))
@@ -411,6 +417,13 @@ def _apply_file_patch(
     is_new_file = False
     pending_operation: Optional[str] = None
     operation_source: Optional[Path] = None
+
+    if is_binary_file:
+        binary_patch = get_attached_binary_patch(pf)
+        if binary_patch is not None:
+            fr.hunks_total = max(fr.hunks_total, 1)
+    else:
+        binary_patch = None
 
     if not candidates:
         if (is_rename or is_copy) and isinstance(source_file, str):
@@ -560,10 +573,6 @@ def _apply_file_patch(
         fr.decisions.append(rename_decision)
         return fr
 
-    lines: List[str]
-    file_encoding = "utf-8"
-    orig_eol = "\n"
-
     content_path = path
     if pending_operation and operation_source is not None:
         if session.dry_run:
@@ -582,6 +591,28 @@ def _apply_file_patch(
                     ).format(error=exc)
                     return fr
             content_path = path
+
+    if binary_patch is not None:
+        return _apply_binary_patch_to_path(
+            project_root,
+            session,
+            pf,
+            fr,
+            path,
+            content_path,
+            binary_patch,
+            is_new_file=is_new_file,
+            is_removed_file=is_removed_file,
+            rename_decision=rename_decision,
+            rename_target_path=rename_target_path,
+        )
+    if is_binary_file:
+        fr.skipped_reason = _("Binary patch data missing for this file")
+        return fr
+
+    lines: List[str]
+    file_encoding = "utf-8"
+    orig_eol = "\n"
 
     if not is_new_file:
         try:
@@ -723,6 +754,136 @@ def _apply_file_patch(
                 ).format(path=relative_path, error=exc)
                 logger.error(message)
                 raise CLIError(message) from exc
+
+    return fr
+
+
+def _apply_binary_patch_to_path(
+    project_root: Path,
+    session: ApplySession,
+    pf: Any,
+    fr: FileResult,
+    path: Path,
+    content_path: Path,
+    binary_patch: BinaryPatchData,
+    *,
+    is_new_file: bool,
+    is_removed_file: bool,
+    rename_decision: HunkDecision | None,
+    rename_target_path: Path | None,
+) -> FileResult:
+    if not is_new_file:
+        try:
+            base_bytes = content_path.read_bytes()
+        except Exception as exc:
+            fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
+            return fr
+    else:
+        base_bytes = b""
+
+    decision = HunkDecision(hunk_header="binary", strategy="binary")
+    try:
+        new_bytes = binary_patch.apply(base_bytes)
+    except BinaryPatchError as exc:
+        message = str(exc)
+        decision.strategy = "failed"
+        decision.message = message
+        fr.decisions.append(decision)
+        fr.skipped_reason = message
+        return fr
+
+    method = getattr(binary_patch.forward, "method", "binary")
+    decision.message = _(
+        "Applied {method} binary patch ({size} bytes)"
+    ).format(method=method, size=len(new_bytes))
+    fr.decisions.append(decision)
+    fr.hunks_applied = 1
+
+    if session.dry_run:
+        if rename_decision is not None:
+            if rename_target_path is not None:
+                fr.file_path = rename_target_path
+                fr.relative_to_root = display_relative_path(
+                    rename_target_path, project_root
+                )
+            fr.decisions.append(rename_decision)
+        return fr
+
+    if not is_new_file:
+        try:
+            backup_file(project_root, path, session.backup_dir)
+        except OSError as exc:
+            message = _("Failed to create backup for {path}: {error}").format(
+                path=display_relative_path(path, project_root), error=exc
+            )
+            decision.strategy = "failed"
+            decision.message = message
+            fr.skipped_reason = message
+            return fr
+
+    if is_removed_file:
+        try:
+            if path.exists():
+                path.unlink()
+        except OSError as exc:
+            message = _("Failed to delete file after applying patch: {error}").format(
+                error=exc
+            )
+            decision.strategy = "failed"
+            decision.message = message
+            fr.skipped_reason = message
+            return fr
+        if rename_decision is not None:
+            fr.decisions.append(rename_decision)
+        return fr
+
+    if is_new_file:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            message = _("Failed to create directory for {path}: {error}").format(
+                path=display_relative_path(path.parent, project_root), error=exc
+            )
+            decision.strategy = "failed"
+            decision.message = message
+            fr.skipped_reason = message
+            return fr
+
+    try:
+        path.write_bytes(new_bytes)
+    except OSError as exc:
+        message = _("Failed to write updated content to {path}: {error}").format(
+            path=display_relative_path(path, project_root), error=exc
+        )
+        decision.strategy = "failed"
+        decision.message = message
+        fr.skipped_reason = message
+        return fr
+
+    if rename_target_path is not None:
+        try:
+            rename_target_path.parent.mkdir(parents=True, exist_ok=True)
+            path.rename(rename_target_path)
+            fr.file_path = rename_target_path
+            fr.relative_to_root = display_relative_path(
+                rename_target_path, project_root
+            )
+        except OSError as exc:
+            message = _("Failed to rename file: {error}").format(error=exc)
+            fr.skipped_reason = message
+            if rename_decision is None:
+                rename_decision = HunkDecision(
+                    hunk_header="rename", strategy="failed", message=message
+                )
+            else:
+                rename_decision.strategy = "failed"
+                rename_decision.message = message
+            if rename_decision not in fr.decisions:
+                fr.decisions.append(rename_decision)
+            return fr
+
+    if rename_decision is not None and rename_decision not in fr.decisions:
+        fr.decisions.append(rename_decision)
 
     return fr
 

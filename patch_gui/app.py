@@ -27,6 +27,11 @@ from .ai_summaries import (
     compute_diff_digest,
     generate_session_summary,
 )
+from .binary_patch import (
+    BinaryPatchError,
+    attach_binary_patch_data,
+    get_attached_binary_patch,
+)
 from .config import AppConfig, Theme, load_config, save_config
 from .diff_search import DiffSearchHelper, DiffSearchMatch
 from .filetypes import inspect_file_type
@@ -1124,9 +1129,10 @@ class PatchApplyWorker(_QThreadBase):
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
         file_type_info = inspect_file_type(pf)
         fr.file_type = file_type_info.name
-
-        if file_type_info.name == "binary":
-            fr.skipped_reason = "Patch binaria non supportata nella GUI"
+        is_binary_file = file_type_info.name == "binary"
+        binary_patch = get_attached_binary_patch(pf) if is_binary_file else None
+        if is_binary_file and binary_patch is None:
+            fr.skipped_reason = "Patch binaria senza dati decodificati"
             return fr
 
         is_added_file = bool(getattr(pf, "is_added_file", False))
@@ -1190,7 +1196,58 @@ class PatchApplyWorker(_QThreadBase):
 
         fr.file_path = path
         fr.relative_to_root = display_relative_path(path, project_root)
-        fr.hunks_total = len(pf)
+        fr.hunks_total = 1 if binary_patch is not None else len(pf)
+
+        if binary_patch is not None:
+            if not is_new_file:
+                try:
+                    base_bytes = path.read_bytes()
+                except Exception as exc:
+                    fr.skipped_reason = f"Impossibile leggere file: {exc}"
+                    return fr
+            else:
+                base_bytes = b""
+
+            decision = HunkDecision(hunk_header="binary", strategy="binary")
+            try:
+                new_bytes = binary_patch.apply(base_bytes)
+            except BinaryPatchError as exc:
+                decision.strategy = "failed"
+                decision.message = str(exc)
+                fr.decisions.append(decision)
+                fr.skipped_reason = str(exc)
+                return fr
+
+            decision.message = (
+                "Patch binaria applicata ({size} byte)".format(size=len(new_bytes))
+            )
+            fr.decisions.append(decision)
+            fr.hunks_applied = 1
+
+            if self.session.dry_run:
+                return fr
+
+            if not is_new_file:
+                backup_file(project_root, path, self.session.backup_dir)
+
+            if is_removed_file:
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError as exc:
+                    message = (
+                        "Impossibile eliminare il file dopo l'applicazione della patch: "
+                        f"{exc}"
+                    )
+                    fr.skipped_reason = message
+                    decision.strategy = "failed"
+                    decision.message = message
+                return fr
+
+            if is_new_file:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(new_bytes)
+            return fr
 
         lines: List[str]
         file_encoding = "utf-8"
@@ -2290,6 +2347,12 @@ class MainWindow(_QMainWindowBase):
         preprocessed = preprocess_patch_text(self.diff_text)
         try:
             patch = PatchSet(preprocessed.splitlines(True))
+            attach_binary_patch_data(patch, preprocessed)
+        except BinaryPatchError as exc:
+            QtWidgets.QMessageBox.critical(
+                self, _("Errore patch binaria"), str(exc)
+            )
+            return
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, _("Errore parsing diff"), str(e))
             return
