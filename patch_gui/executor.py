@@ -15,6 +15,7 @@ from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
+from .ai_summaries import generate_session_summary
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -235,6 +236,20 @@ def apply_patchset(
             ai_auto_select=ai_auto_select,
         )
         session.results.append(fr)
+
+    summary = generate_session_summary(session)
+    if summary is not None:
+        session.ai_summary = summary.overall
+        session.file_summaries = summary.per_file
+        if summary.per_file:
+            for fr in session.results:
+                candidate_keys = [fr.relative_to_root, str(fr.file_path)]
+                for key in candidate_keys:
+                    if key and key in summary.per_file:
+                        fr.ai_summary = summary.per_file[key]
+                        break
+        if summary.overall:
+            logger.info(_("AI summary: %s"), summary.overall)
 
     try:
         write_session_reports(
@@ -781,9 +796,12 @@ def _cli_manual_resolver(
     auto_accept: bool = False,
     ai_enabled: bool = False,
     ai_auto_select: bool = False,
+    original_diff: str,
 ) -> Optional[int]:
     decision.candidates = list(candidates)
     decision.strategy = "manual"
+
+    unused_original_diff = original_diff  # noqa: F841 - documented for consistency
 
     ai_hint = _ai_rank_candidates(lines, hv, candidates, ai_enabled=ai_enabled)
     if ai_hint is not None:
@@ -897,6 +915,16 @@ def _cli_manual_resolver(
     print("")
     print(header_message)
     print(context_message)
+
+    if decision.assistant_message:
+        print("")
+        print(_("Assistant suggestion:"))
+        for line in decision.assistant_message.splitlines():
+            print(f"  {line}")
+    if decision.assistant_patch:
+        print("")
+        print(_("Suggested diff (copy to apply manually):"))
+        print(decision.assistant_patch)
 
     if hv.before_lines:
         print(_("  Original hunk lines:"))

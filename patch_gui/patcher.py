@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Optional, Protocol, Sequence
 
+from patch_gui.ai_conflict_helper import generate_conflict_suggestion
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -68,6 +69,8 @@ class HunkDecision:
     ai_confidence: Optional[float] = None
     ai_explanation: Optional[str] = None
     ai_source: Optional[str] = None
+    assistant_message: Optional[str] = None
+    assistant_patch: Optional[str] = None
 
 
 @dataclass
@@ -90,6 +93,7 @@ class FileResult:
     hunks_total: int = 0
     decisions: list[HunkDecision] = field(default_factory=list)
     skipped_reason: Optional[str] = None
+    ai_summary: Optional[str] = None
 
 
 @dataclass
@@ -116,6 +120,8 @@ class ApplySession:
     results: list[FileResult] = field(default_factory=list)
     report_json_path: Optional[Path] = None
     report_txt_path: Optional[Path] = None
+    ai_summary: Optional[str] = None
+    file_summaries: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -125,6 +131,8 @@ class ApplySession:
             "threshold": self.threshold,
             "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
+            "ai_summary": self.ai_summary,
+            "file_summaries": self.file_summaries,
             "files": [
                 {
                     "file": fr.relative_to_root,
@@ -133,6 +141,7 @@ class ApplySession:
                     "hunks_applied": fr.hunks_applied,
                     "hunks_total": fr.hunks_total,
                     "skipped_reason": fr.skipped_reason,
+                    "ai_summary": fr.ai_summary,
                     "decisions": [
                         {
                             "hunk": d.hunk_header,
@@ -145,6 +154,8 @@ class ApplySession:
                             "ai_confidence": d.ai_confidence,
                             "ai_explanation": d.ai_explanation,
                             "ai_source": d.ai_source,
+                            "assistant_message": d.assistant_message,
+                            "assistant_patch": d.assistant_patch,
                         }
                         for d in fr.decisions
                     ],
@@ -190,6 +201,16 @@ class ApplySession:
         )
         if not total_hunks or not applied_hunks:
             lines.append(_("  No changes were applied to the files."))
+        if self.ai_summary:
+            lines.append("")
+            lines.append(_("AI summary: {text}").format(text=self.ai_summary))
+        if self.file_summaries:
+            lines.append("")
+            lines.append(_("AI summaries per file:"))
+            for path, summary in self.file_summaries.items():
+                lines.append(
+                    _("  {path}: {summary}").format(path=path, summary=summary)
+                )
         lines.append("")
         for fr in self.results:
             lines.append(_("File: {path}").format(path=fr.relative_to_root))
@@ -201,6 +222,10 @@ class ApplySession:
                     applied=fr.hunks_applied, total=fr.hunks_total
                 )
             )
+            if fr.ai_summary:
+                lines.append(
+                    _("  AI summary: {summary}").format(summary=fr.ai_summary)
+                )
             for d in fr.decisions:
                 lines.append(
                     _("    Hunk {header} -> {strategy}").format(
@@ -234,6 +259,16 @@ class ApplySession:
                     )
                 if d.message:
                     lines.append(_("      Notes: {notes}").format(notes=d.message))
+                if d.assistant_message and d.assistant_message not in (d.message or ""):
+                    lines.append(
+                        _("      Assistant suggestion: {text}").format(
+                            text=d.assistant_message
+                        )
+                    )
+                if d.assistant_patch:
+                    lines.append(_("      Suggested patch:"))
+                    for patch_line in d.assistant_patch.splitlines():
+                        lines.append(f"        {patch_line}")
                 if d.ai_recommendation is not None:
                     origin = d.ai_source or "assistant"
                     if d.ai_confidence is not None:
@@ -272,7 +307,8 @@ class HunkView:
 
 
 ManualResolver = Callable[
-    ["HunkView", list[str], list[tuple[int, float]], HunkDecision, str], Optional[int]
+    ["HunkView", list[str], list[tuple[int, float]], HunkDecision, str, str],
+    Optional[int],
 ]
 
 
@@ -385,6 +421,71 @@ def apply_hunks(
         threshold,
     )
 
+    def _ensure_assistant_data(
+        decision: HunkDecision,
+        hv: HunkView,
+        *,
+        lines_snapshot: Sequence[str],
+        original_diff: str,
+        failure_reason: str,
+    ) -> None:
+        if decision.assistant_message or decision.assistant_patch:
+            return
+        suggestion = generate_conflict_suggestion(
+            file_context="".join(lines_snapshot),
+            hunk_header=hv.header,
+            before_lines=hv.before_lines,
+            after_lines=hv.after_lines,
+            failure_reason=failure_reason,
+            original_diff=original_diff,
+        )
+        if suggestion is None:
+            return
+        decision.assistant_message = suggestion.message
+        decision.assistant_patch = suggestion.patch
+        if suggestion.message:
+            logger.debug(
+                "Suggerimento preliminare per hunk %s: %s",
+                hv.header,
+                suggestion.message,
+            )
+
+    def _inject_assistant_into_message(
+        decision: HunkDecision,
+        hv: HunkView,
+        *,
+        lines_snapshot: Sequence[str],
+        original_diff: str,
+        failure_reason: str,
+    ) -> None:
+        previous_message = decision.message
+        _ensure_assistant_data(
+            decision,
+            hv,
+            lines_snapshot=lines_snapshot,
+            original_diff=original_diff,
+            failure_reason=failure_reason,
+        )
+        if not decision.assistant_message:
+            return
+        suggestion_text = decision.assistant_message
+        if previous_message:
+            if suggestion_text not in previous_message:
+                decision.message = f"{previous_message}\n\n{suggestion_text}"
+        else:
+            decision.message = suggestion_text
+        logger.info(
+            "Suggerimento assistente per hunk %s: %s",
+            hv.header,
+            suggestion_text,
+        )
+        if decision.assistant_patch:
+            logger.debug(
+                "Patch suggerita per hunk %s:\n%s",
+                hv.header,
+                decision.assistant_patch,
+            )
+
     def _apply(
         lines: list[str],
         hv: HunkView,
@@ -416,6 +517,7 @@ def apply_hunks(
 
     for hunk in hunks:
         hv = build_hunk_view(hunk)
+        original_diff = str(hunk)
         decision = HunkDecision(hunk_header=hv.header, strategy="")
         logger.debug("Processo hunk: %s", hv.header)
 
@@ -442,11 +544,20 @@ def apply_hunks(
         if exact_candidates:
             pos, score = exact_candidates[0]
             logger.debug("Match esatto trovato (pos=%d)", pos)
+            snapshot = list(current_lines)
             current_lines, success = _apply(
                 current_lines, hv, decision, pos, score, "exact"
             )
             if success:
                 applied_count += 1
+            else:
+                _inject_assistant_into_message(
+                    decision,
+                    hv,
+                    lines_snapshot=snapshot,
+                    original_diff=original_diff,
+                    failure_reason=decision.message or "Errore applicazione esatta",
+                )
             decisions.append(decision)
             continue
 
@@ -456,11 +567,20 @@ def apply_hunks(
         if len(fuzzy_candidates) == 1:
             pos, score = fuzzy_candidates[0]
             logger.debug("Match fuzzy singolo trovato (pos=%d, score=%.3f)", pos, score)
+            snapshot = list(current_lines)
             current_lines, success = _apply(
                 current_lines, hv, decision, pos, score, "fuzzy"
             )
             if success:
                 applied_count += 1
+            else:
+                _inject_assistant_into_message(
+                    decision,
+                    hv,
+                    lines_snapshot=snapshot,
+                    original_diff=original_diff,
+                    failure_reason=decision.message or "Errore applicazione fuzzy",
+                )
             decisions.append(decision)
             continue
         if len(fuzzy_candidates) > 1:
@@ -471,25 +591,54 @@ def apply_hunks(
                 hv.header,
                 len(fuzzy_candidates),
             )
+            _ensure_assistant_data(
+                decision,
+                hv,
+                lines_snapshot=current_lines,
+                original_diff=original_diff,
+                failure_reason="Ambiguità fuzzy: selezione manuale richiesta",
+            )
             chosen: Optional[int] = None
             if manual_resolver is not None:
                 chosen = manual_resolver(
-                    hv, current_lines, fuzzy_candidates, decision, "fuzzy"
+                    hv,
+                    current_lines,
+                    fuzzy_candidates,
+                    decision,
+                    "fuzzy",
+                    original_diff=original_diff,
                 )
             if chosen is not None:
                 similarity = next(
                     (score for pos_, score in fuzzy_candidates if pos_ == chosen), None
                 )
+                snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
                 )
                 if success:
                     applied_count += 1
+                else:
+                    _inject_assistant_into_message(
+                        decision,
+                        hv,
+                        lines_snapshot=snapshot,
+                        original_diff=original_diff,
+                        failure_reason=decision.message
+                        or "Errore durante l'applicazione manuale fuzzy",
+                    )
                 decisions.append(decision)
                 continue
             if decision.strategy == "manual" and not decision.message:
                 decision.strategy = "failed"
                 decision.message = "Applicazione annullata per ambiguità fuzzy."
+            _inject_assistant_into_message(
+                decision,
+                hv,
+                lines_snapshot=current_lines,
+                original_diff=original_diff,
+                failure_reason=decision.message,
+            )
             decisions.append(decision)
             continue
 
@@ -502,21 +651,43 @@ def apply_hunks(
         if context_candidates:
             decision.strategy = "manual"
             decision.candidates = context_candidates
+            _ensure_assistant_data(
+                decision,
+                hv,
+                lines_snapshot=current_lines,
+                original_diff=original_diff,
+                failure_reason="Ambiguità di contesto: selezione manuale richiesta",
+            )
             chosen = None
             if manual_resolver is not None:
                 chosen = manual_resolver(
-                    hv, current_lines, context_candidates, decision, "context"
+                    hv,
+                    current_lines,
+                    context_candidates,
+                    decision,
+                    "context",
+                    original_diff=original_diff,
                 )
             if chosen is not None:
                 similarity = next(
                     (score for pos_, score in context_candidates if pos_ == chosen),
                     None,
                 )
+                snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
                 )
                 if success:
                     applied_count += 1
+                else:
+                    _inject_assistant_into_message(
+                        decision,
+                        hv,
+                        lines_snapshot=snapshot,
+                        original_diff=original_diff,
+                        failure_reason=decision.message
+                        or "Errore durante l'applicazione manuale di contesto",
+                    )
                 decisions.append(decision)
                 continue
             if decision.strategy == "manual" and not decision.message:
@@ -525,6 +696,13 @@ def apply_hunks(
                 logger.info(
                     "Applicazione annullata per hunk %s: solo contesto", hv.header
                 )
+            _inject_assistant_into_message(
+                decision,
+                hv,
+                lines_snapshot=current_lines,
+                original_diff=original_diff,
+                failure_reason=decision.message,
+            )
             decisions.append(decision)
             continue
 
@@ -559,6 +737,13 @@ def apply_hunks(
             decision.message = (
                 "Nessun candidato compatibile trovato sopra la soglia impostata."
             )
+        _inject_assistant_into_message(
+            decision,
+            hv,
+            lines_snapshot=current_lines,
+            original_diff=original_diff,
+            failure_reason=decision.message,
+        )
         logger.info("Hunk %s fallito: %s", hv.header, decision.message)
         decisions.append(decision)
 

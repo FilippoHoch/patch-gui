@@ -144,8 +144,26 @@ utili:
   per classificare i candidati manuali.
 - `--ai-select`: applica automaticamente il suggerimento restituito
   dall'assistente (con fallback locale se l'endpoint non è configurato).
+- Quando nessun candidato viene applicato automaticamente, il comando stampa
+  comunque un suggerimento con spiegazione e diff copiabile, riportato anche nei
+  report e nel log CLI.
 - `--log-level`: livello di logging (`debug`, `info`, `warning`, `error`,
   `critical`).
+
+### Integrazione AI
+
+Oltre al suggerimento dei candidati ambigui, l'applicazione può richiedere a un
+servizio esterno la generazione di brevi sintesi della sessione appena
+conclusa. Le sintesi vengono visualizzate nel log della CLI e della GUI, nei
+dialoghi finali e all'interno dei report (`to_json` / `to_txt`).
+
+Per abilitare la funzionalità è necessario impostare la variabile di ambiente
+`PATCH_GUI_AI_SUMMARY_ENDPOINT` con l'URL dell'endpoint HTTP da contattare.
+Facoltativamente è possibile definire `PATCH_GUI_AI_SUMMARY_TOKEN` (o
+riutilizzare `PATCH_GUI_AI_TOKEN`) per inviare un header `Authorization`.
+L'endpoint deve accettare un payload JSON con i `FileResult` e gli
+`HunkDecision` della sessione e rispondere con un oggetto che includa almeno il
+campo `summary` oppure l'elenco `files` con le descrizioni per file.
 
 Comandi aggiuntivi:
 

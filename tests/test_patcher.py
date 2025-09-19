@@ -116,6 +116,7 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
         candidates: list[tuple[int, float]],
         decision: HunkDecision,
         reason: str,
+        original_diff: str,
     ) -> None:
         calls.append((hv, list(lines), list(candidates), reason))
         decision.strategy = "manual"
@@ -128,7 +129,9 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
 
     assert new_lines == file_lines
     assert applied == 0
-    assert decisions[0].message == "user cancel"
+    assert decisions[0].message.startswith("user cancel")
+    assert decisions[0].assistant_message
+    assert decisions[0].assistant_patch
     assert calls and calls[0][3] == "fuzzy"
     assert len(calls[0][2]) > 1
 
@@ -154,6 +157,7 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
         candidates: list[tuple[int, float]],
         decision: HunkDecision,
         reason: str,
+        original_diff: str,
     ) -> None:
         captured.append((reason, list(candidates), hv))
         decision.strategy = "manual"
@@ -172,7 +176,8 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     expected_candidates = find_candidates(file_lines, hv.context_lines, threshold=0.9)
     assert captured[0][1] == expected_candidates
     assert decisions[0].candidates == expected_candidates
-    assert decisions[0].message == "context review"
+    assert decisions[0].message.startswith("context review")
+    assert decisions[0].assistant_message
 
 
 def test_apply_hunks_metadata_fallback_for_insertions_without_context() -> None:
@@ -194,6 +199,29 @@ def test_apply_hunks_metadata_fallback_for_insertions_without_context() -> None:
     assert new_lines == ["first line\n", "second line\n", "original\n"]
     assert decisions[0].strategy == "metadata"
     assert decisions[0].selected_pos == 0
+
+
+def test_failed_hunk_generates_assistant_suggestion() -> None:
+    diff = """--- a/sample.txt
++++ b/sample.txt
+@@ -1,1 +1,1 @@
+-unavailable
++replacement
+"""
+    patch = PatchSet(diff)
+    pf = patch[0]
+    file_lines = ["line present\n"]
+
+    new_lines, decisions, applied = apply_hunks(
+        file_lines, pf, threshold=0.9, manual_resolver=None
+    )
+
+    assert new_lines == file_lines
+    assert applied == 0
+    assert decisions[0].strategy == "failed"
+    assert decisions[0].assistant_message
+    assert decisions[0].assistant_patch
+    assert "Suggerimento" in decisions[0].assistant_message
 
 
 def test_find_file_candidates_handles_prefix_and_suffix(tmp_path: Path) -> None:

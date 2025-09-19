@@ -6,6 +6,10 @@ e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/)
 
 ## [Non rilasciato]
 ### Aggiunto
+- Modulo `ai_conflict_helper` per generare suggerimenti testuali e diff
+  copiabili quando un hunk non può essere applicato automaticamente; i messaggi
+  vengono mostrati nella CLI, nei dialoghi GUI e inclusi nei report di
+  sessione.
 - Modulo `ai_candidate_selector` con supporto all'invio del contesto a un modello
   AI e recupero del suggerimento migliore per gli hunk ambigui, incluso fallback
   locale se l'endpoint non risponde.
@@ -16,9 +20,14 @@ e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/)
   suggerimento AI.
 - Note AI contestuali nella vista diff interattiva, abilitate da una nuova
   preferenza e mostrate direttamente nell'elenco e nell'anteprima.
+- Generazione opzionale di sintesi AI della sessione con endpoint configurabile,
+  integrazione nei report e nella GUI.
+
 ### Modificato
 - La configurazione persistente include ora le impostazioni dedicate
   all'assistente AI ed è documentata nella guida d'uso.
+- I report JSON/txt e i log includono i suggerimenti generati dal nuovo
+  assistente, mentre CLI e GUI li evidenziano in fase di risoluzione manuale.
 
 ## [0.2.0] - 2025-09-18
 ### Aggiunto
