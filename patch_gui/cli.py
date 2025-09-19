@@ -70,9 +70,16 @@ _CONFIG_KEYS = (
 def run_cli(argv: Sequence[str] | None = None) -> int:
     """Parse ``argv`` and execute the CLI workflow."""
 
-    config = load_config()
-    parser = build_parser(config=config)
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    argument_list = list(argv) if argv is not None else sys.argv[1:]
+
+    bootstrap_parser = argparse.ArgumentParser(add_help=False)
+    bootstrap_parser.add_argument("--config-path", type=Path, default=None)
+    bootstrap_args, _remaining = bootstrap_parser.parse_known_args(argument_list)
+    config_path = bootstrap_args.config_path
+
+    config = load_config(config_path)
+    parser = build_parser(config=config, config_path=config_path)
+    args = parser.parse_args(argument_list)
 
     raw_summary_formats = list(args.summary_format) if args.summary_format else None
     if raw_summary_formats and "none" in raw_summary_formats:

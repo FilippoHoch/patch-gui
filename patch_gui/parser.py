@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 from ._version import __version__
@@ -48,6 +49,7 @@ def build_parser(
     parser: Optional[argparse.ArgumentParser] = None,
     *,
     config: AppConfig | None = None,
+    config_path: Path | None = None,
 ) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
@@ -80,11 +82,19 @@ def build_parser(
         help=_("Project root where the patch should be applied."),
     )
     parser.add_argument(
+        "--config-path",
+        type=Path,
+        default=None,
+        help=_(
+            "Override the configuration file path (default: use the standard location)."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help=_("Simulate the execution without modifying files or creating backups."),
     )
-    resolved_config = config or load_config()
+    resolved_config = config or load_config(config_path)
     parser.add_argument(
         "--threshold",
         type=threshold_value,
