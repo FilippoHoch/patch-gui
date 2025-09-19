@@ -1002,7 +1002,7 @@ def test_run_cli_can_override_config_report_default(
 
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(cli, "load_config", lambda: config)
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
 
     def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
         captured["source"] = source
@@ -1092,6 +1092,33 @@ def test_run_cli_respects_config_path_override(
     assert captured["config"] == config
     assert captured["source"] == str(patch_path)
     assert captured["encoding"] is None
+
+
+def test_run_cli_rejects_directory_config_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "dir-config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config_dir = tmp_path / "custom"
+    config_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--config-path",
+                str(config_dir),
+                str(patch_path),
+            ]
+        )
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "configuration path" in captured.err
+    assert config_dir.name in captured.err
 
 
 def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
@@ -1749,7 +1776,9 @@ def test_run_restore_interactive(
     assert newer.exists()
     assert older.exists()
 
-    monkeypatch.setattr(cli, "load_config", lambda: AppConfig(backup_base=backup_base))
+    monkeypatch.setattr(
+        cli, "load_config", lambda path=None: AppConfig(backup_base=backup_base)
+    )
 
     responses = iter(["2", "y"])
 
@@ -1789,7 +1818,7 @@ def test_run_restore_non_interactive(
     )
 
     config = AppConfig(backup_base=backup_base)
-    monkeypatch.setattr(cli, "load_config", lambda: config)
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
 
     exit_code = cli.run_restore(
         [
