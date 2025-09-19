@@ -18,6 +18,7 @@ from .downloader import (
 )
 from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
+from .logging_utils import configure_logging
 from .parser import (
     _LOG_LEVEL_CHOICES,
     REPORT_JSON_UNSET,
@@ -130,13 +131,27 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         else:
             requested_report_formats.add("text")
 
-    level_name = args.log_level.upper()
-    logging.basicConfig(
-        level=getattr(logging, level_name, logging.WARNING),
-        format="%(levelname)s: %(message)s",
-        stream=sys.stderr,
-        force=True,
+    configure_logging(
+        level=args.log_level,
+        log_file=config.log_file,
+        max_bytes=config.log_max_bytes,
+        backup_count=config.log_backup_count,
     )
+
+    root_logger = logging.getLogger()
+    console_level = root_logger.getEffectiveLevel()
+    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    console_handler = logging.StreamHandler(stream=sys.stderr)
+    console_handler.setLevel(console_level)
+    console_handler.setFormatter(console_formatter)
+
+    for handler in list(root_logger.handlers):
+        if isinstance(handler, logging.StreamHandler) and not isinstance(
+            handler, logging.FileHandler
+        ):
+            root_logger.removeHandler(handler)
+
+    root_logger.addHandler(console_handler)
 
     interactive = not args.non_interactive
     if args.auto_accept:
