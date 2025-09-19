@@ -17,6 +17,7 @@ from .interactive_diff_model import (
 )
 from .split_diff_view import SplitDiffView
 from .theme import ThemeSnapshot, theme_manager
+from .qt_types import QFrameBase, QWidgetBase
 
 
 @dataclass(frozen=True, slots=True)
@@ -378,7 +379,7 @@ def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
     )
 
 
-class InteractiveDiffWidget(QtWidgets.QWidget):
+class InteractiveDiffWidget(QWidgetBase):
     """Widget that shows diff blocks and allows reordering them interactively."""
 
     diffReordered = QtCore.Signal(str)
@@ -930,7 +931,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):
                 widget.updateGeometry()
 
 
-class _DiffListItemWidget(QtWidgets.QFrame):
+class _DiffListItemWidget(QFrameBase):
     """Custom widget for list items with colourful diff statistics."""
 
     def __init__(

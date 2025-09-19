@@ -8,7 +8,7 @@ import random
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, cast
 
 from patch_gui import matching
 from patch_gui.matching import MatchingStrategy
@@ -30,11 +30,11 @@ def _count_sequence_calls() -> Iterator[dict[str, int]]:
         def __getattr__(self, name: str) -> Any:  # pragma: no cover - defensive
             return getattr(self._delegate, name)
 
-    matching.SequenceMatcher = CountingMatcher  # type: ignore[assignment]
+    cast(Any, matching).SequenceMatcher = CountingMatcher
     try:
         yield counter
     finally:
-        matching.SequenceMatcher = original_matcher  # type: ignore[assignment]
+        cast(Any, matching).SequenceMatcher = original_matcher
 
 
 def _load_lines(path: Path, encoding: str | None) -> list[str]:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Callable, TypeVar, cast
 
 import pytest
 
@@ -18,7 +18,14 @@ except Exception as exc:  # pragma: no cover - bindings missing at runtime
 else:  # pragma: no cover - executed when bindings are available
     QtGui = cast(Any, _QtGui)
     QtWidgets = cast(Any, _QtWidgets)
-    _QT_IMPORT_ERROR = None
+_QT_IMPORT_ERROR = None
+
+_F = TypeVar("_F", bound=Callable[..., object])
+
+
+def typed_skipif(condition: bool, *, reason: str) -> Callable[[_F], _F]:
+    decorator = pytest.mark.skipif(condition, reason=reason)
+    return cast(Callable[[_F], _F], decorator)
 
 
 @typed_fixture()
@@ -40,7 +47,7 @@ def themed_app() -> Any:
         app.setStyle(original_style_name)
 
 
-@pytest.mark.skipif(QtWidgets is None, reason="PySide6 non disponibile")
+@typed_skipif(QtWidgets is None, reason="PySide6 non disponibile")
 def test_build_palette_high_contrast_uses_tokens() -> None:
     assert QtGui is not None
     palette = theme_module.build_palette(Theme.HIGH_CONTRAST)
@@ -51,7 +58,7 @@ def test_build_palette_high_contrast_uses_tokens() -> None:
     assert highlight_color == "#ffd500"
 
 
-@pytest.mark.skipif(QtWidgets is None, reason="PySide6 non disponibile")
+@typed_skipif(QtWidgets is None, reason="PySide6 non disponibile")
 def test_apply_modern_theme_updates_palette_and_stylesheet(themed_app: Any) -> None:
     assert QtGui is not None
     theme_module.apply_modern_theme(Theme.LIGHT, themed_app)
@@ -79,7 +86,7 @@ def test_theme_manager_exposes_core_palettes() -> None:
     assert "background_window" in palettes[Theme.DARK]
 
 
-@pytest.mark.skipif(QtWidgets is None, reason="PySide6 non disponibile")
+@typed_skipif(QtWidgets is None, reason="PySide6 non disponibile")
 def test_theme_manager_notifies_listeners(themed_app: Any) -> None:
     assert QtGui is not None
     previous = theme_module.theme_manager.snapshot
