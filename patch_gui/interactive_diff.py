@@ -627,6 +627,22 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         if not has_entries:
             self._apply_preview_note(None)
 
+    def select_file(self, file_label: str) -> bool:
+        """Select the entry matching ``file_label`` if present."""
+
+        for idx in range(self._list_widget.count()):
+            item = self._list_widget.item(idx)
+            entry = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if not isinstance(entry, FileDiffEntry):
+                continue
+            if entry.file_label == file_label:
+                self._list_widget.setCurrentRow(idx)
+                self._list_widget.scrollToItem(
+                    item, QtWidgets.QAbstractItemView.ScrollHint.PositionAtCenter
+                )
+                return True
+        return False
+
     def _current_entries(self) -> list[FileDiffEntry]:
         result: list[FileDiffEntry] = []
         for idx in range(self._list_widget.count()):

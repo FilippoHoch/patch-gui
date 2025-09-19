@@ -51,6 +51,13 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
    - In alternativa esegui `patch-gui restore --root /percorso/del/progetto` dalla CLI per elencare i backup disponibili; puoi
      combinare `--timestamp`, `--yes`/`--force` e `--dry-run` per automatizzare il ripristino o simulare l'operazione.
 
+## Ricerca nel diff e navigazione
+
+- Premi **Ctrl+F** (o **Cmd+F** su macOS) per aprire la barra di ricerca nel tab *Editor diff*. La casella ricorda automaticamente i termini usati di recente e consente di scorrerli dal menu a tendina.
+- I pulsanti della barra, la scorciatoia **F3** e **Shift+F3** (oppure **Cmd+G**/**Cmd+Shift+G**) permettono di passare al risultato successivo o precedente anche quando la barra è nascosta.
+- Tutte le occorrenze vengono evidenziate nel testo; il risultato attivo seleziona il file o l'hunk corrispondente nell'albero laterale e, se presente, evidenzia lo stesso file nella vista *Diff interattivo*.
+- La cronologia delle ricerche è salvata nei **QSettings** dell'applicazione, quindi rimane disponibile tra una sessione e l'altra.
+
 ## Suggerimenti utili
 
 - La soglia fuzzy più alta aumenta la precisione ma potrebbe non trovare patch leggermente disallineate.
