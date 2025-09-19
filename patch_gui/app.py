@@ -12,7 +12,15 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Tuple, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    List,
+    Mapping,
+    Optional,
+    TypeVar,
+    cast,
+)
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, QThread
@@ -587,6 +595,9 @@ class CandidateDialog(_QDialogBase):
         self.ai_hint: AISuggestion | None = ai_hint
         self.assistant_message = assistant_message
         self.assistant_patch = assistant_patch
+        self._candidates = candidates
+        self._file_lines = file_text.splitlines(keepends=True)
+        self._before_hunk = list(hv.before_lines)
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -645,10 +656,9 @@ class CandidateDialog(_QDialogBase):
 
         if self.ai_hint is not None:
             block_len = len(hv.before_lines) or len(hv.after_lines) or 1
-            file_lines = file_text.splitlines(keepends=True)
             start_line = self.ai_hint.position + 1
-            end_line = min(len(file_lines), start_line + block_len - 1)
-            if start_line > len(file_lines):
+            end_line = min(len(self._file_lines), start_line + block_len - 1)
+            if start_line > len(self._file_lines):
                 range_text = _("riga {line}").format(line=start_line)
             elif start_line == end_line:
                 range_text = _("riga {line}").format(line=start_line)
@@ -697,7 +707,7 @@ class CandidateDialog(_QDialogBase):
         left = QtWidgets.QWidget()
         left_layout = QtWidgets.QVBoxLayout(left)
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
-        for cand in candidates:
+        for cand in self._candidates:
             label = _(
                 "Linea {line} – similarità {score:.3f} (ancore {anchors})"
             ).format(line=cand.position + 1, score=cand.score, anchors=cand.anchor_hits)
@@ -708,7 +718,7 @@ class CandidateDialog(_QDialogBase):
             index = self.ai_hint.candidate_index - 1
             if 0 <= index < self.list.count():
                 self.list.setCurrentRow(index)
-            else:
+            elif self.list.count():
                 self.list.setCurrentRow(0)
         elif self.list.count():
             self.list.setCurrentRow(0)
@@ -722,7 +732,7 @@ class CandidateDialog(_QDialogBase):
         right_layout = QtWidgets.QVBoxLayout(right)
         right_layout.addWidget(QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):")))
         self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
-            "".join(hv.before_lines)
+            "".join(self._before_hunk)
         )
         self.preview_right.setReadOnly(True)
         right_layout.addWidget(self.preview_right, 1)
@@ -739,99 +749,20 @@ class CandidateDialog(_QDialogBase):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
 
-        def on_row_changed() -> None:
-            row = self.list.currentRow()
-            if row < 0:
-                return
-            candidate = candidates[row]
-            pos = candidate.position
-            file_lines = file_text.splitlines(keepends=True)
-            start = max(0, pos - 15)
-            end = min(len(file_lines), pos + len(hv.before_lines) + 15)
-            snippet = "".join(file_lines[start:end])
-            self.preview_left.setPlainText(snippet)
+        self.list.currentRowChanged.connect(self._on_row_changed)
+        self._on_row_changed(self.list.currentRow())
 
-        self.list.currentRowChanged.connect(on_row_changed)
-        on_row_changed()
-
-    def accept(self) -> None:
-        row = self.list.currentRow()
-        if row < 0:
-            QtWidgets.QMessageBox.warning(
-                self,
-                _("Selezione obbligatoria"),
-                _("Seleziona una posizione dalla lista."),
-            )
+    def _on_row_changed(self, row: int) -> None:
+        if row < 0 or row >= len(self._candidates):
+            self.preview_left.clear()
             return
-        item = self.list.currentItem()
-        if item is None:
-            return
-        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
-        if isinstance(data, int):
-            self.selected_pos = data
-        else:
-            text = item.text()
-            m = re.search(r"\d+", text)
-            if m:
-                self.selected_pos = int(m.group(0)) - 1
-        super().accept()
-
-    def _apply_ai(self) -> None:  # pragma: no cover - user interaction
-        if self.ai_hint is None:
-            return
-            )
-            item = QtWidgets.QListWidgetItem(label)
-            item.setData(QtCore.Qt.ItemDataRole.UserRole, pos)
-            self.list.addItem(item)
-        if self.ai_hint is not None:
-            index = self.ai_hint.candidate_index - 1
-            if 0 <= index < self.list.count():
-                self.list.setCurrentRow(index)
-            else:
-                self.list.setCurrentRow(0)
-        elif self.list.count():
-            self.list.setCurrentRow(0)
-        left_layout.addWidget(self.list)
-
-        self.preview_left: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit()
-        self.preview_left.setReadOnly(True)
-        left_layout.addWidget(self.preview_left, 1)
-
-        right = QtWidgets.QWidget()
-        right_layout = QtWidgets.QVBoxLayout(right)
-        right_layout.addWidget(QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):")))
-        self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
-            "".join(hv.before_lines)
-        )
-        self.preview_right.setReadOnly(True)
-        right_layout.addWidget(self.preview_right, 1)
-
-        splitter.addWidget(left)
-        splitter.addWidget(right)
-        layout.addWidget(splitter, 1)
-
-        btns = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.StandardButton.Ok
-            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
-        )
-        layout.addWidget(btns)
-        btns.accepted.connect(self.accept)
-        btns.rejected.connect(self.reject)
-
-        def on_row_changed() -> None:
-            row = self.list.currentRow()
-            if row < 0:
-                return
-            candidate = candidates[row]
-            pos = candidate.position
-            file_lines = file_text.splitlines(keepends=True)
-            start = max(0, pos - 15)
-            end = min(len(file_lines), pos + len(hv.before_lines) + 15)
-            snippet = "".join(file_lines[start:end])
-            self.preview_left.setPlainText(snippet)
-
-        self.list.currentRowChanged.connect(on_row_changed)
-        on_row_changed()
+        candidate = self._candidates[row]
+        pos = candidate.position
+        block_len = len(self._before_hunk) or 1
+        start = max(0, pos - 15)
+        end = min(len(self._file_lines), pos + block_len + 15)
+        snippet = "".join(self._file_lines[start:end])
+        self.preview_left.setPlainText(snippet)
 
     def accept(self) -> None:
         row = self.list.currentRow()
@@ -859,11 +790,10 @@ class CandidateDialog(_QDialogBase):
         if self.ai_hint is None:
             return
         index = self.ai_hint.candidate_index - 1
-        if 0 <= index < self.list.count():
-            self.list.setCurrentRow(index)
-        candidate = candidates[index] if 0 <= index < len(candidates) else None
-        if candidate is not None:
-            self.selected_pos = candidate.position
+        if not (0 <= index < len(self._candidates)):
+            return
+        self.list.setCurrentRow(index)
+        self.selected_pos = self._candidates[index].position
         self.accept()
 
 
@@ -910,8 +840,7 @@ class FileChoiceDialog(_QDialogBase):
 
     def accept(self) -> None:
         row = self.list.currentRow()
-        if row >= 0:
-            item = self.list.item(row)
+        item = self.list.item(row) if row >= 0 else None
         if item is not None:
             data = item.data(QtCore.Qt.ItemDataRole.UserRole)
             if isinstance(data, Path):
@@ -1367,8 +1296,8 @@ class PatchApplyWorker(_QThreadBase):
                 fr.skipped_reason = str(exc)
                 return fr
 
-            decision.message = (
-                "Patch binaria applicata ({size} byte)".format(size=len(new_bytes))
+            decision.message = "Patch binaria applicata ({size} byte)".format(
+                size=len(new_bytes)
             )
             fr.decisions.append(decision)
             fr.hunks_applied = 1
@@ -1988,7 +1917,9 @@ class MainWindow(_QMainWindowBase):
 
         self.find_close_button = QtWidgets.QToolButton()
         self.find_close_button.setIcon(
-            self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogCloseButton)
+            self.style().standardIcon(
+                QtWidgets.QStyle.StandardPixmap.SP_DialogCloseButton
+            )
         )
         self.find_close_button.setToolTip(_("Nascondi barra di ricerca"))
         self.find_close_button.clicked.connect(self._hide_find_bar)
@@ -2218,7 +2149,9 @@ class MainWindow(_QMainWindowBase):
         total: int,
     ) -> None:
         if total <= 0 or match is None:
-            if total == 0 and (self._diff_search_helper.query if self._diff_search_helper else ""):
+            if total == 0 and (
+                self._diff_search_helper.query if self._diff_search_helper else ""
+            ):
                 self.find_status_label.setText(_("Nessuna corrispondenza"))
             return
         self.find_status_label.setText(
@@ -2243,9 +2176,7 @@ class MainWindow(_QMainWindowBase):
         current_text = line_edit.text() if line_edit is not None else ""
         cursor_pos = line_edit.cursorPosition() if line_edit is not None else 0
         selection_start = line_edit.selectionStart() if line_edit is not None else -1
-        selection_length = (
-            len(line_edit.selectedText()) if selection_start >= 0 else 0
-        )
+        selection_length = len(line_edit.selectedText()) if selection_start >= 0 else 0
 
         combo_blocked = self.find_combo.blockSignals(True)
         line_blocked = line_edit.blockSignals(True) if line_edit is not None else False
@@ -2401,9 +2332,7 @@ class MainWindow(_QMainWindowBase):
             )
         if hasattr(self, "load_diff_button"):
             self.load_diff_button.setIcon(
-                loader(
-                    "load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart
-                )
+                loader("load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
             )
         if hasattr(self, "action_analyze"):
             self.action_analyze.setIcon(
@@ -2578,9 +2507,7 @@ class MainWindow(_QMainWindowBase):
             patch = PatchSet(preprocessed.splitlines(True))
             attach_binary_patch_data(patch, preprocessed)
         except BinaryPatchError as exc:
-            QtWidgets.QMessageBox.critical(
-                self, _("Errore patch binaria"), str(exc)
-            )
+            QtWidgets.QMessageBox.critical(self, _("Errore patch binaria"), str(exc))
             return
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, _("Errore parsing diff"), str(e))
@@ -2853,9 +2780,7 @@ class MainWindow(_QMainWindowBase):
         logger.debug("Aggiornamento sintesi AI: %s", payload)
 
     @_qt_slot(object, object)
-    def _on_summary_completed(
-        self, session: ApplySession, summary_obj: object
-    ) -> None:
+    def _on_summary_completed(self, session: ApplySession, summary_obj: object) -> None:
         self._summary_worker = None
         summary = cast(Optional[AISummary], summary_obj)
         self._merge_session_summary(session, summary)
@@ -2865,7 +2790,9 @@ class MainWindow(_QMainWindowBase):
     @_qt_slot(object, str)
     def _on_summary_failed(self, session: ApplySession, message: str) -> None:
         self._summary_worker = None
-        session.summary_error = message or _("Errore durante la generazione della sintesi AI")
+        session.summary_error = message or _(
+            "Errore durante la generazione della sintesi AI"
+        )
         logger.warning("Sintesi AI fallita: %s", session.summary_error)
         self._pending_summary_session = None
         self._finalize_session(session)
@@ -2904,9 +2831,9 @@ class MainWindow(_QMainWindowBase):
         )
 
         if session.summary_cache_hit is True:
-            cache_message = _("Sintesi AI recuperata dalla cache (chiave {key}).").format(
-                key=session.summary_cache_key or "-"
-            )
+            cache_message = _(
+                "Sintesi AI recuperata dalla cache (chiave {key})."
+            ).format(key=session.summary_cache_key or "-")
             logger.info(cache_message)
             self._append_log_message(cache_message)
         elif session.summary_cache_hit is False:

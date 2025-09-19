@@ -191,10 +191,10 @@ def prune_remote_branches(
         try:
             run_cmd(["git", "push", remote, "--delete", branch], dry_run=dry_run)
         except ReleaseError as error:
-            print(
-                "Impossibile completare l'eliminazione del branch "
-                f"{branch}: {error}"
+            message = (
+                f"Impossibile completare l'eliminazione del branch {branch}: {error}"
             )
+            print(message)
 
 
 def checkout_branch(branch: str, *, dry_run: bool) -> None:
@@ -413,8 +413,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         push_refs(args.remote, f"v{args.version}", dry_run=args.dry_run)
     else:
         print(
-            "[nota] Push saltato: lanciare manualmente '
-            f"git push {args.remote} master' e 'git push {args.remote} v{args.version}'"
+            "[nota] Push saltato: lanciare manualmente "
+            f"'git push {args.remote} master' e 'git push {args.remote} v{args.version}'"
         )
 
     print("==> Allineo develop al commit di release")

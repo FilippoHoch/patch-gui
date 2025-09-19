@@ -93,9 +93,7 @@ class SplitDiffView(QtWidgets.QWidget):  # type: ignore[misc]
         self._scroll_area.setVisible(False)
         self._placeholder.setVisible(False)
 
-    def set_highlight_palette(
-        self, palette: DiffHighlightPalette | None
-    ) -> None:
+    def set_highlight_palette(self, palette: DiffHighlightPalette | None) -> None:
         self._highlighter_palette = palette
         self._header_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
         for widget in self._hunk_widgets:
@@ -211,16 +209,14 @@ class _HunkWidget(QtWidgets.QFrame):  # type: ignore[misc]
         self._button_group.setExclusive(True)
         self._button_group.addButton(self._apply_button, 1)
         self._button_group.addButton(self._skip_button, 0)
-        self._button_group.buttonClicked[int].connect(self._on_button_clicked)
+        self._button_group.idClicked.connect(self._on_button_clicked)
 
         self._columns = _HunkColumns(hunk.annotated_text, highlighter_palette)
         layout.addWidget(self._columns)
 
         self.set_applied(applied)
 
-    def set_highlight_palette(
-        self, palette: DiffHighlightPalette | None
-    ) -> None:
+    def set_highlight_palette(self, palette: DiffHighlightPalette | None) -> None:
         self._palette = palette
         self._columns.set_highlight_palette(palette)
 
@@ -279,9 +275,7 @@ class _HunkColumns(QtWidgets.QWidget):  # type: ignore[misc]
         self.left_editor.verticalScrollBar().valueChanged.connect(self._sync_right)
         self.right_editor.verticalScrollBar().valueChanged.connect(self._sync_left)
 
-    def set_highlight_palette(
-        self, palette: DiffHighlightPalette | None
-    ) -> None:
+    def set_highlight_palette(self, palette: DiffHighlightPalette | None) -> None:
         self._left_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
         self._right_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
 

@@ -3,14 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple, Literal
 
 import zlib
-
-try:  # pragma: no cover - optional typing import
-    from typing import Literal
-except ImportError:  # pragma: no cover - Python < 3.8 fallback
-    Literal = str  # type: ignore[misc,assignment]
 
 try:  # pragma: no cover - optional typing import
     from unidiff.patch import PatchedFile
@@ -106,9 +101,7 @@ class _BinaryHunk:
             ) from exc
         if len(data) != self.expected_size:
             raise BinaryPatchError(
-                _(
-                    "Binary %s hunk expected %d bytes after decompressing but got %d"
-                )
+                _("Binary %s hunk expected %d bytes after decompressing but got %d")
                 % (self.method, self.expected_size, len(data))
             )
         return data
@@ -169,7 +162,9 @@ def _normalize(value: Optional[str]) -> Optional[str]:
     return cleaned or None
 
 
-def _parse_binary_blocks(raw_text: str) -> Dict[Tuple[Optional[str], Optional[str]], BinaryPatchData]:
+def _parse_binary_blocks(
+    raw_text: str,
+) -> Dict[Tuple[Optional[str], Optional[str]], BinaryPatchData]:
     lines = raw_text.splitlines()
     mapping: Dict[Tuple[Optional[str], Optional[str]], BinaryPatchData] = {}
     current_key: Tuple[Optional[str], Optional[str]] | None = None
@@ -212,7 +207,11 @@ def _parse_binary_blocks(raw_text: str) -> Dict[Tuple[Optional[str], Optional[st
                         encoded.append(lines[idx])
                         idx += 1
                     hunks.append(
-                        _BinaryHunk(method=method, expected_size=expected_size, encoded_lines=tuple(encoded))
+                        _BinaryHunk(
+                            method=method,
+                            expected_size=expected_size,
+                            encoded_lines=tuple(encoded),
+                        )
                     )
                     while idx < total and not lines[idx]:
                         idx += 1
