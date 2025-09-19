@@ -135,6 +135,7 @@ def build_parser(
         % REPORT_TXT,
     )
     report_group = parser.add_mutually_exclusive_group()
+    report_group.set_defaults(write_reports=resolved_config.write_reports)
     report_group.add_argument(
         "--report",
         dest="write_reports",
@@ -145,9 +146,8 @@ def build_parser(
         "--no-report",
         dest="write_reports",
         action="store_false",
-        help=_("Do not create JSON/TXT report files."),
+        help=_("Do not create JSON/TXT report files (overrides the configuration)."),
     )
-    parser.set_defaults(write_reports=resolved_config.write_reports)
     parser.add_argument(
         "--summary-format",
         action="append",

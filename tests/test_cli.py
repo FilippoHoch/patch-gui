@@ -1082,6 +1082,25 @@ def test_run_cli_can_override_config_report_default(
     assert captured["write_report_files"] is True
 
 
+@pytest.mark.parametrize("config_value", [True, False])
+def test_build_parser_uses_config_write_reports_default(config_value: bool) -> None:
+    config = AppConfig(write_reports=config_value)
+
+    parser_obj = parser.build_parser(config=config)
+    args = parser_obj.parse_args(["--root", ".", "patch.diff"])
+
+    assert args.write_reports is config_value
+
+
+def test_build_parser_report_flag_can_enable_reports() -> None:
+    config = AppConfig(write_reports=False)
+
+    parser_obj = parser.build_parser(config=config)
+    args = parser_obj.parse_args(["--root", ".", "--report", "patch.diff"])
+
+    assert args.write_reports is True
+
+
 def test_run_cli_respects_config_path_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
