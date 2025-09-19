@@ -21,7 +21,7 @@ from unidiff import PatchSet
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
 from .ai_summaries import generate_session_summary
-from .config import AppConfig, load_config, save_config
+from .config import AppConfig, Theme, load_config, save_config
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
 from .i18n import install_translators
@@ -883,6 +883,20 @@ class SettingsDialog(_QDialogBase):
             self.log_combo.setCurrentIndex(current_index)
         form.addRow(_("Livello log"), self.log_combo)
 
+        theme_labels = {
+            Theme.AUTO: _("Automatico"),
+            Theme.DARK: _("Scuro"),
+            Theme.LIGHT: _("Chiaro"),
+            Theme.HIGH_CONTRAST: _("Alto contrasto"),
+        }
+        self.theme_combo = QtWidgets.QComboBox()
+        for theme in Theme:
+            self.theme_combo.addItem(theme_labels[theme], theme)
+        theme_index = self.theme_combo.findData(self._original_config.theme)
+        if theme_index >= 0:
+            self.theme_combo.setCurrentIndex(theme_index)
+        form.addRow(_("Tema"), self.theme_combo)
+
         self.dry_run_check = QtWidgets.QCheckBox(
             _("Esegui sempre in dry-run inizialmente")
         )
@@ -964,6 +978,12 @@ class SettingsDialog(_QDialogBase):
         else:
             log_file = self._original_config.log_file
 
+        theme_data = self.theme_combo.currentData()
+        if isinstance(theme_data, Theme):
+            theme_choice = theme_data
+        else:
+            theme_choice = self._original_config.theme
+
         log_max_bytes = self._parse_non_negative_int(
             self.log_max_edit.text(), self._original_config.log_max_bytes
         )
@@ -980,6 +1000,7 @@ class SettingsDialog(_QDialogBase):
             exclude_dirs=excludes,
             backup_base=backup_base,
             log_level=log_level,
+            theme=theme_choice,
             dry_run_default=self.dry_run_check.isChecked(),
             write_reports=self.reports_check.isChecked(),
             log_file=log_file,
@@ -1718,6 +1739,7 @@ class MainWindow(_QMainWindowBase):
         if dialog.result_config is None:
             return
         self.app_config = dialog.result_config
+        apply_modern_theme(self.app_config.theme, QtWidgets.QApplication.instance())
         configure_logging(
             level=self.app_config.log_level,
             log_file=self.app_config.log_file,
@@ -2350,7 +2372,7 @@ def main() -> None:
     )
     _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
-    apply_modern_theme(app)
+    apply_modern_theme(app_config.theme, app)
     app.setApplicationName(APP_NAME)
     translators = install_translators(app)
     setattr(app, "_installed_translators", translators)

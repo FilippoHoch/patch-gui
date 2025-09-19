@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 import patch_gui.config as config_module
-from patch_gui.config import AppConfig, load_config, save_config
+from patch_gui.config import AppConfig, Theme, load_config, save_config
 
 
 def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
@@ -24,6 +24,7 @@ def test_load_config_returns_defaults_when_missing(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == defaults.backup_retention_days
     assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
     assert loaded.ai_auto_apply == defaults.ai_auto_apply
+    assert loaded.theme == defaults.theme
 
 
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
@@ -35,6 +36,7 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
         exclude_dirs=("one", "two"),
         backup_base=custom_backup,
         log_level="debug",
+        theme=Theme.LIGHT,
         dry_run_default=False,
         write_reports=False,
         log_file=tmp_path / "custom.log",
@@ -83,6 +85,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
                 'exclude_dirs = ""',
                 'backup_base = "   "',
                 "log_level = 123",
+                'theme = "super"',
                 'dry_run_default = "maybe"',
                 'write_reports = "sometimes"',
                 'log_file = "   "',
@@ -112,6 +115,7 @@ def test_load_config_invalid_values_fallback(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == defaults.backup_retention_days
     assert loaded.ai_assistant_enabled == defaults.ai_assistant_enabled
     assert loaded.ai_auto_apply == defaults.ai_auto_apply
+    assert loaded.theme == defaults.theme
 
 
 def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
@@ -152,3 +156,4 @@ def test_load_config_accepts_empty_exclude_list(tmp_path: Path) -> None:
     assert loaded.backup_retention_days == 30
     assert loaded.ai_assistant_enabled is True
     assert loaded.ai_auto_apply is True
+    assert loaded.theme == AppConfig().theme

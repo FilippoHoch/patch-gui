@@ -8,6 +8,7 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, field
+from enum import Enum
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Protocol, cast
@@ -59,8 +60,21 @@ DEFAULT_LOG_BACKUP_COUNT: int = _DEFAULT_LOG_BACKUP_COUNT
 DEFAULT_BACKUP_RETENTION_DAYS: int = _DEFAULT_BACKUP_RETENTION_DAYS
 
 
+class Theme(str, Enum):
+    """Available UI themes supported by the application."""
+
+    AUTO = "auto"
+    DARK = "dark"
+    LIGHT = "light"
+    HIGH_CONTRAST = "high_contrast"
+
+
+_DEFAULT_THEME = Theme.AUTO
+
+
 __all__ = [
     "AppConfig",
+    "Theme",
     "DEFAULT_BACKUP_RETENTION_DAYS",
     "DEFAULT_LOG_BACKUP_COUNT",
     "DEFAULT_LOG_FILE",
@@ -83,6 +97,7 @@ class AppConfig:
     )
     backup_base: Path = field(default_factory=default_backup_base)
     log_level: str = _DEFAULT_LOG_LEVEL
+    theme: Theme = _DEFAULT_THEME
     dry_run_default: bool = _DEFAULT_DRY_RUN
     write_reports: bool = _DEFAULT_WRITE_REPORTS
     log_file: Path = field(default_factory=_default_log_file)
@@ -103,6 +118,7 @@ class AppConfig:
         exclude_dirs = _coerce_exclude_dirs(data.get("exclude_dirs"), base.exclude_dirs)
         backup_base = _coerce_backup_base(data.get("backup_base"), base.backup_base)
         log_level = _coerce_log_level(data.get("log_level"), base.log_level)
+        theme = _coerce_theme(data.get("theme"), base.theme)
         dry_run_default = _coerce_bool(
             data.get("dry_run_default"), base.dry_run_default
         )
@@ -130,6 +146,7 @@ class AppConfig:
             exclude_dirs=exclude_dirs,
             backup_base=backup_base,
             log_level=log_level,
+            theme=theme,
             dry_run_default=dry_run_default,
             write_reports=write_reports,
             log_file=log_file,
@@ -149,6 +166,7 @@ class AppConfig:
             "exclude_dirs": list(self.exclude_dirs),
             "backup_base": str(self.backup_base),
             "log_level": str(self.log_level),
+            "theme": str(self.theme.value if isinstance(self.theme, Theme) else self.theme),
             "dry_run_default": bool(self.dry_run_default),
             "write_reports": bool(self.write_reports),
             "log_file": str(self.log_file),
@@ -217,6 +235,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     threshold_repr = _format_float(mapping["threshold"])
     exclude_repr = ", ".join(json.dumps(item) for item in mapping["exclude_dirs"])
     log_level_repr = json.dumps(mapping["log_level"])
+    theme_repr = json.dumps(mapping["theme"])
     dry_run_repr = json.dumps(mapping["dry_run_default"])
     write_reports_repr = json.dumps(mapping["write_reports"])
     backup_repr = json.dumps(mapping["backup_base"])
@@ -234,6 +253,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"exclude_dirs = [{exclude_repr}]",
         f"backup_base = {backup_repr}",
         f"log_level = {log_level_repr}",
+        f"theme = {theme_repr}",
         f"dry_run_default = {dry_run_repr}",
         f"write_reports = {write_reports_repr}",
         f"log_file = {log_file_repr}",
@@ -369,6 +389,18 @@ def _coerce_log_level(value: Any, default: str) -> str:
         return default
     candidate = value.strip()
     return candidate.lower() if candidate else default
+
+
+def _coerce_theme(value: Any, default: Theme) -> Theme:
+    if isinstance(value, Theme):
+        return value
+    if isinstance(value, str):
+        candidate = value.strip().lower()
+        if candidate:
+            for theme in Theme:
+                if theme.value == candidate:
+                    return theme
+    return default
 
 
 def _coerce_bool(value: Any, default: bool) -> bool:
