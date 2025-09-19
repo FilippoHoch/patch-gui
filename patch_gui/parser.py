@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 from ._version import __version__
@@ -48,6 +49,7 @@ def build_parser(
     parser: Optional[argparse.ArgumentParser] = None,
     *,
     config: AppConfig | None = None,
+    config_path: Path | None = None,
 ) -> argparse.ArgumentParser:
     """Create or enrich an ``ArgumentParser`` with CLI options."""
 
@@ -69,6 +71,14 @@ def build_parser(
         action="version",
         version=__version__,
         help=_("Show the version number and exit."),
+    )
+    parser.add_argument(
+        "--config-path",
+        type=Path,
+        default=config_path,
+        help=_(
+            "Override the configuration file path (default: use the standard location)."
+        ),
     )
     parser.add_argument(
         "patch",

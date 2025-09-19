@@ -950,7 +950,7 @@ def test_run_cli_uses_config_defaults(
 
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(cli, "load_config", lambda: config)
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
 
     def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
         captured["source"] = source
@@ -986,6 +986,112 @@ def test_run_cli_uses_config_defaults(
     assert captured["exclude_dirs"] == config.exclude_dirs
     assert captured["backup_base"] is None
     assert captured["config"] is config
+
+
+def test_run_cli_accepts_custom_config_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "custom-config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config_path = tmp_path / "alt-config" / "settings.toml"
+    custom_config = AppConfig(
+        threshold=0.91,
+        exclude_dirs=("sandbox", "cache"),
+        log_level="debug",
+    )
+    save_config(custom_config, path=config_path)
+
+    captured: dict[str, object] = {}
+    configured: dict[str, object] = {}
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["source"] = source
+        captured["encoding"] = encoding
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(
+        patch: PatchSet,
+        project_root: Path,
+        **kwargs: object,
+    ) -> _DummySession:
+        captured["threshold"] = kwargs.get("threshold")
+        captured["exclude_dirs"] = kwargs.get("exclude_dirs")
+        captured["config"] = kwargs.get("config")
+        return _create_dummy_session(tmp_path)
+
+    def fake_basic_config(*args: object, **kwargs: object) -> None:
+        configured["level"] = kwargs.get("level")
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+    monkeypatch.setattr(logging, "basicConfig", fake_basic_config)
+
+    exit_code = cli.run_cli(
+        [
+            "--config-path",
+            str(config_path),
+            "--root",
+            str(project),
+            "--dry-run",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["threshold"] == pytest.approx(custom_config.threshold)
+    assert captured["exclude_dirs"] == custom_config.exclude_dirs
+    loaded_config = captured["config"]
+    assert isinstance(loaded_config, AppConfig)
+    assert loaded_config.threshold == pytest.approx(custom_config.threshold)
+    assert configured["level"] == getattr(logging, custom_config.log_level.upper())
+
+
+def test_run_cli_rejects_invalid_config_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "invalid-config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    def fake_exit(
+        self: argparse.ArgumentParser, status: int = 0, message: str | None = None
+    ) -> None:
+        raise cli.CLIError(message.strip() if message else "parser exited")
+
+    monkeypatch.setattr(argparse.ArgumentParser, "exit", fake_exit, raising=False)
+
+    missing_path = tmp_path / "missing" / "settings.toml"
+    with pytest.raises(cli.CLIError) as excinfo:
+        cli.run_cli(
+            [
+                "--config-path",
+                str(missing_path),
+                "--root",
+                str(project),
+                str(patch_path),
+            ]
+        )
+
+    message = str(excinfo.value)
+    assert "Configuration file not found" in message
+
+    directory_path = tmp_path / "configs"
+    directory_path.mkdir()
+    with pytest.raises(cli.CLIError) as excinfo2:
+        cli.run_cli(
+            [
+                "--config-path",
+                str(directory_path),
+                "--root",
+                str(project),
+                str(patch_path),
+            ]
+        )
+
+    assert "Configuration path must reference a file" in str(excinfo2.value)
 
 
 def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
@@ -1032,7 +1138,7 @@ def test_run_cli_emits_logs_to_stderr(
     patch_path = tmp_path / "log-output.diff"
     patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
 
-    monkeypatch.setattr(cli, "load_config", lambda: AppConfig())
+    monkeypatch.setattr(cli, "load_config", lambda path=None: AppConfig())
 
     def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
         return PatchSet(SAMPLE_DIFF)

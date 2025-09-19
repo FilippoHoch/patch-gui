@@ -80,6 +80,9 @@ Oltre a usare la GUI, puoi ispezionare e modificare le impostazioni persistenti 
 
 Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi `--config-path /percorso/custom/settings.toml` dopo il nome del sottocomando.
 
+La stessa opzione può essere usata con `patch-gui apply` per applicare una
+configurazione personalizzata anche durante l'esecuzione del comando principale.
+
 ## Assistente AI (sperimentale)
 
 - L'assistente può essere abilitato o disabilitato sia dalla GUI (Preferenze → *Suggerisci automaticamente con l'assistente AI*) sia tramite CLI con `--ai-assistant` / `--no-ai-assistant`.
