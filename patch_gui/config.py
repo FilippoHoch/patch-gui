@@ -65,6 +65,7 @@ __all__ = [
     "DEFAULT_LOG_BACKUP_COUNT",
     "DEFAULT_LOG_FILE",
     "DEFAULT_LOG_MAX_BYTES",
+    "os",
     "default_config_dir",
     "default_config_path",
     "load_config",

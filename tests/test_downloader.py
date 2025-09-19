@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+from email.message import Message
 from pathlib import Path
 from typing import Any, List
 from urllib.error import HTTPError
@@ -122,7 +123,7 @@ def test_download_latest_release_exe_wraps_http_error(tmp_path: Path) -> None:
     download_url = "https://example.test/patch-gui.exe"
     release_response = _FakeResponse(_release_payload(download_url))
     http_error = HTTPError(
-        download_url, 404, "Not Found", hdrs=None, fp=io.BytesIO(b"missing")
+        download_url, 404, "Not Found", hdrs=Message(), fp=io.BytesIO(b"missing")
     )
     requests: list[str] = []
 

@@ -105,9 +105,7 @@ def build_parser(
         "--apply",
         dest="dry_run",
         action="store_false",
-        help=_(
-            "Apply changes even if the configuration defaults to dry runs."
-        ),
+        help=_("Apply changes even if the configuration defaults to dry runs."),
     )
     parser.set_defaults(dry_run=resolved_config.dry_run_default)
     parser.add_argument(
