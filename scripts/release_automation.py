@@ -109,7 +109,9 @@ def ensure_clean_worktree(*, dry_run: bool) -> None:
     if dry_run:
         print("[dry-run] Salto controllo stato working tree")
         return
-    status = run_cmd(["git", "status", "--porcelain"], dry_run=False, capture_output=True)
+    status = run_cmd(
+        ["git", "status", "--porcelain"], dry_run=False, capture_output=True
+    )
     if status:
         raise ReleaseError("La working tree contiene modifiche non committate")
 
@@ -213,7 +215,9 @@ def update_changelog(version: str, *, dry_run: bool) -> None:
     try:
         start = next(i for i, line in enumerate(lines) if line.strip() == header)
     except StopIteration as exc:  # pragma: no cover - difesa extra
-        raise ReleaseError("Sezione [Non rilasciato] non trovata nel changelog") from exc
+        raise ReleaseError(
+            "Sezione [Non rilasciato] non trovata nel changelog"
+        ) from exc
 
     end = len(lines)
     for idx in range(start + 1, len(lines)):
@@ -223,7 +227,9 @@ def update_changelog(version: str, *, dry_run: bool) -> None:
 
     block = normalize_block(lines[start + 1 : end])
     if not block:
-        raise ReleaseError("La sezione [Non rilasciato] è vuota: aggiungi le note prima del rilascio")
+        raise ReleaseError(
+            "La sezione [Non rilasciato] è vuota: aggiungi le note prima del rilascio"
+        )
 
     release_header = f"## [{version}] - {_dt.date.today().isoformat()}"
     new_lines: list[str] = []
@@ -253,7 +259,10 @@ def commit(message: str, *, dry_run: bool) -> None:
 
 
 def tag_version(version: str, *, dry_run: bool) -> None:
-    run_cmd(["git", "tag", "-a", f"v{version}", "-m", f"Patch GUI {version}"], dry_run=dry_run)
+    run_cmd(
+        ["git", "tag", "-a", f"v{version}", "-m", f"Patch GUI {version}"],
+        dry_run=dry_run,
+    )
 
 
 def push_refs(*refs: str, dry_run: bool) -> None:
@@ -272,10 +281,18 @@ def run_checks(*, dry_run: bool) -> None:
     dist_dir = REPO_ROOT / "dist"
     artifacts = sorted(dist_dir.glob("*")) if dist_dir.exists() else []
     if artifacts:
-        twine_args = [sys.executable, "-m", "twine", "check", *(str(a.relative_to(REPO_ROOT)) for a in artifacts)]
+        twine_args = [
+            sys.executable,
+            "-m",
+            "twine",
+            "check",
+            *(str(a.relative_to(REPO_ROOT)) for a in artifacts),
+        ]
         commands.append(twine_args)
     else:
-        print("Nessun artifact in dist/ – salto twine check finché non vengono generati")
+        print(
+            "Nessun artifact in dist/ – salto twine check finché non vengono generati"
+        )
 
     for cmd in commands:
         if shutil.which(cmd[0] if os.path.sep in cmd[0] else cmd[0]) is None:
@@ -317,7 +334,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("[avviso] Controlli disattivati con --skip-checks")
 
     print("==> Commit di release")
-    stage_files([PYPROJECT_PATH, VERSION_MODULE_PATH, CHANGELOG_PATH], dry_run=args.dry_run)
+    stage_files(
+        [PYPROJECT_PATH, VERSION_MODULE_PATH, CHANGELOG_PATH], dry_run=args.dry_run
+    )
     commit(f"chore: release {args.version}", dry_run=args.dry_run)
 
     print("==> Creazione tag")
@@ -328,7 +347,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         push_refs("master", dry_run=args.dry_run)
         push_refs(f"v{args.version}", dry_run=args.dry_run)
     else:
-        print("[nota] Push saltato: lanciare manualmente 'git push origin master' e 'git push origin v{args.version}'")
+        print(
+            "[nota] Push saltato: lanciare manualmente 'git push origin master' e 'git push origin v{args.version}'"
+        )
 
     print("==> Allineo develop al commit di release")
     checkout_branch("develop", dry_run=args.dry_run)
@@ -339,11 +360,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         update_pyproject(args.next_dev_version, dry_run=args.dry_run)
         update_version_module(args.next_dev_version, dry_run=args.dry_run)
         stage_files([PYPROJECT_PATH, VERSION_MODULE_PATH], dry_run=args.dry_run)
-        commit(f"chore: start development cycle {args.next_dev_version}", dry_run=args.dry_run)
+        commit(
+            f"chore: start development cycle {args.next_dev_version}",
+            dry_run=args.dry_run,
+        )
         if args.push:
             push_refs("develop", dry_run=args.dry_run)
         else:
-            print("[nota] Esegui 'git push origin develop' per aggiornare il branch remoto")
+            print(
+                "[nota] Esegui 'git push origin develop' per aggiornare il branch remoto"
+            )
     else:
         if args.push:
             push_refs("develop", dry_run=args.dry_run)

@@ -133,4 +133,3 @@ def configure_logging(
 
     root_logger.addHandler(file_handler)
     return file_path
-

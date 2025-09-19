@@ -86,9 +86,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         if config_path.exists() and config_path.is_dir():
             bootstrap_parser.exit(
                 1,
-                _(
-                    "Error: configuration path {path} points to a directory.\n"
-                ).format(path=display_path(config_path)),
+                _("Error: configuration path {path} points to a directory.\n").format(
+                    path=display_path(config_path)
+                ),
             )
 
     if config_path is None:
@@ -300,9 +300,7 @@ def run_download_exe(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def build_restore_parser(
-    *, config: AppConfig | None = None
-) -> argparse.ArgumentParser:
+def build_restore_parser(*, config: AppConfig | None = None) -> argparse.ArgumentParser:
     """Return an ``ArgumentParser`` configured for the ``restore`` command."""
 
     resolved_config = config or load_config()
@@ -366,10 +364,14 @@ def run_restore(argv: Sequence[str] | None = None) -> int:
     try:
         root = Path(args.root).expanduser().resolve()
     except OSError as exc:
-        parser.exit(1, _("Error: failed to resolve project root: {error}\n").format(error=exc))
+        parser.exit(
+            1, _("Error: failed to resolve project root: {error}\n").format(error=exc)
+        )
 
     if not root.exists() or not root.is_dir():
-        parser.exit(1, _("Error: invalid project root: {path}\n").format(path=args.root))
+        parser.exit(
+            1, _("Error: invalid project root: {path}\n").format(path=args.root)
+        )
 
     backup_base: Path
     if args.backup_base is not None:
@@ -442,9 +444,7 @@ def run_restore(argv: Sequence[str] | None = None) -> int:
         if args.non_interactive:
             parser.exit(
                 1,
-                _(
-                    "Error: --yes is required when running in non-interactive mode.\n"
-                ),
+                _("Error: --yes is required when running in non-interactive mode.\n"),
             )
         confirmed = _prompt_for_confirmation(chosen_session.name)
         if not confirmed:

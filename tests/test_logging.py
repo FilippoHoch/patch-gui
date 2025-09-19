@@ -141,15 +141,17 @@ def test_run_cli_respects_log_configuration(
     monkeypatch.setattr("patch_gui.cli.apply_patchset", _fake_apply_patchset)
     monkeypatch.setattr("patch_gui.cli.session_completed", lambda session: True)
 
-    result = run_cli([
-        "dummy.patch",
-        "--root",
-        str(tmp_path),
-        "--summary-format",
-        "none",
-        "--log-level",
-        "info",
-    ])
+    result = run_cli(
+        [
+            "dummy.patch",
+            "--root",
+            str(tmp_path),
+            "--summary-format",
+            "none",
+            "--log-level",
+            "info",
+        ]
+    )
 
     assert result == 0
 

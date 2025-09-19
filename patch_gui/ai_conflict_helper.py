@@ -12,6 +12,18 @@ from difflib import unified_diff
 from typing import Sequence
 
 
+__all__ = [
+    "AI_CONFLICT_ENDPOINT_ENV",
+    "AI_CONFLICT_TOKEN_ENV",
+    "AI_SHARED_ENDPOINT_ENV",
+    "AI_SHARED_TOKEN_ENV",
+    "AIConflictAssistantError",
+    "ConflictSuggestion",
+    "generate_conflict_suggestion",
+    "urllib",
+]
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -142,10 +154,17 @@ def _parse_ai_response(response: dict[str, object]) -> ConflictSuggestion:
     if raw_confidence is None:
         confidence = None
     else:
-        try:
+        if isinstance(raw_confidence, (int, float)):
             confidence = float(raw_confidence)
-        except (TypeError, ValueError) as exc:
-            raise AIConflictAssistantError("Invalid confidence value from AI response") from exc
+        elif isinstance(raw_confidence, str):
+            try:
+                confidence = float(raw_confidence)
+            except ValueError as exc:
+                raise AIConflictAssistantError(
+                    "Invalid confidence value from AI response"
+                ) from exc
+        else:
+            raise AIConflictAssistantError("Invalid confidence value from AI response")
 
     if patch:
         patch = _trim_text(patch, _MAX_DIFF_CHARS)
@@ -174,7 +193,7 @@ def _maybe_request_ai(
     if not endpoint:
         return None
 
-    payload = {
+    payload: dict[str, object] = {
         "task": "conflict-resolution",
         "hunk_header": hunk_header,
         "before": list(before_lines),

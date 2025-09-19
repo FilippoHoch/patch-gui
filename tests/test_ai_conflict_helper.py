@@ -26,7 +26,9 @@ def _build_args() -> dict[str, Any]:
     }
 
 
-def test_generate_conflict_suggestion_heuristic(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_conflict_suggestion_heuristic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv(AI_CONFLICT_ENDPOINT_ENV, raising=False)
     monkeypatch.delenv(AI_SHARED_ENDPOINT_ENV, raising=False)
 
@@ -81,4 +83,3 @@ def test_generate_conflict_suggestion_ai(monkeypatch: pytest.MonkeyPatch) -> Non
     assert suggestion.patch is not None
     assert called_payload["task"] == "conflict-resolution"
     assert called_payload["before"] == ["const value = 1;\n"]
-
