@@ -979,6 +979,14 @@ class SettingsDialog(_QDialogBase):
         self.ai_auto_check.setChecked(self._original_config.ai_auto_apply)
         form.addRow("", self.ai_auto_check)
 
+        self.ai_notes_check = QtWidgets.QCheckBox(
+            _("Mostra note AI nel diff interattivo")
+        )
+        self.ai_notes_check.setChecked(
+            self._original_config.ai_diff_notes_enabled
+        )
+        form.addRow("", self.ai_notes_check)
+
         self.buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok
             | QtWidgets.QDialogButtonBox.StandardButton.Cancel
@@ -1054,6 +1062,7 @@ class SettingsDialog(_QDialogBase):
             backup_retention_days=backup_retention_days,
             ai_assistant_enabled=self.ai_assistant_check.isChecked(),
             ai_auto_apply=self.ai_auto_check.isChecked(),
+            ai_diff_notes_enabled=self.ai_notes_check.isChecked(),
         )
 
     @staticmethod
@@ -1394,6 +1403,7 @@ class MainWindow(_QMainWindowBase):
         self.reports_enabled: bool = self.app_config.write_reports
         self.ai_assistant_enabled: bool = self.app_config.ai_assistant_enabled
         self.ai_auto_apply: bool = self.app_config.ai_auto_apply
+        self.ai_notes_enabled: bool = self.app_config.ai_diff_notes_enabled
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
 
@@ -1699,10 +1709,12 @@ class MainWindow(_QMainWindowBase):
         self.reports_enabled = bool(self.app_config.write_reports)
         self.ai_assistant_enabled = bool(self.app_config.ai_assistant_enabled)
         self.ai_auto_apply = bool(self.app_config.ai_auto_apply)
+        self.ai_notes_enabled = bool(self.app_config.ai_diff_notes_enabled)
         self.spin_thresh.setValue(self.threshold)
         excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
         self.exclude_edit.setText(excludes_text)
         self.chk_dry.setChecked(self.app_config.dry_run_default)
+        self.interactive_diff.set_ai_notes_enabled(self.ai_notes_enabled)
 
     def _create_settings_dialog(self) -> SettingsDialog:
         return SettingsDialog(self, config=self.app_config)
@@ -1767,9 +1779,11 @@ class MainWindow(_QMainWindowBase):
         self.app_config.write_reports = self.reports_enabled
         self.app_config.ai_assistant_enabled = self.ai_assistant_enabled
         self.app_config.ai_auto_apply = self.ai_auto_apply
+        self.app_config.ai_diff_notes_enabled = self.ai_notes_enabled
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
+        self.ai_notes_enabled = self.app_config.ai_diff_notes_enabled
         save_config(self.app_config)
 
     def choose_root(self) -> None:
