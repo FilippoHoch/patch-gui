@@ -107,6 +107,8 @@ class AppConfig:
     ai_assistant_enabled: bool = _DEFAULT_AI_ASSISTANT
     ai_auto_apply: bool = _DEFAULT_AI_AUTO_APPLY
     ai_diff_notes_enabled: bool = _DEFAULT_AI_DIFF_NOTES
+    use_rapidfuzz_matcher: bool = True
+    use_structural_anchors: bool = True
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -140,6 +142,12 @@ class AppConfig:
         ai_diff_notes = _coerce_bool(
             data.get("ai_diff_notes_enabled"), base.ai_diff_notes_enabled
         )
+        use_rapidfuzz = _coerce_bool(
+            data.get("use_rapidfuzz_matcher"), base.use_rapidfuzz_matcher
+        )
+        use_anchors = _coerce_bool(
+            data.get("use_structural_anchors"), base.use_structural_anchors
+        )
 
         return cls(
             threshold=threshold,
@@ -156,6 +164,8 @@ class AppConfig:
             ai_assistant_enabled=ai_enabled,
             ai_auto_apply=ai_auto_apply,
             ai_diff_notes_enabled=ai_diff_notes,
+            use_rapidfuzz_matcher=use_rapidfuzz,
+            use_structural_anchors=use_anchors,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -176,6 +186,8 @@ class AppConfig:
             "ai_assistant_enabled": bool(self.ai_assistant_enabled),
             "ai_auto_apply": bool(self.ai_auto_apply),
             "ai_diff_notes_enabled": bool(self.ai_diff_notes_enabled),
+            "use_rapidfuzz_matcher": bool(self.use_rapidfuzz_matcher),
+            "use_structural_anchors": bool(self.use_structural_anchors),
         }
 
 

@@ -45,9 +45,11 @@ from .theme import apply_modern_theme
 from .logging_utils import configure_logging
 from .patcher import (
     ApplySession,
+    CandidateMatch,
     FileResult,
     HunkDecision,
     HunkView,
+    MatchingOptions,
     apply_hunks,
     backup_file,
     build_hunk_view as patcher_build_hunk_view,
@@ -548,7 +550,7 @@ class CandidateDialog(_QDialogBase):
         self,
         parent: QtWidgets.QWidget | None,
         file_text: str,
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         hv: HunkView,
         *,
         ai_hint: AISuggestion | None = None,
@@ -563,6 +565,7 @@ class CandidateDialog(_QDialogBase):
         self.ai_hint: AISuggestion | None = ai_hint
         self.assistant_message = assistant_message
         self.assistant_patch = assistant_patch
+        self._candidates = candidates
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -673,12 +676,17 @@ class CandidateDialog(_QDialogBase):
         left = QtWidgets.QWidget()
         left_layout = QtWidgets.QVBoxLayout(left)
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
-        for pos, score in candidates:
-            label = _("Linea {line} – similarità {score:.3f}").format(
-                line=pos + 1, score=score
+        for candidate in candidates:
+            anchor_note = ""
+            if candidate.metadata.get("derived_from_anchor"):
+                anchor_note = _(" – ancora")
+            label = _("Linea {line} – similarità {score:.3f}{anchor}").format(
+                line=candidate.position + 1,
+                score=candidate.score,
+                anchor=anchor_note,
             )
             item = QtWidgets.QListWidgetItem(label)
-            item.setData(QtCore.Qt.ItemDataRole.UserRole, pos)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, candidate.position)
             self.list.addItem(item)
         if self.ai_hint is not None:
             index = self.ai_hint.candidate_index - 1
@@ -719,7 +727,8 @@ class CandidateDialog(_QDialogBase):
             row = self.list.currentRow()
             if row < 0:
                 return
-            pos, _ = candidates[row]
+            candidate = candidates[row]
+            pos = candidate.position
             file_lines = file_text.splitlines(keepends=True)
             start = max(0, pos - 15)
             end = min(len(file_lines), pos + len(hv.before_lines) + 15)
@@ -838,6 +847,14 @@ class SettingsDialog(_QDialogBase):
         self.threshold_spin.setDecimals(2)
         self.threshold_spin.setValue(self._original_config.threshold)
         form.addRow(_("Soglia fuzzy"), self.threshold_spin)
+
+        self.rapidfuzz_check = QtWidgets.QCheckBox(_("Usa matcher rapidfuzz"))
+        self.rapidfuzz_check.setChecked(self._original_config.use_rapidfuzz_matcher)
+        form.addRow("", self.rapidfuzz_check)
+
+        self.anchors_check = QtWidgets.QCheckBox(_("Usa ancore strutturali"))
+        self.anchors_check.setChecked(self._original_config.use_structural_anchors)
+        form.addRow("", self.anchors_check)
 
         self.exclude_edit = QtWidgets.QLineEdit(
             ", ".join(self._original_config.exclude_dirs)
@@ -1028,6 +1045,8 @@ class SettingsDialog(_QDialogBase):
             ai_assistant_enabled=self.ai_assistant_check.isChecked(),
             ai_auto_apply=self.ai_auto_check.isChecked(),
             ai_diff_notes_enabled=self.ai_diff_notes_check.isChecked(),
+            use_rapidfuzz_matcher=self.rapidfuzz_check.isChecked(),
+            use_structural_anchors=self.anchors_check.isChecked(),
         )
 
     @staticmethod
@@ -1281,6 +1300,7 @@ class PatchApplyWorker(_QThreadBase):
             lines,
             pf,
             threshold=self.session.threshold,
+            matching_options=self.session.matching_options,
             manual_resolver=self._resolve_hunk_choice,
         )
 
@@ -1332,7 +1352,7 @@ class PatchApplyWorker(_QThreadBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         ai_hint: AISuggestion | None,
         assistant_message: str | None,
         assistant_patch: str | None,
@@ -1350,7 +1370,7 @@ class PatchApplyWorker(_QThreadBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -1698,6 +1718,21 @@ class MainWindow(_QMainWindowBase):
         self.spin_thresh.setDecimals(2)
         self.spin_thresh.setValue(self.threshold)
         second.addWidget(self.spin_thresh)
+
+        second.addSpacing(12)
+        self.chk_rapidfuzz = QtWidgets.QCheckBox(_("Rapidfuzz"))
+        self.chk_rapidfuzz.setToolTip(
+            _("Abilita il matcher basato su rapidfuzz quando disponibile.")
+        )
+        self.chk_rapidfuzz.setChecked(self.app_config.use_rapidfuzz_matcher)
+        second.addWidget(self.chk_rapidfuzz)
+
+        self.chk_anchors = QtWidgets.QCheckBox(_("Ancore"))
+        self.chk_anchors.setToolTip(
+            _("Utilizza ancore strutturali per velocizzare la ricerca delle posizioni.")
+        )
+        self.chk_anchors.setChecked(self.app_config.use_structural_anchors)
+        second.addWidget(self.chk_anchors)
 
         second.addSpacing(20)
         second.addWidget(QtWidgets.QLabel(_("Ignora directory")))
@@ -2274,6 +2309,8 @@ class MainWindow(_QMainWindowBase):
         self.app_config.ai_assistant_enabled = self.ai_assistant_enabled
         self.app_config.ai_auto_apply = self.ai_auto_apply
         self.app_config.ai_diff_notes_enabled = self.ai_diff_notes_enabled
+        self.app_config.use_rapidfuzz_matcher = self.chk_rapidfuzz.isChecked()
+        self.app_config.use_structural_anchors = self.chk_anchors.isChecked()
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
@@ -2477,6 +2514,8 @@ class MainWindow(_QMainWindowBase):
             widget.setEnabled(not busy)
         self.chk_dry.setEnabled(not busy)
         self.spin_thresh.setEnabled(not busy)
+        self.chk_rapidfuzz.setEnabled(not busy)
+        self.chk_anchors.setEnabled(not busy)
         self.text_diff.setReadOnly(busy)
 
     def apply_patch(self) -> None:
@@ -2535,6 +2574,10 @@ class MainWindow(_QMainWindowBase):
             threshold=thr,
             exclude_dirs=excludes,
             started_at=started_at,
+            matching_options=MatchingOptions(
+                use_rapidfuzz=self.chk_rapidfuzz.isChecked(),
+                enable_structural_anchors=self.chk_anchors.isChecked(),
+            ),
         )
         session.summary_diff_digest = compute_diff_digest(self.patch)
         worker = PatchApplyWorker(
@@ -2760,7 +2803,7 @@ class MainWindow(_QMainWindowBase):
     def _on_worker_request_hunk_choice(
         self,
         file_text: str,
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         hv: HunkView,
         ai_hint: AISuggestion | None,
         assistant_message: str | None,
@@ -2850,6 +2893,7 @@ class MainWindow(_QMainWindowBase):
             lines,
             pf,
             threshold=session.threshold,
+            matching_options=session.matching_options,
             manual_resolver=self._dialog_hunk_choice,
         )
 
@@ -2867,7 +2911,7 @@ class MainWindow(_QMainWindowBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,

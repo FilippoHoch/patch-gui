@@ -198,6 +198,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             Path(args.root),
             dry_run=args.dry_run,
             threshold=args.threshold,
+            use_rapidfuzz=args.use_rapidfuzz,
+            use_structural_anchors=args.use_structural_anchors,
             backup_base=backup_base,
             interactive=interactive,
             auto_accept=args.auto_accept,
