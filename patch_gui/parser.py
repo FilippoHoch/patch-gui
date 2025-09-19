@@ -8,6 +8,7 @@ from typing import List, Optional, Sequence
 
 from ._version import __version__
 from .config import AppConfig, load_config
+from .matching import MatchingStrategy
 from .localization import gettext as _
 from .patcher import DEFAULT_EXCLUDE_DIRS
 from .utils import (
@@ -113,6 +114,16 @@ def build_parser(
         type=threshold_value,
         default=resolved_config.threshold,
         help=_("Matching threshold (0-1) for fuzzy context alignment."),
+    )
+    parser.add_argument(
+        "--matching-strategy",
+        choices=[strategy.value for strategy in MatchingStrategy],
+        default=resolved_config.matching_strategy.value,
+        help=_(
+            "Candidate search strategy. Use 'auto' for the optimized matcher "
+            "with legacy fallback, 'token' to force the tokenizer-based "
+            "matcher, or 'legacy' to retain the historical behaviour."
+        ),
     )
     parser.add_argument(
         "--backup",

@@ -8,12 +8,12 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable, Iterator, Optional, Protocol, Sequence
 
 from patch_gui.ai_conflict_helper import generate_conflict_suggestion
 from patch_gui.file_index import FileIndex, FileLookupMetrics, LookupEvent
+from patch_gui.matching import MatchingStrategy, find_candidate_positions
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -125,6 +125,7 @@ class ApplySession:
     file_summaries: dict[str, str] = field(default_factory=dict)
     file_index: Optional[FileIndex] = None
     lookup_metrics: FileLookupMetrics = field(default_factory=FileLookupMetrics)
+    matching_strategy: MatchingStrategy = MatchingStrategy.AUTO
     summary_diff_digest: Optional[str] = None
     summary_cache_key: Optional[str] = None
     summary_cache_hit: Optional[bool] = None
@@ -143,6 +144,7 @@ class ApplySession:
             "backup_dir": str(self.backup_dir),
             "dry_run": self.dry_run,
             "threshold": self.threshold,
+            "matching_strategy": self.matching_strategy.value,
             "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "ai_summary": self.ai_summary,
@@ -204,6 +206,11 @@ class ApplySession:
         )
         lines.append(_("Dry-run: {dry_run}").format(dry_run=self.dry_run))
         lines.append(_("Fuzzy threshold: {threshold}").format(threshold=self.threshold))
+        lines.append(
+            _("Matching strategy: {strategy}").format(
+                strategy=self.matching_strategy.value
+            )
+        )
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else _("(none)")
         lines.append(
             _("Excluded directories: {directories}").format(directories=excludes)
@@ -372,49 +379,24 @@ def build_hunk_view(hunk: _HunkLike) -> HunkView:
     )
 
 
-def text_similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a, b).ratio()
-
-
 def find_candidates(
-    file_lines: Sequence[str], before_lines: Sequence[str], threshold: float
+    file_lines: Sequence[str],
+    before_lines: Sequence[str],
+    threshold: float,
+    *,
+    strategy: MatchingStrategy = MatchingStrategy.AUTO,
 ) -> list[tuple[int, float]]:
-    """Return candidate start positions with similarity >= threshold, sorted by score desc."""
+    """Return candidate start positions sorted by similarity score."""
 
-    candidates: list[tuple[int, float]] = []
-    if not before_lines:
-        logger.debug("Nessuna linea 'before' fornita, nessun candidato generato")
-        return candidates
-    window_len = len(before_lines)
-    target_text = "".join(before_lines)
-
-    file_text = "".join(file_lines)
-    logger.debug(
-        "Ricerca candidati: window_len=%d, threshold=%.3f, testo_target=%d char",
-        window_len,
-        threshold,
-        len(target_text),
+    candidates = find_candidate_positions(
+        file_lines, before_lines, threshold, strategy=strategy
     )
-    idx = file_text.find(target_text)
-    if idx != -1:
-        cumulative = 0
-        for i, line in enumerate(file_lines):
-            if cumulative == idx:
-                candidates.append((i, 1.0))
-                break
-            cumulative += len(line)
-        if candidates:
-            logger.debug("Candidato esatto trovato in posizione %d", candidates[0][0])
-            return candidates
-
-    for i in range(0, len(file_lines) - window_len + 1):
-        window_text = "".join(file_lines[i : i + window_len])
-        score = text_similarity(window_text, target_text)
-        if score >= threshold:
-            candidates.append((i, score))
-
-    candidates.sort(key=lambda x: x[1], reverse=True)
-    logger.debug("Trovati %d candidati con soglia %.3f", len(candidates), threshold)
+    logger.debug(
+        "Candidati trovati: %d (strategia=%s, soglia=%.3f)",
+        len(candidates),
+        strategy,
+        threshold,
+    )
     return candidates
 
 
@@ -437,9 +419,14 @@ def apply_hunks(
     hunks: Iterable[_HunkLike],
     *,
     threshold: float,
+    matching_strategy: MatchingStrategy = MatchingStrategy.AUTO,
     manual_resolver: Optional[ManualResolver] = None,
 ) -> tuple[list[str], list[HunkDecision], int]:
-    """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions."""
+    """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions.
+
+    ``matching_strategy`` controls how candidate locations are discovered when
+    fuzzy matching is required.
+    """
 
     current_lines: list[str] = file_lines
     decisions: list[HunkDecision] = []
@@ -447,9 +434,10 @@ def apply_hunks(
 
     hunks = list(hunks)
     logger.debug(
-        "Inizio applicazione hunk: totale=%d, soglia=%.3f",
+        "Inizio applicazione hunk: totale=%d, soglia=%.3f, strategia=%s",
         len(hunks),
         threshold,
+        matching_strategy.value,
     )
 
     def _ensure_assistant_data(
@@ -572,7 +560,10 @@ def apply_hunks(
             continue
 
         exact_candidates = find_candidates(
-            current_lines, hv.before_lines, threshold=1.0
+            current_lines,
+            hv.before_lines,
+            threshold=1.0,
+            strategy=matching_strategy,
         )
         if exact_candidates:
             pos, score = exact_candidates[0]
@@ -595,7 +586,10 @@ def apply_hunks(
             continue
 
         fuzzy_candidates = find_candidates(
-            current_lines, hv.before_lines, threshold=threshold
+            current_lines,
+            hv.before_lines,
+            threshold=threshold,
+            strategy=matching_strategy,
         )
         if len(fuzzy_candidates) == 1:
             pos, score = fuzzy_candidates[0]
@@ -679,7 +673,10 @@ def apply_hunks(
         context_candidates: list[tuple[int, float]] = []
         if context_lines:
             context_candidates = find_candidates(
-                current_lines, context_lines, threshold=threshold
+                current_lines,
+                context_lines,
+                threshold=threshold,
+                strategy=matching_strategy,
             )
         if context_candidates:
             decision.strategy = "manual"
@@ -1042,6 +1039,5 @@ __all__ = [
     "find_candidates",
     "prepare_backup_dir",
     "prune_backup_sessions",
-    "text_similarity",
     "write_reports",
 ]

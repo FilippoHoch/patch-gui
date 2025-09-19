@@ -41,6 +41,8 @@ mantenere l'automazione nei flussi di lavoro Git.
   generando sempre report dettagliati.
 - **Ricerca file flessibile** con soglia fuzzy configurabile e gestione delle
   ambiguità direttamente da GUI o CLI.
+- **Matcher ottimizzato** con tokenizzazione adattiva e fallback legacy, per
+  trovare rapidamente i candidati migliori anche in diff molto estesi.
 - **Backup automatici e report** (`json`/`txt`) ordinati per timestamp e pronti
   per la condivisione o l'audit.
 - **Internazionalizzazione**: interfaccia e CLI sono disponibili in italiano e
@@ -132,6 +134,8 @@ utili:
 - `--apply`: forza l'applicazione reale anche se la configurazione predefinisce il
   dry-run.
 - `--threshold`: regola la tolleranza fuzzy (default `0.85`).
+- `--matching-strategy`: seleziona l'algoritmo di ricerca (`auto`, `token`,
+  `legacy`).
 - `--backup`: directory personalizzata per backup e report.
 - `--config-path`: usa un file di configurazione alternativo per i default.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
@@ -184,6 +188,7 @@ Comandi aggiuntivi:
   ```bash
   patch-gui config show
   patch-gui config set threshold 0.9
+  patch-gui config set matching_strategy token
   patch-gui config reset log_file
   ```
 
@@ -250,6 +255,10 @@ pip install -e .[gui]
 pip install -r requirements.txt
 pytest
 ```
+
+Per monitorare l'efficacia delle strategie di matching puoi eseguire
+`scripts/benchmark_matching.py`, che confronta tempi e numero di confronti tra
+matcher legacy e tokenizzato su un file di riferimento.
 
 Per allineare i controlli con la CI:
 
