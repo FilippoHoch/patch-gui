@@ -605,7 +605,9 @@ def _apply_file_patch(
     resolved_ai_assistant = (
         config.ai_assistant_enabled if ai_assistant is None else ai_assistant
     )
-    resolved_ai_auto = config.ai_auto_apply if ai_auto_select is None else ai_auto_select
+    resolved_ai_auto = (
+        config.ai_auto_apply if ai_auto_select is None else ai_auto_select
+    )
     if resolved_ai_auto:
         resolved_ai_assistant = True
 
@@ -846,9 +848,7 @@ def _cli_manual_resolver(
             )
         )
         if ai_hint.explanation:
-            print(
-                _("  Explanation: {text}").format(text=ai_hint.explanation)
-            )
+            print(_("  Explanation: {text}").format(text=ai_hint.explanation))
 
         if ai_auto_select:
             chosen_pos = ai_hint.position

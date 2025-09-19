@@ -14,7 +14,6 @@ from .diff_formatting import format_diff_with_line_numbers
 from .interactive_diff_model import (
     FileDiffEntry,
     enrich_entry_with_ai_note,
-    set_diff_note_client,
 )
 
 
@@ -548,7 +547,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 cache[entry] = enriched
                 return enriched
 
-            self._original_entries = [_resolve(entry) for entry in self._original_entries]
+            self._original_entries = [
+                _resolve(entry) for entry in self._original_entries
+            ]
             for idx in range(self._list_widget.count()):
                 item = self._list_widget.item(idx)
                 entry = item.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -581,7 +582,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
             item = self._list_widget.item(idx)
             entry = item.data(QtCore.Qt.ItemDataRole.UserRole)
             widget = self._list_widget.itemWidget(item)
-            if isinstance(entry, FileDiffEntry) and isinstance(widget, _DiffListItemWidget):
+            if isinstance(entry, FileDiffEntry) and isinstance(
+                widget, _DiffListItemWidget
+            ):
                 note = entry.ai_note if self._ai_notes_enabled else None
                 widget.set_ai_note(note)
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Optional, Protocol, Sequence
+from typing import Iterable, Iterator, Optional, Protocol, Sequence
 
 from patch_gui.ai_conflict_helper import generate_conflict_suggestion
 from patch_gui.localization import gettext as _
@@ -223,9 +223,7 @@ class ApplySession:
                 )
             )
             if fr.ai_summary:
-                lines.append(
-                    _("  AI summary: {summary}").format(summary=fr.ai_summary)
-                )
+                lines.append(_("  AI summary: {summary}").format(summary=fr.ai_summary))
             for d in fr.decisions:
                 lines.append(
                     _("    Hunk {header} -> {strategy}").format(
@@ -283,16 +281,16 @@ class ApplySession:
                         )
                     else:
                         lines.append(
-                            _(
-                                "      AI suggestion ({origin}): pos {position}"
-                            ).format(
+                            _("      AI suggestion ({origin}): pos {position}").format(
                                 origin=origin,
                                 position=d.ai_recommendation,
                             )
                         )
                     if d.ai_explanation:
                         lines.append(
-                            _("        Explanation: {text}").format(text=d.ai_explanation)
+                            _("        Explanation: {text}").format(
+                                text=d.ai_explanation
+                            )
                         )
             lines.append("")
         return "\n".join(lines)
@@ -306,10 +304,19 @@ class HunkView:
     context_lines: list[str] = field(default_factory=list)
 
 
-ManualResolver = Callable[
-    ["HunkView", list[str], list[tuple[int, float]], HunkDecision, str, str],
-    Optional[int],
-]
+class ManualResolver(Protocol):
+    def __call__(
+        self,
+        hv: "HunkView",
+        lines: list[str],
+        candidates: list[tuple[int, float]],
+        decision: HunkDecision,
+        reason: str,
+        /,
+        *,
+        original_diff: str,
+    ) -> Optional[int]:
+        """Resolve an ambiguous hunk by picking a candidate position."""
 
 
 def build_hunk_view(hunk: _HunkLike) -> HunkView:

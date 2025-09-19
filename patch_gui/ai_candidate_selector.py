@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Iterable, Optional, Sequence
+from typing import Optional, Sequence
 
 from .patcher import HunkView
 
@@ -199,9 +199,7 @@ def _local_best_candidate(
         else:
             continue
 
-        explanation = (
-            "Local heuristic based on textual similarity."
-        )
+        explanation = "Local heuristic based on textual similarity."
         if best is None or score > best.confidence:
             best = AISuggestion(
                 candidate_index=index,
@@ -249,4 +247,3 @@ def rank_candidates(
     except AIAssistantError as exc:
         log.warning("AI assistant unavailable: %s", exc)
         return local_choice
-

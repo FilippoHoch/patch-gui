@@ -697,7 +697,8 @@ class CandidateDialog(_QDialogBase):
                 )
             if assistant_patch:
                 patch_label = QtWidgets.QLabel(
-                    _("Diff suggerito – applicazione manuale:"))
+                    _("Diff suggerito – applicazione manuale:")
+                )
                 patch_label.setWordWrap(True)
                 suggestion_layout.addWidget(patch_label)
                 patch_edit = QtWidgets.QPlainTextEdit(assistant_patch)
@@ -751,9 +752,7 @@ class CandidateDialog(_QDialogBase):
             self.ai_label = QtWidgets.QLabel(suggestion_text)
             self.ai_label.setWordWrap(True)
             suggestion_layout.addWidget(self.ai_label, 1)
-            self.apply_ai_btn = QtWidgets.QPushButton(
-                _("Applica suggerimento")
-            )
+            self.apply_ai_btn = QtWidgets.QPushButton(_("Applica suggerimento"))
             self.apply_ai_btn.clicked.connect(self._apply_ai)
             suggestion_layout.addWidget(self.apply_ai_btn)
             layout.addWidget(suggestion_widget)
@@ -1016,9 +1015,7 @@ class SettingsDialog(_QDialogBase):
         self.ai_assistant_check = QtWidgets.QCheckBox(
             _("Suggerisci automaticamente con l'assistente AI")
         )
-        self.ai_assistant_check.setChecked(
-            self._original_config.ai_assistant_enabled
-        )
+        self.ai_assistant_check.setChecked(self._original_config.ai_assistant_enabled)
         form.addRow("", self.ai_assistant_check)
 
         self.ai_auto_check = QtWidgets.QCheckBox(
@@ -1030,9 +1027,7 @@ class SettingsDialog(_QDialogBase):
         self.ai_diff_notes_check = QtWidgets.QCheckBox(
             _("Mostra note AI nel diff interattivo")
         )
-        self.ai_diff_notes_check.setChecked(
-            self._original_config.ai_diff_notes_enabled
-        )
+        self.ai_diff_notes_check.setChecked(self._original_config.ai_diff_notes_enabled)
         form.addRow("", self.ai_diff_notes_check)
 
         self.buttons = QtWidgets.QDialogButtonBox(
@@ -2178,9 +2173,9 @@ class MainWindow(_QMainWindowBase):
                 "Operazione terminata. Report disabilitati nelle impostazioni."
             )
         if session.ai_summary:
-            completion_message += "\n\n" + _(
-                "Sintesi AI: {summary}"
-            ).format(summary=session.ai_summary)
+            completion_message += "\n\n" + _("Sintesi AI: {summary}").format(
+                summary=session.ai_summary
+            )
         QtWidgets.QMessageBox.information(
             self,
             _("Completato"),
