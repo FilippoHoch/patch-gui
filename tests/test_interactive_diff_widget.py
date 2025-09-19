@@ -1,4 +1,6 @@
-from typing import Any, cast
+from __future__ import annotations
+
+from typing import Any, Callable, cast
 
 import pytest
 from unidiff import PatchSet
@@ -9,6 +11,10 @@ from patch_gui.diff_formatting import (
 )
 from patch_gui.interactive_diff_model import FileDiffEntry
 from tests._pytest_typing import typed_fixture
+
+SplitDiffView: type[Any] | None
+InteractiveDiffWidget: type[Any] | None
+build_diff_highlight_palette: Callable[..., Any] | None
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtCore as _QtCore, QtWidgets as _QtWidgets
@@ -33,9 +39,9 @@ except Exception as exc:  # pragma: no cover - missing GUI deps
     build_diff_highlight_palette = None
     _WIDGET_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - bindings available
-    SplitDiffView = _SplitDiffView
-    InteractiveDiffWidget = _InteractiveDiffWidget
-    build_diff_highlight_palette = _build_palette
+    SplitDiffView = cast(type[Any], _SplitDiffView)
+    InteractiveDiffWidget = cast(type[Any], _InteractiveDiffWidget)
+    build_diff_highlight_palette = cast(Callable[..., Any], _build_palette)
     _WIDGET_IMPORT_ERROR = None
 
 

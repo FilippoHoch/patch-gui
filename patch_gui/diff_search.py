@@ -7,6 +7,8 @@ from typing import List, Sequence
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from .qt_types import QObjectBase
+
 __all__ = [
     "DiffSearchHelper",
     "DiffSearchMatch",
@@ -25,7 +27,7 @@ class DiffSearchMatch:
     text: str
 
 
-class DiffSearchHelper(QtCore.QObject):
+class DiffSearchHelper(QObjectBase):
     """Search controller that highlights matches inside ``QPlainTextEdit`` widgets."""
 
     resultsChanged = QtCore.Signal(int)

@@ -15,12 +15,13 @@ from .highlighter import (
 from .diff_formatting import RenderedHunk
 from .interactive_diff_model import FileDiffEntry
 from .localization import gettext as _
+from .qt_types import QFrameBase, QWidgetBase
 
 
 _NUMBERED_RE = re.compile(r"^(?P<left>.{6}) │ (?P<right>.{6}) │ (?P<content>.*)$")
 
 
-class SplitDiffView(QtWidgets.QWidget):
+class SplitDiffView(QWidgetBase):
     """Render hunks of a :class:`FileDiffEntry` in synchronized columns."""
 
     hunkToggled = QtCore.Signal(int, bool)
@@ -157,7 +158,7 @@ class SplitDiffView(QtWidgets.QWidget):
         self.hunkToggled.emit(index, applied)
 
 
-class _HunkWidget(QtWidgets.QFrame):
+class _HunkWidget(QFrameBase):
     """Widget showing a single hunk with apply/skip controls."""
 
     hunkToggled = QtCore.Signal(int, bool)
@@ -241,7 +242,7 @@ class _HunkWidget(QtWidgets.QFrame):
         self.hunkToggled.emit(self._index, applied)
 
 
-class _HunkColumns(QtWidgets.QWidget):
+class _HunkColumns(QWidgetBase):
     """Two synchronized ``QPlainTextEdit`` widgets for a diff hunk."""
 
     def __init__(
