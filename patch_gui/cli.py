@@ -70,9 +70,32 @@ _CONFIG_KEYS = (
 def run_cli(argv: Sequence[str] | None = None) -> int:
     """Parse ``argv`` and execute the CLI workflow."""
 
-    config = load_config()
-    parser = build_parser(config=config)
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    if argv is None:
+        arg_list = sys.argv[1:]
+    else:
+        arg_list = list(argv)
+
+    preliminary = argparse.ArgumentParser(add_help=False)
+    preliminary.add_argument("--config-path", type=Path, default=None)
+    preliminary_args, _remaining = preliminary.parse_known_args(arg_list)
+    selected_config_path = preliminary_args.config_path
+    if selected_config_path is not None:
+        if not selected_config_path.exists():
+            preliminary.error(
+                _("Configuration file not found: {path}").format(
+                    path=selected_config_path
+                )
+            )
+        if not selected_config_path.is_file():
+            preliminary.error(
+                _("Configuration path must reference a file: {path}").format(
+                    path=selected_config_path
+                )
+            )
+
+    config = load_config(selected_config_path)
+    parser = build_parser(config=config, config_path=selected_config_path)
+    args = parser.parse_args(arg_list)
 
     raw_summary_formats = list(args.summary_format) if args.summary_format else None
     if raw_summary_formats and "none" in raw_summary_formats:
