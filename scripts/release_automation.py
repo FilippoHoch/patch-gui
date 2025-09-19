@@ -39,6 +39,7 @@ from typing import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 KEEP_BRANCHES = {"master", "develop"}
+CODEX_PREFIX = "codex"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 VERSION_MODULE_PATH = REPO_ROOT / "patch_gui" / "_version.py"
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
@@ -147,11 +148,17 @@ def prune_remote_branches(*, dry_run: bool, remote: str = "origin") -> None:
             _, branch = full_ref.split("/", 1)
         except ValueError:  # pragma: no cover - difesa extra
             continue
-        if branch in KEEP_BRANCHES:
+        if branch in KEEP_BRANCHES or not branch.startswith(CODEX_PREFIX):
             continue
         action = "Elimino" if not dry_run else "Eliminerei"
         print(f"{action} il branch remoto {branch} da {remote}")
-        run_cmd(["git", "push", remote, "--delete", branch], dry_run=dry_run)
+        try:
+            run_cmd(["git", "push", remote, "--delete", branch], dry_run=dry_run)
+        except ReleaseError as error:
+            print(
+                "Impossibile completare l'eliminazione del branch "
+                f"{branch}: {error}"
+            )
 
 
 def checkout_branch(branch: str, *, dry_run: bool) -> None:
