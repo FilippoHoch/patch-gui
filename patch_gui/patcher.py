@@ -125,6 +125,12 @@ class ApplySession:
     file_summaries: dict[str, str] = field(default_factory=dict)
     file_index: Optional[FileIndex] = None
     lookup_metrics: FileLookupMetrics = field(default_factory=FileLookupMetrics)
+    summary_diff_digest: Optional[str] = None
+    summary_cache_key: Optional[str] = None
+    summary_cache_hit: Optional[bool] = None
+    summary_generated_at: Optional[float] = None
+    summary_duration: Optional[float] = None
+    summary_error: Optional[str] = None
 
     def ensure_index(self) -> FileIndex:
         if self.file_index is None:
@@ -141,6 +147,12 @@ class ApplySession:
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "ai_summary": self.ai_summary,
             "file_summaries": self.file_summaries,
+            "summary_diff_digest": self.summary_diff_digest,
+            "summary_cache_key": self.summary_cache_key,
+            "summary_cache_hit": self.summary_cache_hit,
+            "summary_generated_at": self.summary_generated_at,
+            "summary_duration": self.summary_duration,
+            "summary_error": self.summary_error,
             "files": [
                 {
                     "file": fr.relative_to_root,

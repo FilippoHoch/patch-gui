@@ -2,19 +2,38 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 from .patcher import ApplySession
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["AISummary", "generate_session_summary", "AISummaryError"]
+__all__ = [
+    "AISummary",
+    "AISummaryError",
+    "AISummaryHooks",
+    "compute_diff_digest",
+    "generate_session_summary",
+]
+
+
+def compute_diff_digest(diff: object) -> str:
+    """Return a stable digest for ``diff`` suitable for cache keys."""
+
+    if isinstance(diff, str):
+        text = diff
+    else:
+        text = str(diff)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class AISummaryError(RuntimeError):
@@ -35,6 +54,26 @@ class AISummary:
 _DEFAULT_TIMEOUT = 15.0
 _MAX_DECISIONS_PER_FILE = 50
 _MAX_CANDIDATES_PER_DECISION = 5
+
+
+SummaryStartCallback = Callable[[dict[str, object]], None]
+SummaryChunkCallback = Callable[[dict[str, object]], None]
+SummaryCompleteCallback = Callable[["AISummary", bool], None]
+SummaryCachedCallback = Callable[["AISummary"], None]
+
+
+@dataclass(slots=True)
+class AISummaryHooks:
+    """Optional callbacks invoked while fetching AI summaries."""
+
+    on_start: Optional[SummaryStartCallback] = None
+    on_chunk: Optional[SummaryChunkCallback] = None
+    on_complete: Optional[SummaryCompleteCallback] = None
+    on_cached: Optional[SummaryCachedCallback] = None
+
+
+_SUMMARY_CACHE: dict[str, tuple[AISummary, float]] = {}
+_SUMMARY_CACHE_LOCK = threading.Lock()
 
 
 def _build_payload(session: ApplySession) -> dict[str, object]:
@@ -83,7 +122,9 @@ def _build_payload(session: ApplySession) -> dict[str, object]:
     return payload
 
 
-def _call_summary_service(payload: dict[str, object]) -> dict[str, object]:
+def _call_summary_service(
+    payload: dict[str, object], *, timeout: float
+) -> dict[str, object]:
     endpoint = os.getenv("PATCH_GUI_AI_SUMMARY_ENDPOINT")
     if not endpoint:
         raise AISummaryError(
@@ -99,7 +140,7 @@ def _call_summary_service(payload: dict[str, object]) -> dict[str, object]:
         request.add_header("Authorization", f"Bearer {token}")
 
     try:
-        with urllib.request.urlopen(request, timeout=_DEFAULT_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read()
             charset = response.headers.get_content_charset("utf-8")
     except urllib.error.HTTPError as exc:  # pragma: no cover - network error paths
@@ -160,22 +201,115 @@ def _parse_summary_response(response: dict[str, object]) -> AISummary:
     return AISummary(overall=overall, per_file=per_file)
 
 
-def generate_session_summary(session: ApplySession) -> Optional[AISummary]:
+def _cache_key_for_payload(
+    session: ApplySession, payload: dict[str, object]
+) -> Optional[str]:
+    if session.summary_diff_digest:
+        return session.summary_diff_digest
+    try:
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    except TypeError:  # pragma: no cover - payload contains unserialisable items
+        return None
+    digest = hashlib.sha256(encoded).hexdigest()
+    return digest
+
+
+def _store_cache_entry(cache_key: str, summary: AISummary, timestamp: float) -> None:
+    with _SUMMARY_CACHE_LOCK:
+        _SUMMARY_CACHE[cache_key] = (
+            AISummary(overall=summary.overall, per_file=dict(summary.per_file)),
+            timestamp,
+        )
+
+
+def _load_cache_entry(cache_key: str) -> Optional[tuple[AISummary, float]]:
+    with _SUMMARY_CACHE_LOCK:
+        cached = _SUMMARY_CACHE.get(cache_key)
+    if cached is None:
+        return None
+    summary, timestamp = cached
+    return AISummary(overall=summary.overall, per_file=dict(summary.per_file)), timestamp
+
+
+def _invoke_callback(callback: Optional[Callable[..., None]], *args: object) -> None:
+    if callback is None:
+        return
+    try:
+        callback(*args)
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Summary callback raised", exc_info=True)
+
+
+def generate_session_summary(
+    session: ApplySession,
+    *,
+    use_cache: bool = True,
+    timeout: float = _DEFAULT_TIMEOUT,
+    hooks: Optional[AISummaryHooks] = None,
+) -> Optional[AISummary]:
     """Return the AI-generated summary for ``session`` if configured."""
 
+    hooks = hooks or AISummaryHooks()
+    session.summary_error = None
+    session.summary_duration = None
+    session.summary_generated_at = None
+    session.summary_cache_hit = None
+
+    start_ts = time.time()
     try:
         payload = _build_payload(session)
-        response = _call_summary_service(payload)
+    except Exception as exc:  # pragma: no cover - defensive
+        session.summary_error = str(exc)
+        logger.exception("Failed to build AI summary payload: %s", exc)
+        return None
+
+    cache_key = _cache_key_for_payload(session, payload)
+    session.summary_cache_key = cache_key
+
+    cached_entry: Optional[tuple[AISummary, float]] = None
+    if use_cache and cache_key:
+        cached_entry = _load_cache_entry(cache_key)
+
+    if cached_entry is not None:
+        summary, timestamp = cached_entry
+        session.summary_cache_hit = True
+        session.summary_generated_at = timestamp
+        session.summary_duration = 0.0
+        _invoke_callback(hooks.on_cached, summary)
+        _invoke_callback(hooks.on_complete, summary, True)
+        return summary
+
+    session.summary_cache_hit = False
+    _invoke_callback(hooks.on_start, payload)
+
+    try:
+        response = _call_summary_service(payload, timeout=timeout)
+        _invoke_callback(hooks.on_chunk, response)
         summary = _parse_summary_response(response)
     except AISummaryError as exc:
+        session.summary_error = str(exc)
+        session.summary_duration = time.time() - start_ts
         logger.info("AI summary unavailable: %s", exc)
         return None
     except Exception as exc:  # pragma: no cover - defensive guard
+        session.summary_error = str(exc)
+        session.summary_duration = time.time() - start_ts
         logger.exception("Unexpected error while retrieving AI summary: %s", exc)
         return None
 
     if summary.is_empty():
-        logger.info("AI summary response did not contain any text")
+        session.summary_duration = time.time() - start_ts
+        session.summary_error = "AI summary response did not contain any text"
+        logger.info(session.summary_error)
         return None
 
+    completed_ts = time.time()
+    session.summary_generated_at = completed_ts
+    session.summary_duration = completed_ts - start_ts
+    session.summary_error = None
+
+    if cache_key:
+        _store_cache_entry(cache_key, summary, completed_ts)
+
+    _invoke_callback(hooks.on_complete, summary, False)
     return summary
