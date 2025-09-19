@@ -260,19 +260,31 @@ def _normalize_nonstandard_file_headers(text: str) -> str:
 
     changed = False
     limit = len(lines) - 1
-    for idx in range(limit):
+    idx = 0
+    while idx <= limit:
         line = lines[idx]
         if not line.startswith("*** "):
+            idx += 1
             continue
         if " Begin Patch" in line or " End Patch" in line:
+            idx += 1
+            continue
+        if line.startswith("*** Update File:"):
+            idx += 1
             continue
 
         source_raw = line[4:].strip()
-        target_line = lines[idx + 1]
-        if not target_line.startswith("--- "):
-            continue
-
-        target_raw = target_line[4:].strip()
+        target_line = lines[idx + 1] if idx + 1 <= limit else ""
+        if target_line.startswith("--- "):
+            target_raw = target_line[4:].strip()
+            insert_target = False
+        else:
+            # Some legacy diffs only include the "***" header line without a
+            # corresponding target header. Synthesize a matching "+++" header
+            # pointing to the same path so the diff becomes a valid unified
+            # diff.
+            target_raw = source_raw
+            insert_target = True
 
         def _ensure_prefix(path: str, prefix: str) -> str:
             if path in {"/dev/null", "dev/null"}:
@@ -285,8 +297,16 @@ def _normalize_nonstandard_file_headers(text: str) -> str:
         target = _ensure_prefix(target_raw, "b/")
 
         lines[idx] = f"--- {source}"
-        lines[idx + 1] = f"+++ {target}"
-        changed = True
+        if insert_target:
+            lines.insert(idx + 1, f"+++ {target}")
+            changed = True
+            limit += 1
+        else:
+            lines[idx + 1] = f"+++ {target}"
+            changed = True
+
+        idx += 2
+        continue
 
     if not changed:
         return text

@@ -827,19 +827,17 @@ def test_load_patch_invalid_diff_raises_clierror(tmp_path: Path) -> None:
     assert "@@ -1,0 +1,0 @@" in message
 
 
-def test_load_patch_reports_missing_file_header(tmp_path: Path) -> None:
-    invalid = tmp_path / "legacy.diff"
-    invalid.write_text(
-        "*** js/deviceConfigStatus.js\n@@ -1,12 +1,12 @@\n",
+def test_load_patch_synthesizes_missing_nonstandard_header(tmp_path: Path) -> None:
+    legacy = tmp_path / "legacy.diff"
+    legacy.write_text(
+        "*** js/deviceConfigStatus.js\n@@ -1,1 +1,1 @@\n-old\n+new\n",
         encoding="utf-8",
     )
 
-    with pytest.raises(cli.CLIError) as excinfo:
-        cli.load_patch(str(invalid))
+    patch = cli.load_patch(str(legacy))
 
-    message = str(excinfo.value)
-    assert "before any file header" in message
-    assert "@@ -1,0 +1,0 @@" in message
+    assert isinstance(patch, PatchSet)
+    assert patch[0].path == "js/deviceConfigStatus.js"
 
 
 def test_run_cli_requires_root_argument(
