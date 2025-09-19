@@ -35,8 +35,8 @@ mantenere l'automazione nei flussi di lavoro Git.
 
 ## Panoramica
 
-- **Anteprima diff a tre colonne**: elenco file, hunk con stato e visualizzazione
-  colorata con numeri di riga reali.
+- **Revisione diff affiancata**: elenco file riordinabile, anteprima sincronizzata
+  vecchio/nuovo e controlli per applicare o saltare singoli hunk.
 - **Dry-run di default** con opzione per applicare realmente le modifiche,
   generando sempre report dettagliati.
 - **Ricerca file flessibile** con soglia fuzzy configurabile e gestione delle
@@ -189,13 +189,18 @@ Comandi aggiuntivi:
 
 ## GUI in breve
 
-1. **Layout a tre colonne** con elenco file, hunk e anteprima diff.
-2. **Toolbar visibile** per dry-run, soglia fuzzy, lingua e cartella di backup.
-3. **Dialoghi contestuali** per risolvere file ambigui o hunk in conflitto.
-4. **Indicatori di avanzamento** e riepilogo finale con accesso diretto ai
+1. **Layout a tre pannelli** con elenco file, anteprima split diff e pulsanti
+   per applicare/saltare ogni hunk.
+2. **Interruttore “Vista impilata”** per passare rapidamente dalla modalità
+   affiancata a quella verticale.
+3. **Toolbar visibile** per dry-run, soglia fuzzy, lingua e cartella di backup.
+4. **Dialoghi contestuali** per risolvere file ambigui o hunk in conflitto.
+5. **Indicatori di avanzamento** e riepilogo finale con accesso diretto ai
    report generati.
-5. **Ripristino backup** dal menu **File → Ripristina da backup…** scegliendo
+6. **Ripristino backup** dal menu **File → Ripristina da backup…** scegliendo
    il timestamp desiderato.
+
+
 
 ## Backup e report
 

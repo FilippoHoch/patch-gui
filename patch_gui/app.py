@@ -23,7 +23,7 @@ from .ai_candidate_selector import AISuggestion, rank_candidates
 from .ai_summaries import generate_session_summary
 from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
-from .highlighter import DiffHighlighter
+from .highlighter import DiffHighlighter, build_diff_highlight_palette
 from .i18n import install_translators
 from .interactive_diff import InteractiveDiffWidget
 from .localization import gettext as _
@@ -1566,12 +1566,18 @@ class MainWindow(_QMainWindowBase):
         self.text_diff.setPlaceholderText(
             _("Incolla qui il diff se non stai aprendo un file…")
         )
-        self._diff_highlighter = DiffHighlighter(self.text_diff.document())
+        self._diff_highlighter = DiffHighlighter(
+            self.text_diff.document(),
+            palette=build_diff_highlight_palette(self.text_diff.palette()),
+        )
         self.diff_tabs.addTab(self.text_diff, _("Editor diff"))
 
         self.preview_view = QtWidgets.QPlainTextEdit()
         self.preview_view.setReadOnly(True)
-        self._preview_highlighter = DiffHighlighter(self.preview_view.document())
+        self._preview_highlighter = DiffHighlighter(
+            self.preview_view.document(),
+            palette=build_diff_highlight_palette(self.preview_view.palette()),
+        )
         self.diff_tabs.addTab(self.preview_view, _("Anteprima"))
 
         self.interactive_diff = InteractiveDiffWidget(

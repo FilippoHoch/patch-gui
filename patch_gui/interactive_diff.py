@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html import escape
 from typing import Iterable, List
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .highlighter import DiffHighlighter
+from .highlighter import build_diff_highlight_palette
 from .localization import gettext as _
-from .diff_formatting import format_diff_with_line_numbers
+from .diff_formatting import format_diff_with_line_numbers, render_diff_segments
 from .interactive_diff_model import (
     FileDiffEntry,
     enrich_entry_with_ai_note,
 )
+from .split_diff_view import SplitDiffView
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,9 +199,24 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         header_layout.setContentsMargins(16, 14, 16, 14)
         header_layout.setSpacing(6)
 
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(6)
+        header_layout.addLayout(header_row)
+
         title_label = QtWidgets.QLabel(_("Organizza il diff"))
         title_label.setObjectName("interactiveDiffTitle")
-        header_layout.addWidget(title_label)
+        header_row.addWidget(title_label)
+
+        header_row.addStretch(1)
+
+        self._layout_toggle = QtWidgets.QCheckBox(_("Vista impilata"))
+        self._layout_toggle.setObjectName("interactiveDiffLayoutToggle")
+        self._layout_toggle.setToolTip(
+            _("Mostra il diff sotto l'elenco anziché affiancato.")
+        )
+        self._layout_toggle.toggled.connect(self._update_layout_mode)
+        header_row.addWidget(self._layout_toggle)
 
         self._info_label = QtWidgets.QLabel(
             _(
@@ -217,13 +233,16 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         layout.addWidget(header)
 
-        splitter = QtWidgets.QSplitter()
-        splitter.setOrientation(QtCore.Qt.Orientation.Vertical)
-        splitter.setStyleSheet(
+        self._highlight_palette = build_diff_highlight_palette(self.palette())
+
+        self._content_splitter = QtWidgets.QSplitter()
+        self._content_splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
+        self._content_splitter.setChildrenCollapsible(False)
+        self._content_splitter.setStyleSheet(
             """
             QSplitter::handle {
                 background-color: %(border_subtle)s;
-                margin: 6px 0;
+                margin: 6px;
             }
             QSplitter::handle:hover {
                 background-color: %(accent)s;
@@ -234,12 +253,12 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 "accent": self._colors.accent,
             }
         )
-        layout.addWidget(splitter, 1)
+        layout.addWidget(self._content_splitter, 1)
 
-        upper = QtWidgets.QWidget()
-        upper_layout = QtWidgets.QVBoxLayout(upper)
-        upper_layout.setContentsMargins(0, 0, 0, 0)
-        upper_layout.setSpacing(12)
+        list_panel = QtWidgets.QWidget()
+        list_layout = QtWidgets.QVBoxLayout(list_panel)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(12)
 
         order_container = QtWidgets.QFrame()
         order_container.setObjectName("interactiveDiffOrderContainer")
@@ -322,7 +341,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._order_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
         order_layout.addWidget(self._order_label)
 
-        upper_layout.addWidget(order_container)
+        list_layout.addWidget(order_container)
 
         self._list_widget = QtWidgets.QListWidget()
         self._list_widget.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
@@ -365,45 +384,17 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
             QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
         )
         self._list_widget.viewport().setProperty("interactive", True)
-        upper_layout.addWidget(self._list_widget, 1)
+        list_layout.addWidget(self._list_widget, 1)
 
-        splitter.addWidget(upper)
+        self._content_splitter.addWidget(list_panel)
 
-        self._preview = QtWidgets.QPlainTextEdit()
-        self._preview.setReadOnly(True)
-        self._preview.setPlaceholderText(
-            _("Seleziona un file dall'elenco per vederne il diff completo.")
+        self._split_view = SplitDiffView(
+            highlighter_palette=self._highlight_palette,
         )
-        self._preview.setStyleSheet(
-            """
-            QPlainTextEdit {
-                background-color: %(background)s;
-                color: %(text)s;
-                border: 1px solid %(border)s;
-                border-radius: 10px;
-                selection-background-color: %(selection_bg)s;
-                selection-color: %(selection_fg)s;
-            }
-            QPlainTextEdit[enabled="false"] {
-                background-color: %(disabled_bg)s;
-                color: %(disabled_fg)s;
-                border-color: %(border_subtle)s;
-            }
-            """
-            % {
-                "background": self._colors.preview_background,
-                "text": self._colors.text_primary,
-                "border": self._colors.preview_border,
-                "selection_bg": self._colors.accent,
-                "selection_fg": self._colors.on_accent,
-                "disabled_bg": self._colors.preview_disabled_bg,
-                "disabled_fg": self._colors.preview_disabled_fg,
-                "border_subtle": self._colors.border_subtle,
-            }
-        )
-        self._highlighter = DiffHighlighter(self._preview.document())
-        splitter.addWidget(self._preview)
-        splitter.setSizes([180, 320])
+        self._split_view.setObjectName("interactiveDiffSplitView")
+        self._split_view.hunkToggled.connect(self._on_hunk_toggled)
+        self._content_splitter.addWidget(self._split_view)
+        self._content_splitter.setSizes([300, 520])
 
         buttons = QtWidgets.QHBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
@@ -496,14 +487,15 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         self._original_entries = []
         self._list_widget.clear()
-        self._preview.clear()
-        self._apply_preview_note(None)
+        self._split_view.clear()
+        self._apply_entry_note(None)
         self._order_label.clear()
         self._update_enabled_state()
 
     def set_patch(self, patch: Iterable[object]) -> None:
         """Populate the widget using a parsed patch set."""
 
+        self._split_view.clear()
         entries: list[FileDiffEntry] = []
         for patched_file in patch:
             file_label = (
@@ -516,13 +508,35 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
             if not diff_text.endswith("\n"):
                 diff_text += "\n"
             additions, deletions = _count_changes(diff_text)
-            annotated_text = format_diff_with_line_numbers(patched_file, diff_text)
+            try:
+                rendered = render_diff_segments(patched_file)
+            except Exception:
+                rendered = None
+            hunks = rendered.hunks if rendered is not None else ()
+            if rendered is not None and hunks:
+                annotated_parts = [rendered.annotated_header_text]
+                annotated_parts.extend(h.annotated_text for h in hunks)
+                annotated_text = "".join(annotated_parts)
+                header_text = rendered.header_text
+                annotated_header = rendered.annotated_header_text
+                hunk_mask: tuple[bool, ...] | None = tuple(True for _ in hunks)
+            else:
+                annotated_text = format_diff_with_line_numbers(patched_file, diff_text)
+                header_text = rendered.header_text if rendered is not None else ""
+                annotated_header = (
+                    rendered.annotated_header_text if rendered is not None else ""
+                )
+                hunk_mask = tuple(True for _ in hunks) if hunks else None
             entry = FileDiffEntry(
                 file_label=file_label,
                 diff_text=diff_text,
                 annotated_diff_text=annotated_text,
                 additions=additions,
                 deletions=deletions,
+                header_text=header_text,
+                annotated_header_text=annotated_header,
+                hunks=hunks,
+                hunk_apply_mask=hunk_mask,
             )
             entry = enrich_entry_with_ai_note(entry, enabled=self._ai_notes_enabled)
             entries.append(entry)
@@ -592,9 +606,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         if current is not None:
             entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
             if isinstance(entry, FileDiffEntry):
-                self._apply_preview_note(entry)
+                self._apply_entry_note(entry)
                 return
-        self._apply_preview_note(None)
+        self._apply_entry_note(None)
 
     def _update_order_label(self) -> None:
         order_parts: list[str] = []
@@ -622,10 +636,11 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         has_entries = self._list_widget.count() > 0
         self._btn_apply.setEnabled(has_entries)
         self._btn_reset.setEnabled(has_entries)
-        self._preview.setEnabled(has_entries)
+        self._split_view.setEnabled(has_entries)
         self._list_widget.setEnabled(has_entries)
         if not has_entries:
-            self._apply_preview_note(None)
+            self._split_view.clear()
+            self._apply_entry_note(None)
 
     def _current_entries(self) -> list[FileDiffEntry]:
         result: list[FileDiffEntry] = []
@@ -636,11 +651,11 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 result.append(entry)
         return result
 
-    def _apply_preview_note(self, entry: FileDiffEntry | None) -> None:
+    def _apply_entry_note(self, entry: FileDiffEntry | None) -> None:
         if entry is not None and self._ai_notes_enabled and entry.ai_note:
-            self._preview.setToolTip(entry.ai_note)
+            self._split_view.setToolTip(entry.ai_note)
         else:
-            self._preview.setToolTip("")
+            self._split_view.setToolTip("")
 
     def _on_current_item_changed(
         self,
@@ -649,28 +664,105 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
     ) -> None:
         del previous
         if current is None:
-            self._preview.clear()
-            self._apply_preview_note(None)
+            self._split_view.set_entry(None)
+            self._apply_entry_note(None)
             return
         entry = current.data(QtCore.Qt.ItemDataRole.UserRole)
         if isinstance(entry, FileDiffEntry):
-            self._preview.setPlainText(entry.annotated_diff_text)
-            self._apply_preview_note(entry)
+            self._split_view.set_entry(entry, apply_mask=entry.hunk_apply_mask)
+            self._apply_entry_note(entry)
         else:
-            self._apply_preview_note(None)
+            self._split_view.set_entry(None)
+            self._apply_entry_note(None)
         self._refresh_item_selection()
 
-    def _apply_reordered_diff(self) -> None:
+    def _build_combined_diff(self) -> str | None:
         entries = self._current_entries()
         if not entries:
+            return None
+        parts: list[str] = []
+        for entry in entries:
+            if entry.hunks:
+                mask_source = entry.hunk_apply_mask
+                if mask_source is None:
+                    active_mask = [True] * entry.hunk_count
+                else:
+                    active_mask = list(mask_source)
+                    if len(active_mask) < entry.hunk_count:
+                        active_mask.extend([True] * (entry.hunk_count - len(active_mask)))
+                selected = [
+                    hunk
+                    for idx, hunk in enumerate(entry.hunks)
+                    if idx < len(active_mask) and active_mask[idx]
+                ]
+                if not selected:
+                    continue
+                segment_parts: list[str] = []
+                if entry.header_text:
+                    segment_parts.append(entry.header_text)
+                segment_parts.extend(hunk.raw_text for hunk in selected)
+                text = "".join(segment_parts)
+            else:
+                text = entry.diff_text
+            if not text.endswith("\n"):
+                text += "\n"
+            parts.append(text)
+        return "".join(parts)
+
+    def _emit_current_diff(self) -> None:
+        combined = self._build_combined_diff()
+        if combined is None:
             return
-        combined = _join_diff_entries(entries)
+        self.diffReordered.emit(combined)
+
+    def _on_hunk_toggled(self, index: int, applied: bool) -> None:
+        current_item = self._list_widget.currentItem()
+        if current_item is None:
+            return
+        entry = current_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not isinstance(entry, FileDiffEntry):
+            return
+        total = entry.hunk_count
+        if total == 0 or index < 0 or index >= total:
+            return
+        mask_source = entry.hunk_apply_mask
+        if mask_source is None:
+            mask = [True] * total
+        else:
+            mask = list(mask_source)
+            if len(mask) < total:
+                mask.extend([True] * (total - len(mask)))
+        if mask[index] == applied:
+            return
+        mask[index] = applied
+        new_entry = replace(entry, hunk_apply_mask=tuple(mask))
+        current_item.setData(QtCore.Qt.ItemDataRole.UserRole, new_entry)
+        self._apply_entry_note(new_entry)
+        self._emit_current_diff()
+
+    def _update_layout_mode(self, stacked: bool) -> None:
+        orientation = (
+            QtCore.Qt.Orientation.Vertical
+            if stacked
+            else QtCore.Qt.Orientation.Horizontal
+        )
+        if self._content_splitter.orientation() != orientation:
+            self._content_splitter.setOrientation(orientation)
+        if stacked:
+            self._content_splitter.setSizes([260, 360])
+        else:
+            self._content_splitter.setSizes([300, 520])
+
+    def _apply_reordered_diff(self) -> None:
+        combined = self._build_combined_diff()
+        if combined is None:
+            return
         self.diffReordered.emit(combined)
 
     def _reset_order(self) -> None:
+        self._split_view.set_entry(None)
+        self._apply_entry_note(None)
         self._populate(list(self._original_entries))
-        self._preview.clear()
-        self._apply_preview_note(None)
         self._refresh_item_selection()
 
     def _on_rows_moved(
@@ -949,13 +1041,3 @@ def _count_changes(diff_text: str) -> tuple[int, int]:
         elif line.startswith("-"):
             deletions += 1
     return additions, deletions
-
-
-def _join_diff_entries(entries: Iterable[FileDiffEntry]) -> str:
-    parts: list[str] = []
-    for entry in entries:
-        text = entry.diff_text
-        if not text.endswith("\n"):
-            text += "\n"
-        parts.append(text)
-    return "".join(parts)
