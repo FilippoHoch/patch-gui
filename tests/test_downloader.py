@@ -6,6 +6,7 @@ import io
 import json
 from pathlib import Path
 from typing import Any, List
+from urllib.error import HTTPError
 
 import pytest
 
@@ -115,3 +116,30 @@ def test_download_latest_release_exe_requires_force_for_existing_file(
         downloader.download_latest_release_exe(destination=existing, opener=responses)
 
     assert "Use --force" in str(excinfo.value)
+
+
+def test_download_latest_release_exe_wraps_http_error(tmp_path: Path) -> None:
+    download_url = "https://example.test/patch-gui.exe"
+    release_response = _FakeResponse(_release_payload(download_url))
+    http_error = HTTPError(
+        download_url, 404, "Not Found", hdrs=None, fp=io.BytesIO(b"missing")
+    )
+    requests: list[str] = []
+
+    def fake_opener(request: Any) -> _FakeResponse:
+        requests.append(request.full_url)
+        if len(requests) == 1:
+            return release_response
+        raise http_error
+
+    with pytest.raises(downloader.DownloadError) as excinfo:
+        downloader.download_latest_release_exe(
+            destination=tmp_path / "artifact.exe",
+            overwrite=True,
+            opener=fake_opener,
+        )
+
+    assert (
+        str(excinfo.value)
+        == "Failed to download release asset: HTTP Error 404: Not Found"
+    )

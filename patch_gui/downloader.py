@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -102,17 +103,24 @@ def download_latest_release_exe(
         )
 
     request = _build_request(asset.download_url, token=token)
-    response = opener_fn(request)
+    try:
+        response = opener_fn(request)
+    except HTTPError as exc:
+        _close_response(exc)
+        raise DownloadError(
+            _("Failed to download release asset: {error}").format(error=exc)
+        ) from exc
+    except URLError as exc:
+        raise DownloadError(
+            _("Unable to reach the download URL: {error}").format(error=exc)
+        ) from exc
     try:
         data_stream = _ensure_binary_stream(response)
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         with destination_path.open("wb") as handle:
             _copy_stream(data_stream, handle)
     finally:
-        try:
-            response.close()
-        except AttributeError:
-            pass
+        _close_response(response)
 
     return destination_path
 
@@ -195,6 +203,13 @@ def _select_asset(data: dict[str, object], asset_name: str) -> _ReleaseAsset:
         )
 
     return matched
+
+
+def _close_response(response: Any) -> None:
+    close = getattr(response, "close", None)
+    if callable(close):
+        with contextlib.suppress(AttributeError):
+            close()
 
 
 def _resolve_destination(destination: Path | None, asset_name: str) -> Path:
