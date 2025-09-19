@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -282,6 +284,108 @@ def test_find_file_candidates_allows_overriding_excludes(tmp_path: Path) -> None
     custom = find_file_candidates(project_root, "module.py", exclude_dirs=())
 
     assert custom == [file_path]
+
+
+def test_find_file_candidates_prioritises_recent_files(tmp_path: Path) -> None:
+    project_root = tmp_path
+    older_dir = project_root / "src"
+    newer_dir = project_root / "pkg"
+    older_dir.mkdir()
+    newer_dir.mkdir()
+
+    older_file = older_dir / "module.py"
+    newer_file = newer_dir / "module.py"
+    older_file.write_text("print('old')\n", encoding="utf-8")
+    newer_file.write_text("print('new')\n", encoding="utf-8")
+
+    now = time.time()
+    os.utime(older_file, (now - 3600, now - 3600))
+    os.utime(newer_file, (now, now))
+
+    backup_dir = project_root / "backups"
+    backup_dir.mkdir()
+
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=True,
+        threshold=0.85,
+        started_at=now,
+    )
+
+    result = find_file_candidates(
+        project_root,
+        "module.py",
+        session=session,
+    )
+
+    assert result[:2] == [newer_file, older_file]
+    assert session.lookup_metrics.total_queries == 1
+    assert session.lookup_metrics.total_candidates_considered >= 2
+
+
+def test_find_file_candidates_reuses_session_index(tmp_path: Path) -> None:
+    project_root = tmp_path
+    first_dir = project_root / "src"
+    second_dir = project_root / "tests"
+    first_dir.mkdir()
+    second_dir.mkdir()
+
+    file_one = first_dir / "module.py"
+    file_two = second_dir / "module.py"
+    file_one.write_text("print('a')\n", encoding="utf-8")
+    file_two.write_text("print('b')\n", encoding="utf-8")
+
+    backup_dir = project_root / "backups"
+    backup_dir.mkdir()
+
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=True,
+        threshold=0.85,
+        started_at=time.time(),
+    )
+
+    first = find_file_candidates(project_root, "module.py", session=session)
+    assert session.file_index is not None
+    scanned_files = session.file_index.metrics.scanned_files
+
+    second = find_file_candidates(project_root, "module.py", session=session)
+
+    assert first == second
+    assert session.file_index.metrics.scanned_files == scanned_files
+    assert session.lookup_metrics.total_queries == 2
+    assert session.lookup_metrics.suffix_hits >= 1
+
+
+def test_apply_session_reports_lookup_metrics(tmp_path: Path) -> None:
+    project_root = tmp_path
+    project_root.mkdir(exist_ok=True)
+    sample = project_root / "sample.py"
+    sample.write_text("print('metrics')\n", encoding="utf-8")
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+
+    session = ApplySession(
+        project_root=project_root,
+        backup_dir=backup_dir,
+        dry_run=True,
+        threshold=0.9,
+        started_at=time.time(),
+    )
+
+    data = session.to_json()
+    assert data["lookup_metrics"]["total_queries"] == 0
+    assert data["index_metrics"] is None
+
+    find_file_candidates(project_root, "missing.py", session=session)
+
+    updated = session.to_json()
+    assert updated["lookup_metrics"]["total_queries"] == 1
+    assert updated["index_metrics"] is not None
+    assert updated["index_metrics"]["scanned_files"] >= 1
 
 
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:

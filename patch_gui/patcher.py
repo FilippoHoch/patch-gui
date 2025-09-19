@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional, Protocol, Sequence
 
 from patch_gui.ai_conflict_helper import generate_conflict_suggestion
+from patch_gui.file_index import FileIndex, FileLookupMetrics, LookupEvent
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -122,6 +123,13 @@ class ApplySession:
     report_txt_path: Optional[Path] = None
     ai_summary: Optional[str] = None
     file_summaries: dict[str, str] = field(default_factory=dict)
+    file_index: Optional[FileIndex] = None
+    lookup_metrics: FileLookupMetrics = field(default_factory=FileLookupMetrics)
+
+    def ensure_index(self) -> FileIndex:
+        if self.file_index is None:
+            self.file_index = FileIndex(self.project_root, self.exclude_dirs)
+        return self.file_index
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -162,6 +170,10 @@ class ApplySession:
                 }
                 for fr in self.results
             ],
+            "lookup_metrics": self.lookup_metrics.to_dict(),
+            "index_metrics": self.file_index.metrics.to_dict()
+            if self.file_index is not None
+            else None,
         }
 
     def to_txt(self) -> str:
@@ -767,6 +779,7 @@ def find_file_candidates(
     rel_path: str,
     *,
     exclude_dirs: Sequence[str] = DEFAULT_EXCLUDE_DIRS,
+    session: Optional[ApplySession] = None,
 ) -> list[Path]:
     """Return possible file matches for ``rel_path`` relative to ``project_root``."""
 
@@ -797,58 +810,37 @@ def find_file_candidates(
                 )
             else:
                 logger.debug("Corrispondenza esatta trovata per %s", rel)
+                if session is not None:
+                    session.lookup_metrics.register(
+                        LookupEvent(
+                            rel_path=rel,
+                            suffix_components=len(Path(rel).parts),
+                            candidates_considered=1,
+                            duration=0.0,
+                        )
+                    )
                 return [resolved]
 
-    name = Path(rel).name
+    if session is not None:
+        index = session.ensure_index()
+    else:
+        index = FileIndex(root_resolved, exclude_dirs)
 
-    normalized_excludes: list[tuple[str, ...]] = []
-    for raw in exclude_dirs:
-        if not raw:
-            continue
-        parts = tuple(part for part in Path(raw).parts if part not in (".", ""))
-        if parts:
-            normalized_excludes.append(parts)
+    candidates, event = index.lookup(rel)
+    if session is not None:
+        session.lookup_metrics.register(event)
 
-    def should_exclude(path: Path) -> bool:
-        try:
-            relative = path.relative_to(project_root)
-        except ValueError:
-            return False
-        rel_parts = relative.parts[:-1]
-        if not rel_parts or not normalized_excludes:
-            return False
-        for pattern in normalized_excludes:
-            if len(pattern) == 1:
-                if pattern[0] in rel_parts:
-                    return True
-            else:
-                window = len(pattern)
-                for idx in range(len(rel_parts) - window + 1):
-                    if rel_parts[idx : idx + window] == pattern:
-                        return True
-        return False
-
-    matches = [
-        p for p in project_root.rglob(name) if p.is_file() and not should_exclude(p)
-    ]
-    if not matches:
+    if not candidates:
         logger.info("Nessun file trovato per %s", rel)
         return []
 
-    suffix_matches: list[Path] = []
-    for path in matches:
-        try:
-            relative = path.relative_to(project_root)
-        except ValueError:
-            continue
-        if str(relative).endswith(rel):
-            suffix_matches.append(path)
-    if len(suffix_matches) == 1:
-        logger.debug("Match per suffisso unico trovato: %s", suffix_matches[0])
-        return suffix_matches
-
-    logger.debug("Trovati %d candidati per %s", len(matches), rel)
-    return sorted(matches)
+    logger.debug(
+        "Trovati %d candidati per %s (suffisso=%d)",
+        len(candidates),
+        rel,
+        event.suffix_components,
+    )
+    return candidates
 
 
 def prepare_backup_dir(
