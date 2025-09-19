@@ -122,6 +122,11 @@ class ApplySession:
     report_txt_path: Optional[Path] = None
     ai_summary: Optional[str] = None
     file_summaries: dict[str, str] = field(default_factory=dict)
+    summary_cache_key: Optional[str] = None
+    summary_cache_hit: bool = False
+    summary_generated_at: Optional[float] = None
+    summary_cached_at: Optional[float] = None
+    summary_error: Optional[str] = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -133,6 +138,11 @@ class ApplySession:
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "ai_summary": self.ai_summary,
             "file_summaries": self.file_summaries,
+            "summary_cache_key": self.summary_cache_key,
+            "summary_cache_hit": self.summary_cache_hit,
+            "summary_generated_at": self.summary_generated_at,
+            "summary_cached_at": self.summary_cached_at,
+            "summary_error": self.summary_error,
             "files": [
                 {
                     "file": fr.relative_to_root,

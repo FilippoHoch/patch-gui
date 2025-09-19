@@ -16,7 +16,7 @@ from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
-from .ai_summaries import generate_session_summary
+from .ai_summaries import compute_summary_cache_key, generate_session_summary
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -239,6 +239,11 @@ def apply_patchset(
         exclude_dirs=resolved_excludes,
         started_at=started_at,
     )
+
+    try:
+        session.summary_cache_key = compute_summary_cache_key(str(patch))
+    except Exception:  # pragma: no cover - defensive guard for exotic PatchSet repr
+        session.summary_cache_key = None
 
     effective_interactive = interactive or auto_accept
 

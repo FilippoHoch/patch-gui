@@ -20,7 +20,12 @@ from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
-from .ai_summaries import generate_session_summary
+from .ai_summaries import (
+    AISummary,
+    AISummaryHooks,
+    compute_summary_cache_key,
+    generate_session_summary,
+)
 from .config import AppConfig, load_config, save_config
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
@@ -1319,6 +1324,88 @@ class PatchApplyWorker(_QThreadBase):
         return pos
 
 
+class AISummaryWorker(_QThreadBase):
+    progress = QtCore.Signal(str, int)
+    completed = QtCore.Signal(object, object)
+    failed = QtCore.Signal(object, str)
+    cancelled = QtCore.Signal(object)
+    stream_update = QtCore.Signal(object)
+
+    def __init__(
+        self,
+        session: ApplySession,
+        *,
+        timeout: float | None = None,
+    ) -> None:
+        super().__init__()
+        self.session = session
+        self.timeout = timeout
+        self._cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        self._cancel_event.set()
+
+    def _emit_progress(self, message: str, percent: int) -> None:
+        clamped = max(0, min(int(percent), 100))
+        self.progress.emit(message, clamped)
+
+    def _emit_request_start(self) -> None:
+        self._emit_progress(_("Richiesta sintesi AI inviata…"), 40)
+
+    def _emit_raw_chunk(self, chunk: bytes) -> None:
+        # Future streaming endpoints can emit incremental payloads via this signal.
+        self.stream_update.emit({"type": "chunk", "payload": chunk})
+        self._emit_progress(_("Risposta AI ricevuta…"), 70)
+
+    def _emit_response(self, payload: dict[str, object]) -> None:
+        self.stream_update.emit({"type": "response", "payload": payload})
+
+    def run(self) -> None:  # pragma: no cover - thread orchestration
+        if self._cancel_event.is_set():
+            self.cancelled.emit(self.session)
+            return
+
+        if self.session.summary_cache_key:
+            self._emit_progress(_("Verifica della cache sintesi AI…"), 10)
+        else:
+            self._emit_progress(_("Preparazione della sintesi AI…"), 10)
+
+        hooks = AISummaryHooks(
+            on_request_start=self._emit_request_start,
+            on_raw_chunk=self._emit_raw_chunk,
+            on_response=self._emit_response,
+        )
+
+        try:
+            summary = generate_session_summary(
+                self.session,
+                cache_key=self.session.summary_cache_key,
+                timeout=self.timeout,
+                use_cache=True,
+                hooks=hooks,
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.exception("Errore inatteso nella generazione della sintesi AI: %s", exc)
+            self.failed.emit(self.session, str(exc))
+            return
+
+        if self._cancel_event.is_set():
+            self.cancelled.emit(self.session)
+            return
+
+        if summary is None:
+            message = self.session.summary_error or _("Sintesi AI non disponibile.")
+            self.failed.emit(self.session, message)
+            return
+
+        if self.session.summary_cache_hit:
+            self._emit_progress(_("Sintesi AI recuperata dalla cache."), 100)
+        else:
+            self._emit_progress(_("Sintesi AI generata."), 100)
+
+        self.completed.emit(self.session, summary)
+
+
 class MainWindow(_QMainWindowBase):
     def __init__(self, *, app_config: AppConfig | None = None) -> None:
         super().__init__()
@@ -1345,6 +1432,8 @@ class MainWindow(_QMainWindowBase):
         self.ai_diff_notes_enabled: bool = self.app_config.ai_diff_notes_enabled
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
+        self._summary_worker: Optional[AISummaryWorker] = None
+        self._pending_session: Optional[ApplySession] = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -1633,6 +1722,17 @@ class MainWindow(_QMainWindowBase):
                 _("Operazione in corso"),
                 _(
                     "Attendi il completamento dell'applicazione della patch prima di chiudere."
+                ),
+            )
+            event.ignore()
+            return
+        summary_worker = self._summary_worker
+        if summary_worker is not None and summary_worker.isRunning():
+            QtWidgets.QMessageBox.information(
+                self,
+                _("Operazione in corso"),
+                _(
+                    "È in corso la generazione della sintesi AI. Attendi prima di chiudere."
                 ),
             )
             event.ignore()
@@ -1972,6 +2072,11 @@ class MainWindow(_QMainWindowBase):
             exclude_dirs=excludes,
             started_at=started_at,
         )
+        if self.patch is not None:
+            try:
+                session.summary_cache_key = compute_summary_cache_key(str(self.patch))
+            except Exception:  # pragma: no cover - defensive guard
+                session.summary_cache_key = None
         worker = PatchApplyWorker(
             self.patch,
             session,
@@ -2011,17 +2116,113 @@ class MainWindow(_QMainWindowBase):
         self, session: ApplySession
     ) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
-        summary = generate_session_summary(session)
-        if summary is not None:
-            session.ai_summary = summary.overall
-            session.file_summaries = summary.per_file
-            if summary.per_file:
-                for fr in session.results:
-                    candidate_keys = [fr.relative_to_root, str(fr.file_path)]
-                    for key in candidate_keys:
-                        if key and key in summary.per_file:
-                            fr.ai_summary = summary.per_file[key]
-                            break
+        self._pending_session = session
+        self.log.appendPlainText(_("Generazione della sintesi AI in corso…"))
+        message = _("Generazione della sintesi AI in corso…")
+        self.statusBar().showMessage(message)
+        self.progress_bar.setToolTip(message)
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self._start_summary_worker(session)
+
+    def _start_summary_worker(self, session: ApplySession) -> None:
+        existing = self._summary_worker
+        if existing is not None and existing.isRunning():
+            existing.cancel()
+            existing.wait(100)
+
+        worker = AISummaryWorker(session)
+        worker.progress.connect(self._on_summary_progress)
+        worker.completed.connect(self._on_summary_completed)
+        worker.failed.connect(self._on_summary_failed)
+        worker.cancelled.connect(self._on_summary_cancelled)
+        worker.stream_update.connect(self._on_summary_stream_update)
+        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(self._on_summary_thread_finished)
+        self._summary_worker = worker
+        worker.start()
+
+    @_qt_slot()
+    def _on_summary_thread_finished(self) -> None:
+        self._summary_worker = None
+
+    @_qt_slot(str, int)
+    def _on_summary_progress(self, message: str, percent: int) -> None:
+        if message:
+            self.log.appendPlainText(message)
+            self.statusBar().showMessage(message[:100])
+            self.progress_bar.setToolTip(message)
+        if percent >= 100:
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(100)
+
+    @_qt_slot(object, object)
+    def _on_summary_completed(
+        self, session: ApplySession, summary: object
+    ) -> None:  # pragma: no cover - UI feedback
+        if self._pending_session is not None and session is not self._pending_session:
+            logger.warning("Sintesi AI riferita a una sessione inattesa: %s", session)
+        if isinstance(summary, AISummary):
+            self._merge_ai_summary(session, summary)
+        note = (
+            _("Sintesi AI recuperata dalla cache.")
+            if session.summary_cache_hit
+            else _("Sintesi AI completata.")
+        )
+        self.log.appendPlainText(note)
+        self.statusBar().showMessage(note, 5000)
+        self._finalize_session(session)
+
+    @_qt_slot(object, str)
+    def _on_summary_failed(
+        self, session: ApplySession, message: str
+    ) -> None:  # pragma: no cover - UI feedback
+        error_message = message or session.summary_error or _(
+            "Sintesi AI non disponibile."
+        )
+        logger.info("Sintesi AI non disponibile: %s", error_message)
+        formatted = _("Sintesi AI non disponibile: {error}").format(error=error_message)
+        self.log.appendPlainText(formatted)
+        QtWidgets.QMessageBox.information(
+            self,
+            _("Sintesi AI"),
+            formatted,
+        )
+        self._finalize_session(session)
+
+    @_qt_slot(object)
+    def _on_summary_cancelled(
+        self, session: ApplySession
+    ) -> None:  # pragma: no cover - UI feedback
+        logger.info("Generazione della sintesi AI annullata")
+        self.log.appendPlainText(_("Generazione della sintesi AI annullata."))
+        self._finalize_session(session)
+
+    @_qt_slot(object)
+    def _on_summary_stream_update(self, payload: object) -> None:
+        if isinstance(payload, dict):
+            kind = payload.get("type")
+            if kind == "chunk":
+                logger.debug("Ricevuto chunk streaming sintesi AI (%d byte)", len(payload.get("payload", b"")))
+            elif kind == "response":
+                logger.debug("Risposta AI ricevuta (hook streaming)")
+
+    def _merge_ai_summary(self, session: ApplySession, summary: AISummary) -> None:
+        session.ai_summary = summary.overall
+        session.file_summaries = summary.per_file
+        if summary.per_file:
+            for fr in session.results:
+                candidate_keys = [fr.relative_to_root, str(fr.file_path)]
+                for key in candidate_keys:
+                    if key and key in summary.per_file:
+                        fr.ai_summary = summary.per_file[key]
+                        break
+
+    def _finalize_session(self, session: ApplySession) -> None:
+        if self._pending_session is session:
+            self._pending_session = None
+
         write_session_reports(
             session,
             report_json=None,
@@ -2044,6 +2245,7 @@ class MainWindow(_QMainWindowBase):
                 self.log.appendPlainText(detail)
         logger.info(_("\n=== RISULTATO ===\n%s"), session.to_txt())
         self._set_busy(False)
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(100)
         self.progress_bar.setVisible(False)
         self.progress_bar.setToolTip("")

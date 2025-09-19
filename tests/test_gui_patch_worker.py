@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -11,12 +13,15 @@ from unidiff import PatchSet
 from patch_gui.patcher import ApplySession, prepare_backup_dir
 
 try:  # pragma: no cover - optional dependency
+    from PySide6 import QtCore as _QtCore
     from PySide6 import QtWidgets as _QtWidgets
 except Exception as exc:  # pragma: no cover - PySide6 missing in environment
     QtWidgets: Any | None = None
+    QtCore = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - executed when bindings are available
     QtWidgets = _QtWidgets
+    QtCore = _QtCore
     _QT_IMPORT_ERROR = None
 
 
@@ -157,3 +162,62 @@ def test_worker_rejects_new_file_outside_project_root(
 
     outside_target = project_root.parent / "outside.txt"
     assert not outside_target.exists()
+
+
+def test_ai_summary_worker_runs_in_background(
+    qt_app: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if QtWidgets is None or QtCore is None:  # pragma: no cover - PySide6 missing
+        pytest.skip(f"PySide6 non disponibile: {_QT_IMPORT_ERROR}")
+
+    from patch_gui.ai_summaries import AISummary
+    from patch_gui.app import AISummaryWorker
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    session = _build_session(project_root, dry_run=True)
+
+    main_thread = threading.current_thread()
+    fake_summary = AISummary(overall="ok", per_file={})
+    call_info: dict[str, object] = {}
+
+    def fake_generate(
+        generated_session: ApplySession,
+        *,
+        cache_key: str | None = None,
+        timeout: float | None = None,
+        use_cache: bool = True,
+        hooks: object | None = None,
+    ) -> AISummary:
+        call_info["thread"] = threading.current_thread()
+        time.sleep(0.05)
+        return fake_summary
+
+    monkeypatch.setattr("patch_gui.app.generate_session_summary", fake_generate)
+
+    worker = AISummaryWorker(session)
+    results: dict[str, object] = {}
+
+    assert QtCore is not None
+    loop = QtCore.QEventLoop()
+
+    def on_completed(completed_session: ApplySession, summary: object) -> None:
+        results["summary"] = summary
+        loop.quit()
+
+    def on_failed(completed_session: ApplySession, message: str) -> None:
+        results["error"] = message
+        loop.quit()
+
+    worker.completed.connect(on_completed)
+    worker.failed.connect(on_failed)
+    worker.start()
+
+    QtCore.QTimer.singleShot(2000, loop.quit)
+    loop.exec()
+    worker.wait(1000)
+
+    assert "error" not in results
+    assert results.get("summary") is fake_summary
+    assert call_info.get("thread") is not None
+    assert call_info["thread"] is not main_thread
