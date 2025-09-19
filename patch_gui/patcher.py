@@ -450,6 +450,8 @@ def apply_hunks(
             return
         decision.assistant_message = suggestion.message
         decision.assistant_patch = suggestion.patch
+        decision.ai_source = suggestion.source
+        decision.ai_confidence = suggestion.confidence
         if suggestion.message:
             logger.debug(
                 "Suggerimento preliminare per hunk %s: %s",
