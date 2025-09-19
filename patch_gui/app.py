@@ -29,7 +29,7 @@ from .interactive_diff import InteractiveDiffWidget
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
-from .theme import apply_modern_theme
+from .theme import PaletteColors, apply_modern_theme, theme_manager
 from .logging_utils import configure_logging
 from .patcher import (
     ApplySession,
@@ -99,11 +99,6 @@ _ICON_FILE_NAMES: dict[str, str] = {
 }
 
 _ICON_SIZE = QSize(28, 28)
-_BRAND_BASE = QColor("#0f172a")
-_BRAND_SURFACE = QColor("#1f2b4d")
-_BRAND_PRIMARY = QColor("#4a7bd6")
-_BRAND_ACCENT = QColor("#7aa2ff")
-_BRAND_LIGHT = QColor("#f1f5ff")
 
 
 def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
@@ -112,15 +107,28 @@ def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
     return pen
 
 
+def _brand_colors() -> PaletteColors:
+    return theme_manager.colors
+
+
 def _draw_document(
     painter: QPainter,
     size: QSize,
     *,
     offset: QPointF = QPointF(0, 0),
-    body_color: QColor = _BRAND_SURFACE,
+    body_color: QColor | None = None,
     corner_color: QColor | None = None,
     radius: float = 4.0,
 ) -> None:
+    palette = _brand_colors()
+    body = QtGui.QColor(body_color) if body_color is not None else QtGui.QColor(
+        palette.brand_surface
+    )
+    corner = (
+        QtGui.QColor(corner_color)
+        if corner_color is not None
+        else QtGui.QColor(palette.brand_primary)
+    )
     width = size.width() * 0.52
     height = size.height() * 0.64
     x = size.width() * 0.24 + offset.x()
@@ -129,10 +137,9 @@ def _draw_document(
 
     rect = QRectF(x, y, width, height)
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(body_color)
+    painter.setBrush(body)
     painter.drawRoundedRect(rect, radius, radius)
 
-    corner_color = corner_color or _BRAND_PRIMARY
     corner = QPolygonF(
         [
             rect.topRight() - QPointF(fold, 0),
@@ -141,16 +148,17 @@ def _draw_document(
         ]
     )
 
-    painter.setBrush(corner_color)
+    painter.setBrush(corner)
     painter.drawPolygon(corner)
 
 
 def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    folder_pen = _configured_pen(_BRAND_BASE, size, scale=0.045)
+    palette = _brand_colors()
+    folder_pen = _configured_pen(palette.brand_base, size, scale=0.045)
     painter.setPen(folder_pen)
-    painter.setBrush(_BRAND_SURFACE)
+    painter.setBrush(palette.brand_surface)
 
     tab_rect = QRectF(
         size.width() * 0.14,
@@ -176,8 +184,8 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     gradient = QLinearGradient(
         center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer
     )
-    gradient.setColorAt(0.0, _BRAND_PRIMARY)
-    gradient.setColorAt(1.0, _BRAND_ACCENT)
+    gradient.setColorAt(0.0, palette.brand_primary)
+    gradient.setColorAt(1.0, palette.brand_accent)
     painter.setBrush(gradient)
 
     painter.drawEllipse(center, outer, outer)
@@ -191,16 +199,17 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawPolygon(pointer)
 
-    painter.setBrush(_BRAND_LIGHT)
+    painter.setBrush(palette.brand_light)
     painter.drawEllipse(center, inner, inner)
 
 
 def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    palette = _brand_colors()
     _draw_document(painter, size)
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(palette.brand_accent)
 
     arrow_top = size.height() * 0.32
     arrow_bottom = size.height() * 0.74
@@ -227,8 +236,9 @@ def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
 
 def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(_configured_pen(_BRAND_BASE, size, scale=0.04))
-    painter.setBrush(_BRAND_SURFACE)
+    palette = _brand_colors()
+    painter.setPen(_configured_pen(palette.brand_base, size, scale=0.04))
+    painter.setBrush(palette.brand_surface)
 
     body_rect = QRectF(
         size.width() * 0.2,
@@ -239,7 +249,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     painter.drawRoundedRect(body_rect, 4, 4)
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_PRIMARY)
+    painter.setBrush(palette.brand_primary)
     clip_rect = QRectF(
         size.width() * 0.32,
         size.height() * 0.16,
@@ -248,7 +258,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawRoundedRect(clip_rect, 4, 4)
 
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(palette.brand_accent)
     handle_rect = QRectF(
         size.width() * 0.42,
         size.height() * 0.12,
@@ -257,7 +267,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawRoundedRect(handle_rect, 3, 3)
 
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(palette.brand_accent)
     arrow_top = body_rect.center().y() - size.height() * 0.06
     arrow_bottom = body_rect.bottom() - size.height() * 0.08
     arrow_x = body_rect.center().x()
@@ -283,9 +293,15 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
 
 def _generate_text_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+    palette = _brand_colors()
+    _draw_document(
+        painter,
+        size,
+        body_color=palette.brand_surface,
+        corner_color=palette.brand_accent,
+    )
 
-    pen = _configured_pen(_BRAND_LIGHT, size, scale=0.035)
+    pen = _configured_pen(palette.brand_light, size, scale=0.035)
     pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
 
@@ -298,7 +314,7 @@ def _generate_text_icon(painter: QPainter, size: QSize) -> None:
         y = baseline + line_spacing * i
         painter.drawLine(QPointF(start_x, y), QPointF(end_x, y))
 
-    accent_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    accent_pen = _configured_pen(palette.brand_accent, size, scale=0.045)
     accent_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(accent_pen)
 
@@ -321,20 +337,26 @@ def _generate_text_icon(painter: QPainter, size: QSize) -> None:
 def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+    palette = _brand_colors()
     shadow_offset = QPointF(-size.width() * 0.08, size.height() * 0.08)
     painter.setOpacity(0.65)
     _draw_document(
         painter,
         size,
         offset=shadow_offset,
-        body_color=_BRAND_BASE,
-        corner_color=_BRAND_PRIMARY,
+        body_color=palette.brand_base,
+        corner_color=palette.brand_primary,
     )
     painter.setOpacity(1.0)
-    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+    _draw_document(
+        painter,
+        size,
+        body_color=palette.brand_surface,
+        corner_color=palette.brand_accent,
+    )
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(palette.brand_accent)
 
     arrow = QtGui.QPolygonF(
         [
@@ -349,6 +371,7 @@ def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
 def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+    palette = _brand_colors()
     center = QPointF(size.width() / 2, size.height() / 2)
     radius = min(size.width(), size.height()) * 0.42
 
@@ -359,8 +382,8 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
         center.x() + radius,
         center.y() + radius,
     )
-    gradient.setColorAt(0.0, _BRAND_SURFACE)
-    gradient.setColorAt(1.0, _BRAND_BASE)
+    gradient.setColorAt(0.0, palette.brand_surface)
+    gradient.setColorAt(1.0, palette.brand_base)
     painter.setBrush(gradient)
     painter.drawEllipse(center, radius, radius)
 
@@ -371,10 +394,10 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
             QPointF(size.width() * 0.68, size.height() * 0.5),
         ]
     )
-    painter.setBrush(_BRAND_PRIMARY)
+    painter.setBrush(palette.brand_primary)
     painter.drawPolygon(play_path)
 
-    bar_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    bar_pen = _configured_pen(palette.brand_accent, size, scale=0.045)
     bar_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(bar_pen)
     painter.drawLine(
@@ -883,6 +906,19 @@ class SettingsDialog(_QDialogBase):
             self.log_combo.setCurrentIndex(current_index)
         form.addRow(_("Livello log"), self.log_combo)
 
+        theme_labels = {
+            "dark": _("Tema scuro"),
+            "light": _("Tema chiaro"),
+        }
+        self.theme_combo = QtWidgets.QComboBox()
+        for definition in theme_manager.available_themes:
+            label = theme_labels.get(definition.key, definition.label)
+            self.theme_combo.addItem(label, definition.key)
+        current_theme_index = self.theme_combo.findData(self._original_config.theme)
+        if current_theme_index >= 0:
+            self.theme_combo.setCurrentIndex(current_theme_index)
+        form.addRow(_("Tema"), self.theme_combo)
+
         self.dry_run_check = QtWidgets.QCheckBox(
             _("Esegui sempre in dry-run inizialmente")
         )
@@ -974,6 +1010,12 @@ class SettingsDialog(_QDialogBase):
             self.backup_retention_edit.text(),
             self._original_config.backup_retention_days,
         )
+        theme_data = self.theme_combo.currentData()
+        theme = (
+            str(theme_data)
+            if isinstance(theme_data, str)
+            else self._original_config.theme
+        )
 
         return AppConfig(
             threshold=threshold,
@@ -989,6 +1031,7 @@ class SettingsDialog(_QDialogBase):
             ai_assistant_enabled=self.ai_assistant_check.isChecked(),
             ai_auto_apply=self.ai_auto_check.isChecked(),
             ai_diff_notes_enabled=self.ai_diff_notes_check.isChecked(),
+            theme=theme,
         )
 
     @staticmethod
@@ -1345,6 +1388,11 @@ class MainWindow(_QMainWindowBase):
         self.ai_diff_notes_enabled: bool = self.app_config.ai_diff_notes_enabled
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
+        self._theme_manager = theme_manager
+        self._generated_icon_bindings: dict[
+            str, list[Callable[[QtGui.QIcon], None]]
+        ] = {}
+        self._theme_manager.paletteChanged.connect(self._on_theme_palette_changed)
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -1383,20 +1431,20 @@ class MainWindow(_QMainWindowBase):
         def load_icon(
             name: str,
             fallback: QtWidgets.QStyle.StandardPixmap,
-        ) -> QtGui.QIcon:
+        ) -> tuple[QtGui.QIcon, str | None]:
             filename = _ICON_FILE_NAMES.get(name)
             if filename:
                 icon_path = _ICON_DIR / filename
                 if icon_path.exists():
                     icon = QtGui.QIcon(str(icon_path))
                     if not icon.isNull():
-                        return icon
+                        return icon, None
 
             generated = _create_generated_icon(name, _ICON_SIZE)
             if generated is not None:
-                return generated
+                return generated, name
 
-            return style.standardIcon(fallback)
+            return style.standardIcon(fallback), None
 
         self.toolbar = QtWidgets.QToolBar(_("Azioni"))
         self.toolbar.setToolButtonStyle(
@@ -1415,11 +1463,16 @@ class MainWindow(_QMainWindowBase):
         root_widget_action.setDefaultWidget(self.root_edit)
         self.toolbar.addAction(root_widget_action)
 
+        icon, generated_name = load_icon(
+            "choose_root", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon
+        )
         self.action_choose_root = QtGui.QAction(
-            load_icon("choose_root", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
+            icon,
             _("Scegli root…"),
             self,
         )
+        if generated_name:
+            self._register_generated_icon(generated_name, self.action_choose_root.setIcon)
         self.action_choose_root.setToolTip(
             _("Seleziona la cartella radice del progetto da analizzare")
         )
@@ -1431,35 +1484,46 @@ class MainWindow(_QMainWindowBase):
 
         self.toolbar.addSeparator()
 
+        icon, generated_name = load_icon(
+            "load_file", QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton
+        )
         self.action_load_file = QtGui.QAction(
-            load_icon("load_file", QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
+            icon,
             _("Apri file diff…"),
             self,
         )
+        if generated_name:
+            self._register_generated_icon(generated_name, self.action_load_file.setIcon)
         self.action_load_file.setToolTip(_("Seleziona un file .diff da aprire"))
         self.action_load_file.setStatusTip(_("Carica un file diff dal disco"))
         self.action_load_file.triggered.connect(self.load_diff_file)
 
+        icon, generated_name = load_icon(
+            "from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton
+        )
         self.action_from_clip = QtGui.QAction(
-            load_icon(
-                "from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton
-            ),
+            icon,
             _("Da appunti"),
             self,
         )
+        if generated_name:
+            self._register_generated_icon(generated_name, self.action_from_clip.setIcon)
         self.action_from_clip.setToolTip(_("Incolla il diff dagli appunti"))
         self.action_from_clip.setStatusTip(
             _("Carica il diff direttamente dagli appunti di sistema")
         )
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
+        icon, generated_name = load_icon(
+            "from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
+        )
         self.action_from_text = QtGui.QAction(
-            load_icon(
-                "from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
-            ),
+            icon,
             _("Da testo"),
             self,
         )
+        if generated_name:
+            self._register_generated_icon(generated_name, self.action_from_text.setIcon)
         self.action_from_text.setToolTip(
             _("Analizza il diff inserito nell'editor di testo")
         )
@@ -1475,9 +1539,12 @@ class MainWindow(_QMainWindowBase):
 
         self.load_diff_button = QtWidgets.QToolButton()
         self.load_diff_button.setText(_("Carica diff"))
-        self.load_diff_button.setIcon(
-            load_icon("load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
+        icon, generated_name = load_icon(
+            "load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart
         )
+        self.load_diff_button.setIcon(icon)
+        if generated_name:
+            self._register_generated_icon(generated_name, self.load_diff_button.setIcon)
         self.load_diff_button.setToolTip(
             _("Scegli come caricare o analizzare il diff da elaborare")
         )
@@ -1496,11 +1563,16 @@ class MainWindow(_QMainWindowBase):
         load_diff_widget_action.setDefaultWidget(self.load_diff_button)
         self.toolbar.addAction(load_diff_widget_action)
 
+        icon, generated_name = load_icon(
+            "analyze", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay
+        )
         self.action_analyze = QtGui.QAction(
-            load_icon("analyze", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
+            icon,
             _("Analizza diff"),
             self,
         )
+        if generated_name:
+            self._register_generated_icon(generated_name, self.action_analyze.setIcon)
         self.action_analyze.setToolTip(
             _("Analizza il diff attualmente caricato o incollato")
         )
@@ -1668,6 +1740,7 @@ class MainWindow(_QMainWindowBase):
         if dialog.result_config is None:
             return
         self.app_config = dialog.result_config
+        self._theme_manager.set_theme(self.app_config.theme)
         configure_logging(
             level=self.app_config.log_level,
             log_file=self.app_config.log_file,
@@ -1705,6 +1778,24 @@ class MainWindow(_QMainWindowBase):
             self.settings.remove("last_project_root")
             self.settings.sync()
 
+    def _register_generated_icon(
+        self, name: str, setter: Callable[[QtGui.QIcon], None]
+    ) -> None:
+        callbacks = self._generated_icon_bindings.setdefault(name, [])
+        if setter not in callbacks:
+            callbacks.append(setter)
+
+    def _refresh_generated_icons(self) -> None:
+        for name, setters in self._generated_icon_bindings.items():
+            icon = _create_generated_icon(name, _ICON_SIZE)
+            if icon is None:
+                continue
+            for setter in setters:
+                setter(icon)
+
+    def _on_theme_palette_changed(self, _: str) -> None:
+        self._refresh_generated_icons()
+
     def _current_exclude_dirs(self) -> tuple[str, ...]:
         text = self.exclude_edit.text() if hasattr(self, "exclude_edit") else ""
         return _parse_exclude_text(text)
@@ -1721,6 +1812,7 @@ class MainWindow(_QMainWindowBase):
         self.app_config.ai_assistant_enabled = self.ai_assistant_enabled
         self.app_config.ai_auto_apply = self.ai_auto_apply
         self.app_config.ai_diff_notes_enabled = self.ai_diff_notes_enabled
+        self.app_config.theme = self._theme_manager.current_theme.key
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
@@ -2300,7 +2392,7 @@ def main() -> None:
     )
     _apply_platform_workarounds()
     app = QtWidgets.QApplication(sys.argv)
-    apply_modern_theme(app)
+    apply_modern_theme(app, theme=app_config.theme)
     app.setApplicationName(APP_NAME)
     translators = install_translators(app)
     setattr(app, "_installed_translators", translators)

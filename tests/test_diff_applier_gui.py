@@ -170,6 +170,9 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     dialog.backup_retention_edit.setText("7")
     dialog.ai_assistant_check.setChecked(False)
     dialog.ai_auto_check.setChecked(True)
+    theme_index = dialog.theme_combo.findData("light")
+    if theme_index >= 0:
+        dialog.theme_combo.setCurrentIndex(theme_index)
 
     updated = dialog._gather_config()
 
@@ -185,6 +188,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     assert updated.backup_retention_days == 7
     assert updated.ai_assistant_enabled is False
     assert updated.ai_auto_apply is True
+    assert updated.theme == "light"
 
 
 def test_main_window_applies_settings_dialog(
@@ -252,6 +256,7 @@ def test_main_window_applies_settings_dialog(
         log_backup_count=3,
         ai_assistant_enabled=True,
         ai_auto_apply=True,
+        theme="light",
     )
 
     class _FakeDialog:

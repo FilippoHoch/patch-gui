@@ -61,6 +61,18 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 
 Per una panoramica delle opzioni tecniche e delle dipendenze consulta il [README](README.md).
 
+## Checklist QA manuale: cambio tema
+
+Esegui questa breve verifica ogni volta che vengono modificati i temi o il relativo codice:
+
+1. Avvia l'applicazione e apri **Preferenze…** dal menu *Impostazioni*.
+2. Cambia il valore del menu *Tema* da *Tema scuro* a *Tema chiaro* e conferma con **OK**.
+3. Verifica che:
+   - i colori di sfondo, pulsanti e testi si aggiornino immediatamente;
+   - l'evidenziazione del diff (sia nell'editor principale sia nel riquadro dell'anteprima interattiva) utilizzi nuove tinte coerenti;
+   - le icone generate (es. **Carica diff**, **Analizza diff**) vengano rigenerate con la nuova palette.
+4. Riapri le **Preferenze…**, ripristina *Tema scuro* e controlla che tutti gli elementi tornino alle tinte originali.
+
 ## Suggerimento CLI: includere directory normalmente escluse
 
 Quando usi la modalità `patch-gui apply`, per impostazione predefinita vengono ignorate directory come `.git`, `.venv`, `node_modules` e `.diff_backups`. Se devi patchare file posizionati lì dentro:
