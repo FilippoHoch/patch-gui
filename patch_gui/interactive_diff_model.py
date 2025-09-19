@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 
 from .localization import gettext as _
+from .diff_formatting import RenderedHunk
 
 __all__ = [
     "FileDiffEntry",
@@ -24,6 +25,10 @@ class FileDiffEntry:
     additions: int
     deletions: int
     ai_note: str | None = None
+    header_text: str = ""
+    annotated_header_text: str = ""
+    hunks: tuple[RenderedHunk, ...] = ()
+    hunk_apply_mask: tuple[bool, ...] | None = None
 
     @property
     def display_text(self) -> str:
@@ -34,6 +39,18 @@ class FileDiffEntry:
             additions=additions,
             deletions=deletions,
         )
+
+    @property
+    def hunk_count(self) -> int:
+        return len(self.hunks)
+
+    def applied_hunks(self) -> tuple[RenderedHunk, ...]:
+        if not self.hunks:
+            return ()
+        mask = self.hunk_apply_mask
+        if mask is None:
+            return self.hunks
+        return tuple(h for h, apply in zip(self.hunks, mask) if apply)
 
 
 class _DiffNoteClient(Protocol):
