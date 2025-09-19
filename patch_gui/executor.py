@@ -16,7 +16,7 @@ from unidiff import PatchSet
 from unidiff.errors import UnidiffParseError
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
-from .ai_summaries import generate_session_summary
+from .ai_summaries import compute_diff_digest, generate_session_summary
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -239,6 +239,7 @@ def apply_patchset(
         exclude_dirs=resolved_excludes,
         started_at=started_at,
     )
+    session.summary_diff_digest = compute_diff_digest(patch)
 
     effective_interactive = interactive or auto_accept
 
