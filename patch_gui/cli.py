@@ -63,6 +63,7 @@ _CONFIG_KEYS = (
     "backup_retention_days",
     "ai_assistant_enabled",
     "ai_auto_apply",
+    "ai_diff_notes_enabled",
 )
 
 
@@ -461,6 +462,8 @@ def config_reset(
             config.ai_assistant_enabled = defaults.ai_assistant_enabled
         elif key == "ai_auto_apply":
             config.ai_auto_apply = defaults.ai_auto_apply
+        elif key == "ai_diff_notes_enabled":
+            config.ai_diff_notes_enabled = defaults.ai_diff_notes_enabled
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -535,7 +538,7 @@ def _apply_config_value(
             config.write_reports = config_value
         return
 
-    if key in {"ai_assistant_enabled", "ai_auto_apply"}:
+    if key in {"ai_assistant_enabled", "ai_auto_apply", "ai_diff_notes_enabled"}:
         if len(values) != 1:
             raise ConfigCommandError(
                 _("The {key} key expects exactly one value.").format(key=key),
@@ -543,8 +546,10 @@ def _apply_config_value(
         config_value = _parse_bool(values[0])
         if key == "ai_assistant_enabled":
             config.ai_assistant_enabled = config_value
-        else:
+        elif key == "ai_auto_apply":
             config.ai_auto_apply = config_value
+        else:
+            config.ai_diff_notes_enabled = config_value
         return
 
     if key == "log_file":
