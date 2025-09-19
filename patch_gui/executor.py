@@ -24,7 +24,7 @@ from .binary_patch import (
     get_attached_binary_patch,
 )
 from .config import AppConfig, load_config
-from .matching import MatchingStrategy
+from .matching import CandidateMatch, MatchingStrategy
 from .filetypes import inspect_file_type
 from .localization import gettext as _
 from .patcher import (
@@ -188,6 +188,7 @@ def apply_patchset(
     config: AppConfig | None = None,
     ai_assistant: bool | None = None,
     ai_auto_select: bool | None = None,
+    use_structural_anchors: bool | None = None,
 ) -> ApplySession:
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`.
 
@@ -276,6 +277,9 @@ def apply_patchset(
         else resolved_config.exclude_dirs
     )
 
+    configured_anchors = getattr(resolved_config, "use_structural_anchors", True)
+    anchors_enabled = configured_anchors if use_structural_anchors is None else use_structural_anchors
+
     session = ApplySession(
         project_root=root,
         backup_dir=backup_dir,
@@ -284,6 +288,7 @@ def apply_patchset(
         exclude_dirs=resolved_excludes,
         started_at=started_at,
         matching_strategy=resolved_strategy,
+        use_structural_anchors=anchors_enabled,
     )
     session.summary_diff_digest = compute_diff_digest(patch)
 
@@ -714,6 +719,7 @@ def _apply_file_patch(
         pf,
         threshold=session.threshold,
         matching_strategy=session.matching_strategy,
+        use_structural_anchors=session.use_structural_anchors,
         manual_resolver=manual_resolver,
     )
 
@@ -993,7 +999,7 @@ def _ambiguous_paths_message(project_root: Path, candidates: Sequence[Path]) -> 
 def _ai_rank_candidates(
     lines: List[str],
     hv: HunkView,
-    candidates: List[Tuple[int, float]],
+    candidates: List[CandidateMatch],
     *,
     ai_enabled: bool,
 ) -> Optional[AISuggestion]:
@@ -1013,7 +1019,7 @@ def _ai_rank_candidates(
 def _cli_manual_resolver(
     hv: HunkView,
     lines: List[str],
-    candidates: List[Tuple[int, float]],
+    candidates: List[CandidateMatch],
     decision: HunkDecision,
     reason: str,
     *,
@@ -1074,9 +1080,11 @@ def _cli_manual_resolver(
 
         if ai_auto_select:
             chosen_pos = ai_hint.position
-            similarity = next(
-                (score for pos, score in candidates if pos == chosen_pos), None
+            match = next(
+                (cand for cand in candidates if cand.position == chosen_pos),
+                None,
             )
+            similarity = match.score if match is not None else None
             if similarity is None:
                 logger.warning(
                     "AI suggestion did not match any candidate for hunk %s", hv.header
@@ -1084,6 +1092,9 @@ def _cli_manual_resolver(
             else:
                 decision.selected_pos = chosen_pos
                 decision.similarity = similarity
+                decision.selected_anchor_hits = (
+                    match.anchor_hits if match is not None else None
+                )
                 decision.message = _(
                     "Automatically selected candidate {index} (--ai-select)."
                 ).format(index=ai_hint.candidate_index)
@@ -1105,13 +1116,15 @@ def _cli_manual_resolver(
                 return chosen_pos
 
     if auto_accept and candidates:
-        pos, score = candidates[0]
+        best = candidates[0]
+        pos, score = best.position, best.score
         try:
-            candidate_index = candidates.index((pos, score)) + 1
+            candidate_index = candidates.index(best) + 1
         except ValueError:  # pragma: no cover - defensive fallback
             candidate_index = 1
         decision.selected_pos = pos
         decision.similarity = score
+        decision.selected_anchor_hits = best.anchor_hits
         decision.message = _(
             "Automatically selected candidate {index} (--auto-accept)."
         ).format(index=candidate_index)
@@ -1163,24 +1176,28 @@ def _cli_manual_resolver(
 
     print("")
     print(_("Available candidate positions:"))
-    for idx, (pos, score) in enumerate(candidates, start=1):
+    for idx, cand in enumerate(candidates, start=1):
+        score = cand.score
         similarity_str = f"{score:.3f}" if score is not None else _("n/a")
-        line_number = pos + 1
+        line_number = cand.position + 1
         print(
             _(
-                "  {index}) Position {position} (line {line}, similarity {similarity})"
+                "  {index}) Position {position} (line {line}, similarity {similarity}, anchors {anchors})"
             ).format(
                 index=idx,
-                position=pos,
+                position=cand.position,
                 line=line_number,
                 similarity=similarity_str,
+                anchors=cand.anchor_hits,
             )
         )
 
-        snippet_start = max(0, pos - context_padding)
-        snippet_end = min(len(lines), pos + highlight_width + context_padding)
-        highlight_start = pos
-        highlight_end = min(len(lines), pos + highlight_width)
+        snippet_start = max(0, cand.position - context_padding)
+        snippet_end = min(
+            len(lines), cand.position + highlight_width + context_padding
+        )
+        highlight_start = cand.position
+        highlight_end = min(len(lines), cand.position + highlight_width)
 
         if snippet_start >= snippet_end:
             print(_("    (No surrounding lines available in the file.)"))
@@ -1231,13 +1248,14 @@ def _cli_manual_resolver(
             continue
 
         if 1 <= index <= len(candidates):
-            pos, score = candidates[index - 1]
+            candidate = candidates[index - 1]
             decision.strategy = "manual"
-            decision.selected_pos = pos
-            decision.similarity = score
+            decision.selected_pos = candidate.position
+            decision.similarity = candidate.score
+            decision.selected_anchor_hits = candidate.anchor_hits
             decision.message = _(
                 "Applied manually via CLI using candidate {choice}."
             ).format(choice=index)
-            return pos
+            return candidate.position
 
         print(_("Number out of range. Try again."))

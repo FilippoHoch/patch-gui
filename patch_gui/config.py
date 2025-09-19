@@ -110,6 +110,7 @@ class AppConfig:
     ai_auto_apply: bool = _DEFAULT_AI_AUTO_APPLY
     ai_diff_notes_enabled: bool = _DEFAULT_AI_DIFF_NOTES
     matching_strategy: MatchingStrategy = _DEFAULT_MATCHING_STRATEGY
+    use_structural_anchors: bool = True
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -146,6 +147,9 @@ class AppConfig:
         matching_strategy = _coerce_matching_strategy(
             data.get("matching_strategy"), base.matching_strategy
         )
+        use_structural_anchors = _coerce_bool(
+            data.get("use_structural_anchors"), base.use_structural_anchors
+        )
 
         return cls(
             threshold=threshold,
@@ -163,6 +167,7 @@ class AppConfig:
             ai_auto_apply=ai_auto_apply,
             ai_diff_notes_enabled=ai_diff_notes,
             matching_strategy=matching_strategy,
+            use_structural_anchors=use_structural_anchors,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -188,6 +193,7 @@ class AppConfig:
                 if isinstance(self.matching_strategy, MatchingStrategy)
                 else self.matching_strategy
             ),
+            "use_structural_anchors": bool(self.use_structural_anchors),
         }
 
 
@@ -259,6 +265,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     ai_auto_apply_repr = json.dumps(mapping["ai_auto_apply"])
     ai_diff_notes_repr = json.dumps(mapping["ai_diff_notes_enabled"])
     matching_strategy_repr = json.dumps(mapping["matching_strategy"])
+    anchors_repr = json.dumps(mapping["use_structural_anchors"])
 
     content_lines = [
         f"[{_CONFIG_SECTION}]",
@@ -277,6 +284,7 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
         f"ai_auto_apply = {ai_auto_apply_repr}",
         f"ai_diff_notes_enabled = {ai_diff_notes_repr}",
         f"matching_strategy = {matching_strategy_repr}",
+        f"use_structural_anchors = {anchors_repr}",
         "",
     ]
 

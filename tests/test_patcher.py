@@ -10,7 +10,7 @@ from unidiff import PatchSet
 
 import patch_gui.executor as executor
 from patch_gui.config import AppConfig
-from patch_gui.matching import MatchingStrategy
+from patch_gui.matching import CandidateMatch, MatchingStrategy
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -61,21 +61,34 @@ def _project_with_sample(tmp_path: Path) -> Path:
     return project
 
 
+def _positions(result) -> list[tuple[int, float]]:
+    return [(cand.position, cand.score) for cand in result.candidates]
+
+
 def test_find_candidates_returns_exact_match_first() -> None:
     file_lines = ["line1\n", "line2\n", "line3\n"]
     before_lines = ["line2\n"]
-    assert find_candidates(file_lines, before_lines, threshold=0.5) == [(1, 1.0)]
+    result = find_candidates(file_lines, before_lines, threshold=0.5)
+    assert _positions(result) == [(1, 1.0)]
+    assert result.stats.backend in {"exact", "rapidfuzz", "sequence"}
 
 
 def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
     file_lines = ["abc\n", "dxf\n", "zzz\n", "ab\n", "def\n"]
     before_lines = ["abc\n", "def\n"]
     result = find_candidates(file_lines, before_lines, threshold=0.5)
-    assert len(result) >= 2
-    assert result[0][0] == 3
-    assert result[0][1] == pytest.approx(0.9333333333)
-    assert result[1][0] == 0
-    assert result[1][1] == pytest.approx(0.875)
+    assert len(result.candidates) >= 2
+    assert result.candidates[0].position == 3
+    assert result.candidates[0].score == pytest.approx(0.9333333333)
+    assert result.candidates[1].position == 0
+    assert result.candidates[1].score == pytest.approx(0.875)
+
+
+def test_find_candidates_reports_anchor_hits() -> None:
+    file_lines = ["start\n", "keep\n", "end\n", "start\n", "keep\n", "end\n"]
+    before_lines = ["start\n", "keep\n", "end\n"]
+    result = find_candidates(file_lines, before_lines, threshold=0.9)
+    assert any(cand.anchor_hits >= 2 for cand in result.candidates)
 
 
 def test_find_candidates_token_strategy_matches_legacy() -> None:
@@ -91,10 +104,10 @@ def test_find_candidates_token_strategy_matches_legacy() -> None:
     legacy = find_candidates(
         file_lines, before_lines, threshold=0.8, strategy=MatchingStrategy.LEGACY
     )
-    token = find_candidates(
+    rapid = find_candidates(
         file_lines, before_lines, threshold=0.8, strategy=MatchingStrategy.TOKEN
     )
-    assert legacy == token
+    assert _positions(legacy) == _positions(rapid)
 
 
 def test_find_candidates_token_strategy_falls_back_to_legacy() -> None:
@@ -106,11 +119,32 @@ def test_find_candidates_token_strategy_falls_back_to_legacy() -> None:
     token = find_candidates(
         file_lines, before_lines, threshold=0.5, strategy=MatchingStrategy.TOKEN
     )
-    assert legacy == token
+    assert _positions(legacy) == _positions(token)
 
 
 def test_find_candidates_with_empty_before_lines_returns_empty() -> None:
-    assert find_candidates(["line\n"], [], threshold=0.5) == []
+    assert find_candidates(["line\n"], [], threshold=0.5).candidates == []
+
+
+def test_find_candidates_anchor_prunes_large_file() -> None:
+    file_lines = [f"line {i}\n" for i in range(2000)]
+    before_lines = ["line 100\n", "line 101\n", "line 102\n"]
+    result = find_candidates(file_lines, before_lines, threshold=0.9)
+    assert result.stats.anchor_pruned
+    assert result.stats.evaluated_windows < result.stats.total_windows
+    assert result.candidates and result.candidates[0].position == 100
+
+
+def test_find_candidates_fallback_without_rapidfuzz(monkeypatch: pytest.MonkeyPatch) -> None:
+    import patch_gui.matching as matching
+
+    monkeypatch.setattr(matching, "_HAS_RAPIDFUZZ", False)
+    monkeypatch.setattr(matching, "fuzz", None)
+
+    file_lines = ["l1\n", "l2\n", "l3\n"]
+    before_lines = ["missing\n"]
+    result = find_candidates(file_lines, before_lines, threshold=0.5)
+    assert result.stats.backend == "sequence"
 
 
 def test_apply_hunk_at_position_replaces_expected_window() -> None:
@@ -142,12 +176,12 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
     pf = patch[0]
     file_lines = ["bx\n", "cc\n", "bb\n", "cx\n"]
 
-    calls: list[tuple[HunkView, list[str], list[tuple[int, float]], str]] = []
+    calls: list[tuple[HunkView, list[str], list[CandidateMatch], str]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -183,12 +217,12 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     pf = patch[0]
     file_lines = ["line keep\n", "line end\n"]
 
-    captured: list[tuple[str, list[tuple[int, float]], HunkView]] = []
+    captured: list[tuple[str, list[CandidateMatch], HunkView]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -207,7 +241,9 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     assert captured and captured[0][0] == "context"
     hv = captured[0][2]
     assert hv.context_lines == ["line keep\n", "line end\n"]
-    expected_candidates = find_candidates(file_lines, hv.context_lines, threshold=0.9)
+    expected_candidates = find_candidates(
+        file_lines, hv.context_lines, threshold=0.9
+    ).candidates
     assert captured[0][1] == expected_candidates
     assert decisions[0].candidates == expected_candidates
     assert decisions[0].message.startswith("context review")

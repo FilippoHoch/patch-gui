@@ -13,7 +13,12 @@ from typing import Iterable, Iterator, Optional, Protocol, Sequence
 
 from patch_gui.ai_conflict_helper import generate_conflict_suggestion
 from patch_gui.file_index import FileIndex, FileLookupMetrics, LookupEvent
-from patch_gui.matching import MatchingStrategy, find_candidate_positions
+from patch_gui.matching import (
+    CandidateMatch,
+    MatchingOptions,
+    MatchingStrategy,
+    find_candidates as matching_find_candidates,
+)
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -64,7 +69,7 @@ class HunkDecision:
     strategy: str  # exact | context | fuzzy | manual | failed | skipped
     selected_pos: Optional[int] = None
     similarity: Optional[float] = None
-    candidates: list[tuple[int, float]] = field(default_factory=list)  # (pos, score)
+    candidates: list[CandidateMatch] = field(default_factory=list)
     message: str = ""
     ai_recommendation: Optional[int] = None
     ai_confidence: Optional[float] = None
@@ -72,6 +77,7 @@ class HunkDecision:
     ai_source: Optional[str] = None
     assistant_message: Optional[str] = None
     assistant_patch: Optional[str] = None
+    selected_anchor_hits: Optional[int] = None
 
 
 @dataclass
@@ -126,6 +132,7 @@ class ApplySession:
     file_index: Optional[FileIndex] = None
     lookup_metrics: FileLookupMetrics = field(default_factory=FileLookupMetrics)
     matching_strategy: MatchingStrategy = MatchingStrategy.AUTO
+    use_structural_anchors: bool = True
     summary_diff_digest: Optional[str] = None
     summary_cache_key: Optional[str] = None
     summary_cache_hit: Optional[bool] = None
@@ -145,6 +152,7 @@ class ApplySession:
             "dry_run": self.dry_run,
             "threshold": self.threshold,
             "matching_strategy": self.matching_strategy.value,
+            "use_structural_anchors": self.use_structural_anchors,
             "exclude_dirs": list(self.exclude_dirs),
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "ai_summary": self.ai_summary,
@@ -170,7 +178,15 @@ class ApplySession:
                             "strategy": d.strategy,
                             "pos": d.selected_pos,
                             "similarity": d.similarity,
-                            "candidates": d.candidates,
+                            "selected_anchor_hits": d.selected_anchor_hits,
+                            "candidates": [
+                                {
+                                    "pos": cand.position,
+                                    "score": cand.score,
+                                    "anchors": cand.anchor_hits,
+                                }
+                                for cand in d.candidates
+                            ],
                             "message": d.message,
                             "ai_recommendation": d.ai_recommendation,
                             "ai_confidence": d.ai_confidence,
@@ -209,6 +225,11 @@ class ApplySession:
         lines.append(
             _("Matching strategy: {strategy}").format(
                 strategy=self.matching_strategy.value
+            )
+        )
+        lines.append(
+            _("Structural anchors: {enabled}").format(
+                enabled="on" if self.use_structural_anchors else "off"
             )
         )
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else _("(none)")
@@ -271,13 +292,23 @@ class ApplySession:
                             similarity=d.similarity
                         )
                     )
+                if d.selected_anchor_hits is not None:
+                    lines.append(
+                        _("      Anchor matches: {count}").format(
+                            count=d.selected_anchor_hits
+                        )
+                    )
                 if d.candidates:
                     max_display = 5
                     displayed: list[str] = [
-                        _("(position {position}, similarity {similarity:.3f})").format(
-                            position=p, similarity=s
+                        _(
+                            "(position {position}, similarity {similarity:.3f}, anchors {anchors})"
+                        ).format(
+                            position=cand.position,
+                            similarity=cand.score,
+                            anchors=cand.anchor_hits,
                         )
-                        for p, s in d.candidates[:max_display]
+                        for cand in d.candidates[:max_display]
                     ]
                     remaining = len(d.candidates) - max_display
                     if remaining > 0:
@@ -340,7 +371,7 @@ class ManualResolver(Protocol):
         self,
         hv: "HunkView",
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         /,
@@ -385,19 +416,25 @@ def find_candidates(
     threshold: float,
     *,
     strategy: MatchingStrategy = MatchingStrategy.AUTO,
-) -> list[tuple[int, float]]:
-    """Return candidate start positions sorted by similarity score."""
+    use_anchors: bool = True,
+    max_candidates: int | None = None,
+):
+    """Return candidate search results using the configured strategy."""
 
-    candidates = find_candidate_positions(
-        file_lines, before_lines, threshold, strategy=strategy
+    options = MatchingOptions(
+        strategy=strategy,
+        use_anchors=use_anchors,
+        max_candidates=max_candidates,
     )
+    result = matching_find_candidates(file_lines, before_lines, threshold, options)
     logger.debug(
-        "Candidati trovati: %d (strategia=%s, soglia=%.3f)",
-        len(candidates),
-        strategy,
+        "Candidati trovati: %d (strategia=%s, backend=%s, soglia=%.3f)",
+        len(result.candidates),
+        result.stats.strategy,
+        result.stats.backend,
         threshold,
     )
-    return candidates
+    return result
 
 
 def apply_hunk_at_position(
@@ -420,6 +457,7 @@ def apply_hunks(
     *,
     threshold: float,
     matching_strategy: MatchingStrategy = MatchingStrategy.AUTO,
+    use_structural_anchors: bool = True,
     manual_resolver: Optional[ManualResolver] = None,
 ) -> tuple[list[str], list[HunkDecision], int]:
     """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions.
@@ -559,21 +597,26 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
-        exact_candidates = find_candidates(
+        exact_result = find_candidates(
             current_lines,
             hv.before_lines,
             threshold=1.0,
             strategy=matching_strategy,
+            use_anchors=use_structural_anchors,
         )
-        if exact_candidates:
-            pos, score = exact_candidates[0]
-            logger.debug("Match esatto trovato (pos=%d)", pos)
+        if exact_result.candidates:
+            match = exact_result.candidates[0]
+            pos, score = match.position, match.score
+            logger.debug(
+                "Match esatto trovato (pos=%d, anchors=%d)", pos, match.anchor_hits
+            )
             snapshot = list(current_lines)
             current_lines, success = _apply(
                 current_lines, hv, decision, pos, score, "exact"
             )
             if success:
                 applied_count += 1
+                decision.selected_anchor_hits = match.anchor_hits
             else:
                 _inject_assistant_into_message(
                     decision,
@@ -585,21 +628,30 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
-        fuzzy_candidates = find_candidates(
+        fuzzy_result = find_candidates(
             current_lines,
             hv.before_lines,
             threshold=threshold,
             strategy=matching_strategy,
+            use_anchors=use_structural_anchors,
         )
+        fuzzy_candidates = list(fuzzy_result.candidates)
         if len(fuzzy_candidates) == 1:
-            pos, score = fuzzy_candidates[0]
-            logger.debug("Match fuzzy singolo trovato (pos=%d, score=%.3f)", pos, score)
+            match = fuzzy_candidates[0]
+            pos, score = match.position, match.score
+            logger.debug(
+                "Match fuzzy singolo trovato (pos=%d, score=%.3f, anchors=%d)",
+                pos,
+                score,
+                match.anchor_hits,
+            )
             snapshot = list(current_lines)
             current_lines, success = _apply(
                 current_lines, hv, decision, pos, score, "fuzzy"
             )
             if success:
                 applied_count += 1
+                decision.selected_anchor_hits = match.anchor_hits
             else:
                 _inject_assistant_into_message(
                     decision,
@@ -608,6 +660,7 @@ def apply_hunks(
                     original_diff=original_diff,
                     failure_reason=decision.message or "Errore applicazione fuzzy",
                 )
+            decision.candidates = fuzzy_candidates
             decisions.append(decision)
             continue
         if len(fuzzy_candidates) > 1:
@@ -636,15 +689,20 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                similarity = next(
-                    (score for pos_, score in fuzzy_candidates if pos_ == chosen), None
+                match = next(
+                    (cand for cand in fuzzy_candidates if cand.position == chosen),
+                    None,
                 )
+                similarity = match.score if match is not None else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
                 )
                 if success:
                     applied_count += 1
+                    decision.selected_anchor_hits = (
+                        match.anchor_hits if match is not None else None
+                    )
                 else:
                     _inject_assistant_into_message(
                         decision,
@@ -670,14 +728,16 @@ def apply_hunks(
             continue
 
         context_lines = hv.context_lines
-        context_candidates: list[tuple[int, float]] = []
+        context_candidates: list[CandidateMatch] = []
         if context_lines:
-            context_candidates = find_candidates(
+            context_result = find_candidates(
                 current_lines,
                 context_lines,
                 threshold=threshold,
                 strategy=matching_strategy,
+                use_anchors=use_structural_anchors,
             )
+            context_candidates = list(context_result.candidates)
         if context_candidates:
             decision.strategy = "manual"
             decision.candidates = context_candidates
@@ -699,16 +759,20 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                similarity = next(
-                    (score for pos_, score in context_candidates if pos_ == chosen),
+                match = next(
+                    (cand for cand in context_candidates if cand.position == chosen),
                     None,
                 )
+                similarity = match.score if match is not None else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
                 )
                 if success:
                     applied_count += 1
+                    decision.selected_anchor_hits = (
+                        match.anchor_hits if match is not None else None
+                    )
                 else:
                     _inject_assistant_into_message(
                         decision,
@@ -1027,6 +1091,7 @@ def write_reports(
 
 __all__ = [
     "ApplySession",
+    "CandidateMatch",
     "FileResult",
     "HunkDecision",
     "HunkView",

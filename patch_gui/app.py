@@ -43,7 +43,7 @@ from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
 from .theme import ThemeSnapshot, apply_modern_theme, theme_manager
 from .logging_utils import configure_logging
-from .matching import MatchingStrategy
+from .matching import CandidateMatch, MatchingStrategy
 from .patcher import (
     ApplySession,
     FileResult,
@@ -572,7 +572,7 @@ class CandidateDialog(_QDialogBase):
         self,
         parent: QtWidgets.QWidget | None,
         file_text: str,
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         hv: HunkView,
         *,
         ai_hint: AISuggestion | None = None,
@@ -697,9 +697,88 @@ class CandidateDialog(_QDialogBase):
         left = QtWidgets.QWidget()
         left_layout = QtWidgets.QVBoxLayout(left)
         self.list: QtWidgets.QListWidget = QtWidgets.QListWidget()
-        for pos, score in candidates:
-            label = _("Linea {line} – similarità {score:.3f}").format(
-                line=pos + 1, score=score
+        for cand in candidates:
+            label = _(
+                "Linea {line} – similarità {score:.3f} (ancore {anchors})"
+            ).format(line=cand.position + 1, score=cand.score, anchors=cand.anchor_hits)
+            item = QtWidgets.QListWidgetItem(label)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, cand.position)
+            self.list.addItem(item)
+        if self.ai_hint is not None:
+            index = self.ai_hint.candidate_index - 1
+            if 0 <= index < self.list.count():
+                self.list.setCurrentRow(index)
+            else:
+                self.list.setCurrentRow(0)
+        elif self.list.count():
+            self.list.setCurrentRow(0)
+        left_layout.addWidget(self.list)
+
+        self.preview_left: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit()
+        self.preview_left.setReadOnly(True)
+        left_layout.addWidget(self.preview_left, 1)
+
+        right = QtWidgets.QWidget()
+        right_layout = QtWidgets.QVBoxLayout(right)
+        right_layout.addWidget(QtWidgets.QLabel(_("Hunk – contenuto atteso (prima):")))
+        self.preview_right: QtWidgets.QPlainTextEdit = QtWidgets.QPlainTextEdit(
+            "".join(hv.before_lines)
+        )
+        self.preview_right.setReadOnly(True)
+        right_layout.addWidget(self.preview_right, 1)
+
+        splitter.addWidget(left)
+        splitter.addWidget(right)
+        layout.addWidget(splitter, 1)
+
+        btns = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        layout.addWidget(btns)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+
+        def on_row_changed() -> None:
+            row = self.list.currentRow()
+            if row < 0:
+                return
+            candidate = candidates[row]
+            pos = candidate.position
+            file_lines = file_text.splitlines(keepends=True)
+            start = max(0, pos - 15)
+            end = min(len(file_lines), pos + len(hv.before_lines) + 15)
+            snippet = "".join(file_lines[start:end])
+            self.preview_left.setPlainText(snippet)
+
+        self.list.currentRowChanged.connect(on_row_changed)
+        on_row_changed()
+
+    def accept(self) -> None:
+        row = self.list.currentRow()
+        if row < 0:
+            QtWidgets.QMessageBox.warning(
+                self,
+                _("Selezione obbligatoria"),
+                _("Seleziona una posizione dalla lista."),
+            )
+            return
+        item = self.list.currentItem()
+        if item is None:
+            return
+        data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if isinstance(data, int):
+            self.selected_pos = data
+        else:
+            text = item.text()
+            m = re.search(r"\d+", text)
+            if m:
+                self.selected_pos = int(m.group(0)) - 1
+        super().accept()
+
+    def _apply_ai(self) -> None:  # pragma: no cover - user interaction
+        if self.ai_hint is None:
+            return
             )
             item = QtWidgets.QListWidgetItem(label)
             item.setData(QtCore.Qt.ItemDataRole.UserRole, pos)
@@ -743,7 +822,8 @@ class CandidateDialog(_QDialogBase):
             row = self.list.currentRow()
             if row < 0:
                 return
-            pos, _ = candidates[row]
+            candidate = candidates[row]
+            pos = candidate.position
             file_lines = file_text.splitlines(keepends=True)
             start = max(0, pos - 15)
             end = min(len(file_lines), pos + len(hv.before_lines) + 15)
@@ -781,6 +861,9 @@ class CandidateDialog(_QDialogBase):
         index = self.ai_hint.candidate_index - 1
         if 0 <= index < self.list.count():
             self.list.setCurrentRow(index)
+        candidate = candidates[index] if 0 <= index < len(candidates) else None
+        if candidate is not None:
+            self.selected_pos = candidate.position
         self.accept()
 
 
@@ -862,6 +945,14 @@ class SettingsDialog(_QDialogBase):
         self.threshold_spin.setDecimals(2)
         self.threshold_spin.setValue(self._original_config.threshold)
         form.addRow(_("Soglia fuzzy"), self.threshold_spin)
+
+        self.anchors_checkbox = QtWidgets.QCheckBox(
+            _("Usa ancore strutturali accelerate")
+        )
+        self.anchors_checkbox.setChecked(
+            getattr(self._original_config, "use_structural_anchors", True)
+        )
+        form.addRow(_("Ancore strutturali"), self.anchors_checkbox)
 
         strategy_labels = {
             MatchingStrategy.AUTO: _("Automatico (ottimizzato)"),
@@ -1085,6 +1176,7 @@ class SettingsDialog(_QDialogBase):
             ai_auto_apply=self.ai_auto_check.isChecked(),
             ai_diff_notes_enabled=self.ai_diff_notes_check.isChecked(),
             matching_strategy=matching_strategy,
+            use_structural_anchors=self.anchors_checkbox.isChecked(),
         )
 
     @staticmethod
@@ -1338,6 +1430,8 @@ class PatchApplyWorker(_QThreadBase):
             lines,
             pf,
             threshold=self.session.threshold,
+            matching_strategy=self.session.matching_strategy,
+            use_structural_anchors=self.session.use_structural_anchors,
             manual_resolver=self._resolve_hunk_choice,
         )
 
@@ -1389,7 +1483,7 @@ class PatchApplyWorker(_QThreadBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         ai_hint: AISuggestion | None,
         assistant_message: str | None,
         assistant_patch: str | None,
@@ -1407,7 +1501,7 @@ class PatchApplyWorker(_QThreadBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -1428,10 +1522,11 @@ class PatchApplyWorker(_QThreadBase):
             decision.ai_explanation = ai_hint.explanation
             decision.ai_source = ai_hint.source
             if self.ai_auto_apply:
-                similarity = next(
-                    (score for pos, score in candidates if pos == ai_hint.position),
+                match = next(
+                    (cand for cand in candidates if cand.position == ai_hint.position),
                     None,
                 )
+                similarity = match.score if match is not None else None
                 if similarity is None:
                     logger.warning(
                         "Suggerimento AI non corrisponde a nessun candidato per %s",
@@ -1440,6 +1535,9 @@ class PatchApplyWorker(_QThreadBase):
                 else:
                     decision.selected_pos = ai_hint.position
                     decision.similarity = similarity
+                    decision.selected_anchor_hits = (
+                        match.anchor_hits if match is not None else None
+                    )
                     decision.message = _(
                         "Suggerimento AI applicato automaticamente (candidato {index})."
                     ).format(index=ai_hint.candidate_index)
@@ -1758,6 +1856,15 @@ class MainWindow(_QMainWindowBase):
         self.spin_thresh.setDecimals(2)
         self.spin_thresh.setValue(self.threshold)
         second.addWidget(self.spin_thresh)
+
+        second.addSpacing(12)
+        self.chk_anchors = QtWidgets.QCheckBox(_("Ancore strutturali"))
+        self.chk_anchors.setToolTip(
+            _(
+                "Preferisci candidati che mantengono il contesto esatto per velocizzare la ricerca."
+            )
+        )
+        second.addWidget(self.chk_anchors)
 
         second.addSpacing(20)
         second.addWidget(QtWidgets.QLabel(_("Ignora directory")))
@@ -2318,7 +2425,11 @@ class MainWindow(_QMainWindowBase):
         self.ai_auto_apply = bool(self.app_config.ai_auto_apply)
         self.ai_diff_notes_enabled = bool(self.app_config.ai_diff_notes_enabled)
         self.matching_strategy = self.app_config.matching_strategy
+        self.use_structural_anchors = bool(
+            getattr(self.app_config, "use_structural_anchors", True)
+        )
         self.spin_thresh.setValue(self.threshold)
+        self.chk_anchors.setChecked(self.use_structural_anchors)
         excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
         self.exclude_edit.setText(excludes_text)
         self.chk_dry.setChecked(self.app_config.dry_run_default)
@@ -2390,9 +2501,11 @@ class MainWindow(_QMainWindowBase):
         self.app_config.ai_auto_apply = self.ai_auto_apply
         self.app_config.ai_diff_notes_enabled = self.ai_diff_notes_enabled
         self.app_config.matching_strategy = self.matching_strategy
+        self.app_config.use_structural_anchors = self.chk_anchors.isChecked()
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
+        self.use_structural_anchors = self.app_config.use_structural_anchors
         save_config(self.app_config)
 
     def choose_root(self) -> None:
@@ -2593,6 +2706,7 @@ class MainWindow(_QMainWindowBase):
             widget.setEnabled(not busy)
         self.chk_dry.setEnabled(not busy)
         self.spin_thresh.setEnabled(not busy)
+        self.chk_anchors.setEnabled(not busy)
         self.text_diff.setReadOnly(busy)
 
     def apply_patch(self) -> None:
@@ -2652,6 +2766,7 @@ class MainWindow(_QMainWindowBase):
             exclude_dirs=excludes,
             started_at=started_at,
             matching_strategy=self.app_config.matching_strategy,
+            use_structural_anchors=self.app_config.use_structural_anchors,
         )
         session.summary_diff_digest = compute_diff_digest(self.patch)
         worker = PatchApplyWorker(
@@ -2877,7 +2992,7 @@ class MainWindow(_QMainWindowBase):
     def _on_worker_request_hunk_choice(
         self,
         file_text: str,
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         hv: HunkView,
         ai_hint: AISuggestion | None,
         assistant_message: str | None,
@@ -2968,6 +3083,7 @@ class MainWindow(_QMainWindowBase):
             pf,
             threshold=session.threshold,
             matching_strategy=session.matching_strategy,
+            use_structural_anchors=session.use_structural_anchors,
             manual_resolver=self._dialog_hunk_choice,
         )
 
@@ -2985,7 +3101,7 @@ class MainWindow(_QMainWindowBase):
         self,
         hv: HunkView,
         lines: List[str],
-        candidates: List[Tuple[int, float]],
+        candidates: List[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
