@@ -1,24 +1,31 @@
+from typing import Any, cast
+
 import pytest
 from unidiff import PatchSet
 
-from patch_gui.diff_formatting import format_diff_with_line_numbers, render_diff_segments
+from patch_gui.diff_formatting import (
+    format_diff_with_line_numbers,
+    render_diff_segments,
+)
 from patch_gui.interactive_diff_model import FileDiffEntry
 from tests._pytest_typing import typed_fixture
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtCore as _QtCore, QtWidgets as _QtWidgets
 except Exception as exc:  # pragma: no cover - missing bindings
-    QtWidgets = None
-    QtCore = None
+    QtWidgets: Any | None = None
+    QtCore: Any | None = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - bindings available
-    QtWidgets = _QtWidgets
-    QtCore = _QtCore
+    QtWidgets = cast(Any, _QtWidgets)
+    QtCore = cast(Any, _QtCore)
     _QT_IMPORT_ERROR = None
 
 try:  # pragma: no cover - optional dependency
     from patch_gui.split_diff_view import SplitDiffView as _SplitDiffView
-    from patch_gui.interactive_diff import InteractiveDiffWidget as _InteractiveDiffWidget
+    from patch_gui.interactive_diff import (
+        InteractiveDiffWidget as _InteractiveDiffWidget,
+    )
     from patch_gui.highlighter import build_diff_highlight_palette as _build_palette
 except Exception as exc:  # pragma: no cover - missing GUI deps
     SplitDiffView = None
@@ -33,10 +40,11 @@ else:  # pragma: no cover - bindings available
 
 
 @typed_fixture()
-def qt_app():
+def qt_app() -> Any:
     if QtWidgets is None or _WIDGET_IMPORT_ERROR is not None:
         reason = _QT_IMPORT_ERROR or _WIDGET_IMPORT_ERROR
         pytest.skip(f"PySide6 non disponibile: {reason}")
+    assert QtWidgets is not None
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication([])
@@ -117,28 +125,35 @@ def _long_diff() -> str:
 
 
 def _two_hunk_diff() -> str:
-    return "\n".join(
-        [
-            "diff --git a/demo.txt b/demo.txt",
-            "index 1111111..2222222 100644",
-            "--- a/demo.txt",
-            "+++ b/demo.txt",
-            "@@ -1,4 +1,4 @@",
-            " line a",
-            "-line b",
-            "+line bee",
-            " line c",
-            " line d",
-            "@@ -10,0 +10,2 @@",
-            "+tail one",
-            "+tail two",
-        ]
-    ) + "\n"
+    return (
+        "\n".join(
+            [
+                "diff --git a/demo.txt b/demo.txt",
+                "index 1111111..2222222 100644",
+                "--- a/demo.txt",
+                "+++ b/demo.txt",
+                "@@ -1,4 +1,4 @@",
+                " line a",
+                "-line b",
+                "+line bee",
+                " line c",
+                " line d",
+                "@@ -10,0 +10,2 @@",
+                "+tail one",
+                "+tail two",
+            ]
+        )
+        + "\n"
+    )
 
 
-def test_split_diff_view_synchronized_scroll(qt_app):
+def test_split_diff_view_synchronized_scroll(qt_app: Any) -> None:
     if SplitDiffView is None or QtWidgets is None:
-        pytest.skip(f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}")
+        pytest.skip(
+            f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}"
+        )
+    assert QtWidgets is not None
+    assert build_diff_highlight_palette is not None
     entry = _build_entry(_long_diff())
     palette_widget = QtWidgets.QWidget()
     palette = build_diff_highlight_palette(palette_widget.palette())
@@ -163,9 +178,13 @@ def test_split_diff_view_synchronized_scroll(qt_app):
     assert left_bar.value() == 0
 
 
-def test_interactive_diff_inline_toggle_emits_signal(qt_app):
+def test_interactive_diff_inline_toggle_emits_signal(qt_app: Any) -> None:
     if InteractiveDiffWidget is None or QtWidgets is None:
-        pytest.skip(f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}")
+        pytest.skip(
+            f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}"
+        )
+    assert QtWidgets is not None
+    assert QtCore is not None
     widget = InteractiveDiffWidget()
     patch_set = PatchSet(_two_hunk_diff())
     widget.set_patch(patch_set)
@@ -174,7 +193,7 @@ def test_interactive_diff_inline_toggle_emits_signal(qt_app):
     captured: list[str] = []
     widget.diffReordered.connect(captured.append)
 
-    split_view = widget._split_view  # type: ignore[attr-defined]
+    split_view = widget._split_view
     assert split_view.hunk_widgets
     first_hunk = split_view.hunk_widgets[0]
     skip_button = first_hunk.findChild(QtWidgets.QToolButton, "splitDiffSkipButton")
@@ -187,7 +206,7 @@ def test_interactive_diff_inline_toggle_emits_signal(qt_app):
     assert "@@ -1,4 +1,4 @@" not in last_diff
     assert "@@ -10,0 +10,2 @@" in last_diff
 
-    current_item = widget._list_widget.currentItem()  # type: ignore[attr-defined]
+    current_item = widget._list_widget.currentItem()
     assert current_item is not None
     current_entry = current_item.data(QtCore.Qt.ItemDataRole.UserRole)
     assert isinstance(current_entry, FileDiffEntry)
@@ -195,15 +214,19 @@ def test_interactive_diff_inline_toggle_emits_signal(qt_app):
     assert current_entry.hunk_apply_mask[0] is False
 
 
-def test_interactive_diff_export_respects_selection(qt_app):
+def test_interactive_diff_export_respects_selection(qt_app: Any) -> None:
     if InteractiveDiffWidget is None or QtWidgets is None:
-        pytest.skip(f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}")
+        pytest.skip(
+            f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}"
+        )
+    assert QtWidgets is not None
+    assert QtCore is not None
     widget = InteractiveDiffWidget()
     patch_set = PatchSet(_two_hunk_diff())
     widget.set_patch(patch_set)
     qt_app.processEvents()
 
-    split_view = widget._split_view  # type: ignore[attr-defined]
+    split_view = widget._split_view
     first_hunk = split_view.hunk_widgets[0]
     skip_button = first_hunk.findChild(QtWidgets.QToolButton, "splitDiffSkipButton")
     assert skip_button is not None

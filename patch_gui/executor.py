@@ -233,9 +233,9 @@ def apply_patchset(
             resolved_strategy = _resolve_strategy(matching_strategy)
         except ValueError as exc:
             raise CLIError(
-                _(
-                    "Unsupported matching strategy: {strategy}."
-                ).format(strategy=matching_strategy)
+                _("Unsupported matching strategy: {strategy}.").format(
+                    strategy=matching_strategy
+                )
             ) from exc
     started_at = time.time()
     backup_base_arg = backup_base or resolved_config.backup_base
@@ -278,7 +278,9 @@ def apply_patchset(
     )
 
     configured_anchors = getattr(resolved_config, "use_structural_anchors", True)
-    anchors_enabled = configured_anchors if use_structural_anchors is None else use_structural_anchors
+    anchors_enabled = (
+        configured_anchors if use_structural_anchors is None else use_structural_anchors
+    )
 
     session = ApplySession(
         project_root=root,
@@ -837,9 +839,9 @@ def _apply_binary_patch_to_path(
         return fr
 
     method = getattr(binary_patch.forward, "method", "binary")
-    decision.message = _(
-        "Applied {method} binary patch ({size} bytes)"
-    ).format(method=method, size=len(new_bytes))
+    decision.message = _("Applied {method} binary patch ({size} bytes)").format(
+        method=method, size=len(new_bytes)
+    )
     fr.decisions.append(decision)
     fr.hunks_applied = 1
 
@@ -1193,9 +1195,7 @@ def _cli_manual_resolver(
         )
 
         snippet_start = max(0, cand.position - context_padding)
-        snippet_end = min(
-            len(lines), cand.position + highlight_width + context_padding
-        )
+        snippet_end = min(len(lines), cand.position + highlight_width + context_padding)
         highlight_start = cand.position
         highlight_end = min(len(lines), cand.position + highlight_width)
 

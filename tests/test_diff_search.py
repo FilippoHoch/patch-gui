@@ -1,31 +1,37 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from tests._pytest_typing import typed_fixture
+
 try:  # pragma: no cover - optional dependency guard
-    from PySide6 import QtWidgets
+    from PySide6 import QtWidgets as _QtWidgets
 except Exception as exc:  # pragma: no cover - optional dependency
-    QtWidgets = None
+    QtWidgets: Any | None = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - exercised when bindings are available
+    QtWidgets = cast(Any, _QtWidgets)
     _QT_IMPORT_ERROR = None
 
 try:  # pragma: no cover - optional dependency guard
-    from patch_gui.diff_search import DiffSearchHelper
+    from patch_gui.diff_search import DiffSearchHelper as _DiffSearchHelper
 except Exception as exc:  # pragma: no cover - optional dependency
-    DiffSearchHelper = None
+    DiffSearchHelper: Any | None = None
     _DIFF_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - exercised when bindings are available
+    DiffSearchHelper = cast(Any, _DiffSearchHelper)
     _DIFF_IMPORT_ERROR = None
 
 
-@pytest.fixture()
+@typed_fixture()
 def qt_app() -> Any:
     if QtWidgets is None or DiffSearchHelper is None:
         reason = _QT_IMPORT_ERROR if QtWidgets is None else _DIFF_IMPORT_ERROR
         pytest.skip(f"PySide6 non disponibile: {reason}")
+    assert QtWidgets is not None
+    assert DiffSearchHelper is not None
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication([])
@@ -36,6 +42,8 @@ def test_diff_search_helper_navigation(qt_app: Any) -> None:
     if QtWidgets is None or DiffSearchHelper is None:
         reason = _QT_IMPORT_ERROR if QtWidgets is None else _DIFF_IMPORT_ERROR
         pytest.skip(f"PySide6 non disponibile: {reason}")
+    assert QtWidgets is not None
+    assert DiffSearchHelper is not None
 
     editor = QtWidgets.QPlainTextEdit()
     editor.setPlainText("uno\nfoo\nFoo\nqualcosa\nfoo")
@@ -76,6 +84,8 @@ def test_diff_search_helper_updates_on_text_change(qt_app: Any) -> None:
     if QtWidgets is None or DiffSearchHelper is None:
         reason = _QT_IMPORT_ERROR if QtWidgets is None else _DIFF_IMPORT_ERROR
         pytest.skip(f"PySide6 non disponibile: {reason}")
+    assert QtWidgets is not None
+    assert DiffSearchHelper is not None
 
     editor = QtWidgets.QPlainTextEdit()
     editor.setPlainText("alpha\nbeta\ngamma")

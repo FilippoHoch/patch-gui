@@ -113,7 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except FileNotFoundError as error:
         missing = error.filename or str(error)
-        print(f"Errore: comando non trovato ({missing}). Installa il pacchetto richiesto.")
+        print(
+            f"Errore: comando non trovato ({missing}). Installa il pacchetto richiesto."
+        )
         return 1
     return 0
 

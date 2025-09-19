@@ -10,7 +10,7 @@ from unidiff import PatchSet
 
 import patch_gui.executor as executor
 from patch_gui.config import AppConfig
-from patch_gui.matching import CandidateMatch, MatchingStrategy
+from patch_gui.matching import CandidateMatch, CandidateSearchResult, MatchingStrategy
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -61,7 +61,7 @@ def _project_with_sample(tmp_path: Path) -> Path:
     return project
 
 
-def _positions(result) -> list[tuple[int, float]]:
+def _positions(result: CandidateSearchResult) -> list[tuple[int, float]]:
     return [(cand.position, cand.score) for cand in result.candidates]
 
 
@@ -135,7 +135,9 @@ def test_find_candidates_anchor_prunes_large_file() -> None:
     assert result.candidates and result.candidates[0].position == 100
 
 
-def test_find_candidates_fallback_without_rapidfuzz(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_candidates_fallback_without_rapidfuzz(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import patch_gui.matching as matching
 
     monkeypatch.setattr(matching, "_HAS_RAPIDFUZZ", False)
@@ -445,15 +447,22 @@ def test_apply_session_reports_lookup_metrics(tmp_path: Path) -> None:
     )
 
     data = session.to_json()
-    assert data["lookup_metrics"]["total_queries"] == 0
-    assert data["index_metrics"] is None
+    assert isinstance(data, dict)
+    lookup_metrics = data.get("lookup_metrics")
+    assert isinstance(lookup_metrics, dict)
+    assert lookup_metrics.get("total_queries") == 0
+    assert data.get("index_metrics") is None
 
     find_file_candidates(project_root, "missing.py", session=session)
 
     updated = session.to_json()
-    assert updated["lookup_metrics"]["total_queries"] == 1
-    assert updated["index_metrics"] is not None
-    assert updated["index_metrics"]["scanned_files"] >= 1
+    assert isinstance(updated, dict)
+    lookup_metrics = updated.get("lookup_metrics")
+    assert isinstance(lookup_metrics, dict)
+    assert lookup_metrics.get("total_queries") == 1
+    index_metrics = updated.get("index_metrics")
+    assert isinstance(index_metrics, dict)
+    assert index_metrics.get("scanned_files", 0) >= 1
 
 
 def test_prepare_backup_dir_respects_dry_run(tmp_path: Path) -> None:
@@ -609,7 +618,16 @@ def test_apply_patchset_reports_rename_only_details(tmp_path: Path) -> None:
     assert file_result.decisions[0].strategy == "rename"
 
     json_report = session.to_json()
-    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"  # type: ignore[index]
+    assert isinstance(json_report, dict)
+    files = json_report.get("files")
+    assert isinstance(files, list) and files
+    first = files[0]
+    assert isinstance(first, dict)
+    decisions = first.get("decisions")
+    assert isinstance(decisions, list) and decisions
+    decision0 = decisions[0]
+    assert isinstance(decision0, dict)
+    assert decision0.get("strategy") == "rename"
     text_report = session.to_txt()
     assert "Hunk rename -> rename" in text_report
 
@@ -637,8 +655,17 @@ def test_apply_patchset_reports_rename_with_edit_details(tmp_path: Path) -> None
     assert any(d.strategy != "rename" for d in file_result.decisions)
 
     json_report = session.to_json()
-    assert json_report["files"][0]["decisions"][0]["strategy"] == "rename"  # type: ignore[index]
-    assert json_report["files"][0]["hunks_applied"] == 1  # type: ignore[index]
+    assert isinstance(json_report, dict)
+    files = json_report.get("files")
+    assert isinstance(files, list) and files
+    first = files[0]
+    assert isinstance(first, dict)
+    decisions = first.get("decisions")
+    assert isinstance(decisions, list) and decisions
+    decision0 = decisions[0]
+    assert isinstance(decision0, dict)
+    assert decision0.get("strategy") == "rename"
+    assert first.get("hunks_applied") == 1
     text_report = session.to_txt()
     assert "Hunk rename -> rename" in text_report
 

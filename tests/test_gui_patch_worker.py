@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from unidiff import PatchSet
@@ -11,6 +11,7 @@ from unidiff import PatchSet
 from patch_gui.binary_patch import attach_binary_patch_data
 from patch_gui.patcher import ApplySession, prepare_backup_dir
 from tests._binary_fixture import BINARY_DIFF, NEW_BYTES, OLD_BYTES
+from tests._pytest_typing import typed_fixture
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtWidgets as _QtWidgets
@@ -18,7 +19,7 @@ except Exception as exc:  # pragma: no cover - PySide6 missing in environment
     QtWidgets: Any | None = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - executed when bindings are available
-    QtWidgets = _QtWidgets
+    QtWidgets = cast(Any, _QtWidgets)
     _QT_IMPORT_ERROR = None
 
 
@@ -45,7 +46,7 @@ OUTSIDE_DIFF = """--- /dev/null
 """
 
 
-@pytest.fixture()  # type: ignore[misc]
+@typed_fixture()
 def qt_app() -> Any:
     """Provide a ``QApplication`` instance for tests that need Qt."""
 

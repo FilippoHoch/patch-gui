@@ -178,7 +178,9 @@ class AppConfig:
             "exclude_dirs": list(self.exclude_dirs),
             "backup_base": str(self.backup_base),
             "log_level": str(self.log_level),
-            "theme": str(self.theme.value if isinstance(self.theme, Theme) else self.theme),
+            "theme": str(
+                self.theme.value if isinstance(self.theme, Theme) else self.theme
+            ),
             "dry_run_default": bool(self.dry_run_default),
             "write_reports": bool(self.write_reports),
             "log_file": str(self.log_file),

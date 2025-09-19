@@ -15,6 +15,7 @@ from patch_gui.ai_conflict_helper import generate_conflict_suggestion
 from patch_gui.file_index import FileIndex, FileLookupMetrics, LookupEvent
 from patch_gui.matching import (
     CandidateMatch,
+    CandidateSearchResult,
     MatchingOptions,
     MatchingStrategy,
     find_candidates as matching_find_candidates,
@@ -201,9 +202,11 @@ class ApplySession:
                 for fr in self.results
             ],
             "lookup_metrics": self.lookup_metrics.to_dict(),
-            "index_metrics": self.file_index.metrics.to_dict()
-            if self.file_index is not None
-            else None,
+            "index_metrics": (
+                self.file_index.metrics.to_dict()
+                if self.file_index is not None
+                else None
+            ),
         }
 
     def to_txt(self) -> str:
@@ -418,7 +421,7 @@ def find_candidates(
     strategy: MatchingStrategy = MatchingStrategy.AUTO,
     use_anchors: bool = True,
     max_candidates: int | None = None,
-):
+) -> CandidateSearchResult:
     """Return candidate search results using the configured strategy."""
 
     options = MatchingOptions(
@@ -689,11 +692,14 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                match = next(
-                    (cand for cand in fuzzy_candidates if cand.position == chosen),
-                    None,
+                selected_match: CandidateMatch | None = None
+                for cand in fuzzy_candidates:
+                    if cand.position == chosen:
+                        selected_match = cand
+                        break
+                similarity = (
+                    selected_match.score if selected_match is not None else None
                 )
-                similarity = match.score if match is not None else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
@@ -701,7 +707,9 @@ def apply_hunks(
                 if success:
                     applied_count += 1
                     decision.selected_anchor_hits = (
-                        match.anchor_hits if match is not None else None
+                        selected_match.anchor_hits
+                        if selected_match is not None
+                        else None
                     )
                 else:
                     _inject_assistant_into_message(
@@ -759,11 +767,12 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                match = next(
-                    (cand for cand in context_candidates if cand.position == chosen),
-                    None,
-                )
-                similarity = match.score if match is not None else None
+                context_match: CandidateMatch | None = None
+                for cand in context_candidates:
+                    if cand.position == chosen:
+                        context_match = cand
+                        break
+                similarity = context_match.score if context_match is not None else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
                     current_lines, hv, decision, chosen, similarity, None
@@ -771,7 +780,7 @@ def apply_hunks(
                 if success:
                     applied_count += 1
                     decision.selected_anchor_hits = (
-                        match.anchor_hits if match is not None else None
+                        context_match.anchor_hits if context_match is not None else None
                     )
                 else:
                     _inject_assistant_into_message(

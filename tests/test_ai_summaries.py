@@ -1,12 +1,13 @@
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from patch_gui.ai_summaries import AISummary, generate_session_summary
 from patch_gui.patcher import ApplySession
+from tests._pytest_typing import typed_fixture
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtWidgets as _QtWidgets
@@ -14,7 +15,7 @@ except Exception as exc:  # pragma: no cover - PySide6 missing in environment
     QtWidgets: Any | None = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - executed when bindings are available
-    QtWidgets = _QtWidgets
+    QtWidgets = cast(Any, _QtWidgets)
     _QT_IMPORT_ERROR = None
 
 
@@ -31,7 +32,9 @@ def _build_session(tmp_path: Path) -> ApplySession:
     return session
 
 
-def test_generate_session_summary_uses_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_generate_session_summary_uses_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     import patch_gui.ai_summaries as summaries_module
 
     monkeypatch.setattr(summaries_module, "_SUMMARY_CACHE", {})
@@ -68,7 +71,7 @@ def test_generate_session_summary_uses_cache(monkeypatch: pytest.MonkeyPatch, tm
     assert len(calls) == 1
 
 
-@pytest.fixture()  # type: ignore[misc]
+@typed_fixture()
 def qt_app() -> Any:
     if QtWidgets is None:  # pragma: no cover - PySide6 missing
         pytest.skip(f"PySide6 non disponibile: {_QT_IMPORT_ERROR}")
@@ -129,7 +132,10 @@ def test_ai_summary_worker_non_blocking(
     worker.start()
 
     assert start_event.wait(1.0)
-    assert thread_name.get("name") and thread_name["name"] != threading.current_thread().name
+    assert (
+        thread_name.get("name")
+        and thread_name["name"] != threading.current_thread().name
+    )
     assert "summary" not in results
 
     release_event.set()

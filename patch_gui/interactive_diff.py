@@ -302,6 +302,7 @@ QLabel#diffStatBadge[badgeType="neutral"] {{
 def _format_styles(template: str, **values: str) -> str:
     return template.format(**values)
 
+
 def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
     palette = widget.palette()
 
@@ -377,7 +378,7 @@ def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
     )
 
 
-class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
+class InteractiveDiffWidget(QtWidgets.QWidget):
     """Widget that shows diff blocks and allows reordering them interactively."""
 
     diffReordered = QtCore.Signal(str)
@@ -469,7 +470,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         list_layout.addWidget(order_container)
 
         self._list_widget = QtWidgets.QListWidget()
-        self._list_widget.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        self._list_widget.setDragDropMode(
+            QtWidgets.QAbstractItemView.DragDropMode.InternalMove
+        )
         self._list_widget.setDefaultDropAction(QtCore.Qt.DropAction.MoveAction)
         self._list_widget.setVerticalScrollMode(
             QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
@@ -515,9 +518,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         self._theme_listener = theme_manager.add_listener(self._apply_theme)
         self._apply_theme(theme_manager.snapshot)
-        self.destroyed.connect(
-            lambda: theme_manager.remove_listener(self._apply_theme)
-        )
+        self.destroyed.connect(lambda: theme_manager.remove_listener(self._apply_theme))
 
     def _apply_theme(self, snapshot: ThemeSnapshot) -> None:
         qpalette = snapshot.palette or self.palette()
@@ -830,7 +831,9 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 else:
                     active_mask = list(mask_source)
                     if len(active_mask) < entry.hunk_count:
-                        active_mask.extend([True] * (entry.hunk_count - len(active_mask)))
+                        active_mask.extend(
+                            [True] * (entry.hunk_count - len(active_mask))
+                        )
                 selected = [
                     hunk
                     for idx, hunk in enumerate(entry.hunks)
@@ -927,7 +930,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
                 widget.updateGeometry()
 
 
-class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
+class _DiffListItemWidget(QtWidgets.QFrame):
     """Custom widget for list items with colourful diff statistics."""
 
     def __init__(
