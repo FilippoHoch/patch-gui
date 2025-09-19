@@ -56,6 +56,8 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 - La soglia fuzzy più alta aumenta la precisione ma potrebbe non trovare patch leggermente disallineate.
 - I file binari vengono ignorati automaticamente.
 - Per diff molto grandi l'analisi può richiedere tempo; attendi il completamento prima di chiudere la finestra.
+- La creazione dei report JSON/TXT della sessione segue la configurazione salvata, ma può essere forzata dalla CLI con `--report`
+  o disattivata con `--no-report` secondo le necessità.
 
 Per una panoramica delle opzioni tecniche e delle dipendenze consulta il [README](README.md).
 
