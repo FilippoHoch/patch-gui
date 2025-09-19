@@ -15,6 +15,7 @@ from typing import Any, Optional
 import pytest
 from unidiff import PatchSet
 
+from tests._binary_fixture import BINARY_DIFF, NEW_BYTES, OLD_BYTES
 from tests._pytest_typing import typed_parametrize
 
 import patch_gui
@@ -305,6 +306,34 @@ def test_apply_patchset_real_run_creates_backup(tmp_path: Path) -> None:
     data = json.loads(json_report.read_text(encoding="utf-8"))
     assert data["files"][0]["hunks_applied"] == 1
     assert data["files"][0]["file_type"] == "text"
+
+
+def test_apply_patchset_applies_binary_patch(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    asset = project / "asset.bin"
+    asset.write_bytes(OLD_BYTES)
+
+    diff_path = tmp_path / "binary.diff"
+    diff_path.write_text(BINARY_DIFF, encoding="utf-8")
+
+    patch = executor.load_patch(str(diff_path))
+    session = executor.apply_patchset(
+        patch,
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert asset.read_bytes() == NEW_BYTES
+    file_result = session.results[0]
+    assert file_result.file_type == "binary"
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+
+    backup_copy = session.backup_dir / "asset.bin"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == OLD_BYTES
 
 
 def test_apply_patchset_removes_file_and_preserves_backup(tmp_path: Path) -> None:
