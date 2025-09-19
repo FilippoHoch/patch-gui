@@ -171,6 +171,10 @@ Comandi aggiuntivi:
 - `patch-gui download-exe`: scarica l'eseguibile Windows dalla pagina delle
   release. Usa `--output` per impostare il percorso di destinazione e `--tag`
   per selezionare una release specifica.
+- `patch-gui restore`: elenca i timestamp disponibili e ripristina i file da un
+  backup creato in precedenza. Aggiungi `--timestamp <label>` per evitare il
+  prompt di selezione, `--yes`/`--force` per saltare la conferma e `--dry-run`
+  per verificare i file che verrebbero copiati senza toccare il progetto.
 - `patch-gui config`: visualizza o modifica la configurazione persistente.
   Esempi:
 
@@ -209,6 +213,13 @@ Struttura predefinita:
 - I report vengono generati anche nelle simulazioni (puoi disattivarli con
   `--no-report`).
 - La retention configurabile rimuove automaticamente i backup più vecchi.
+
+Per ripristinare rapidamente un backup senza aprire la GUI puoi usare
+`patch-gui restore --root <percorso>`: il comando elenca i timestamp disponibili
+nella cartella `.diff_backups` del progetto (o nella directory configurata)
+copiando i file selezionati. Le opzioni `--timestamp`, `--yes` e `--dry-run`
+permettono di automatizzare il workflow o di eseguire una prova senza
+modifiche.
 
 ## Configurazione persistente
 
