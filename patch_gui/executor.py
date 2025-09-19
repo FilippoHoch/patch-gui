@@ -401,6 +401,7 @@ def _apply_file_patch(
             project_root,
             candidate_path,
             exclude_dirs=session.exclude_dirs,
+            session=session,
         )
         if candidates:
             break
@@ -418,6 +419,7 @@ def _apply_file_patch(
                     project_root,
                     source_rel,
                     exclude_dirs=session.exclude_dirs,
+                    session=session,
                 )
                 if not source_candidates:
                     fr.skipped_reason = _(

@@ -1130,6 +1130,7 @@ class PatchApplyWorker(_QThreadBase):
             project_root,
             rel_path,
             exclude_dirs=self.session.exclude_dirs,
+            session=self.session,
         )
 
         path: Optional[Path] = None
@@ -2206,6 +2207,7 @@ class MainWindow(_QMainWindowBase):
             self.project_root,
             rel_path,
             exclude_dirs=session.exclude_dirs,
+            session=session,
         )
         if not candidates:
             fr.skipped_reason = _(
