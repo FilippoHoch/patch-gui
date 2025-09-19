@@ -48,6 +48,8 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
      (anche in dry‑run, se non disattivati) per documentare l'esito della simulazione.
 8. **Ripristina da backup**
    - Usa il pulsante **Ripristina da backup…** e seleziona il timestamp desiderato per ripristinare i file originali.
+   - In alternativa esegui `patch-gui restore --root /percorso/del/progetto` dalla CLI per elencare i backup disponibili; puoi
+     combinare `--timestamp`, `--yes`/`--force` e `--dry-run` per automatizzare il ripristino o simulare l'operazione.
 
 ## Suggerimenti utili
 

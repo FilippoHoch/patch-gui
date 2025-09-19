@@ -1609,6 +1609,102 @@ def test_run_download_exe_reports_error(
     assert "boom" in captured.err
 
 
+def _create_backup_session(base: Path, timestamp: str, files: dict[str, str]) -> Path:
+    session = base / timestamp
+    for relative, content in files.items():
+        target = session / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    return session
+
+
+def test_run_restore_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "sample.txt"
+    target.write_text("current", encoding="utf-8")
+
+    backup_base = project / BACKUP_DIR
+    newer = _create_backup_session(
+        backup_base,
+        "20240510-120000-500",
+        {"sample.txt": "newer version"},
+    )
+    older = _create_backup_session(
+        backup_base,
+        "20240401-080000-250",
+        {"sample.txt": "older version"},
+    )
+
+    assert newer.exists()
+    assert older.exists()
+
+    monkeypatch.setattr(cli, "load_config", lambda: AppConfig(backup_base=backup_base))
+
+    responses = iter(["2", "y"])
+
+    def fake_input(prompt: str = "") -> str:
+        try:
+            return next(responses)
+        except StopIteration:
+            raise AssertionError(f"Unexpected prompt: {prompt}")
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    exit_code = cli.run_restore(["--root", str(project)])
+
+    assert exit_code == 0
+    assert target.read_text(encoding="utf-8") == "older version"
+
+    captured = capsys.readouterr()
+    assert "Available backups" in captured.out
+    assert "Restored 1 files" in captured.out
+
+
+def test_run_restore_non_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "data.txt"
+    target.write_text("working", encoding="utf-8")
+
+    backup_base = tmp_path / "external_backups"
+    session = _create_backup_session(
+        backup_base,
+        "20240515-101500-000",
+        {"data.txt": "restored"},
+    )
+
+    config = AppConfig(backup_base=backup_base)
+    monkeypatch.setattr(cli, "load_config", lambda: config)
+
+    exit_code = cli.run_restore(
+        [
+            "--root",
+            str(project),
+            "--backup-base",
+            str(backup_base),
+            "--timestamp",
+            session.name,
+            "--yes",
+            "--non-interactive",
+        ]
+    )
+
+    assert exit_code == 0
+    assert target.read_text(encoding="utf-8") == "restored"
+
+    captured = capsys.readouterr()
+    assert "Restored 1 files" in captured.out
+
+
 @pytest.mark.parametrize(  # type: ignore[misc]
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 3), ("", 0, False, None)],

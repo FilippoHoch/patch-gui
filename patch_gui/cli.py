@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
 import sys
 from pathlib import Path
 from typing import IO, Callable, Sequence, cast
@@ -26,6 +27,7 @@ from .parser import (
     parse_exclude_dirs,
     threshold_value,
 )
+from .utils import BACKUP_DIR, display_path
 
 __all__ = [
     "CLIError",
@@ -33,10 +35,12 @@ __all__ = [
     "build_parser",
     "build_config_parser",
     "build_download_parser",
+    "build_restore_parser",
     "load_patch",
     "run_cli",
     "run_config",
     "run_download_exe",
+    "run_restore",
     "config_show",
     "config_set",
     "config_reset",
@@ -258,6 +262,239 @@ def run_download_exe(argv: Sequence[str] | None = None) -> int:
         )
     )
     return 0
+
+
+def build_restore_parser(
+    *, config: AppConfig | None = None
+) -> argparse.ArgumentParser:
+    """Return an ``ArgumentParser`` configured for the ``restore`` command."""
+
+    resolved_config = config or load_config()
+    parser = argparse.ArgumentParser(
+        prog="patch-gui restore",
+        description=_("Restore files saved during a previous backup session."),
+    )
+    parser.add_argument(
+        "--root",
+        required=True,
+        help=_("Project root where the files should be restored."),
+    )
+    parser.add_argument(
+        "--backup-base",
+        type=Path,
+        default=None,
+        help=_(
+            "Directory that contains the backup sessions. Defaults to '<root>/{dir}' if "
+            "present, otherwise '{path}'."
+        ).format(
+            dir=BACKUP_DIR,
+            path=display_path(resolved_config.backup_base),
+        ),
+    )
+    parser.add_argument(
+        "--timestamp",
+        help=_(
+            "Timestamp label of the backup session to restore (e.g. 20240101-120000-000)."
+        ),
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help=_(
+            "Fail instead of prompting for input; requires --timestamp and --yes to "
+            "proceed."
+        ),
+    )
+    parser.add_argument(
+        "--yes",
+        "--force",
+        dest="assume_yes",
+        action="store_true",
+        help=_("Restore without asking for confirmation."),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=_("Show the files that would be restored without copying them."),
+    )
+    return parser
+
+
+def run_restore(argv: Sequence[str] | None = None) -> int:
+    """Restore files from an existing backup session."""
+
+    config = load_config()
+    parser = build_restore_parser(config=config)
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    try:
+        root = Path(args.root).expanduser().resolve()
+    except OSError as exc:
+        parser.exit(1, _("Error: failed to resolve project root: {error}\n").format(error=exc))
+
+    if not root.exists() or not root.is_dir():
+        parser.exit(1, _("Error: invalid project root: {path}\n").format(path=args.root))
+
+    backup_base: Path
+    if args.backup_base is not None:
+        backup_base = args.backup_base.expanduser()
+    else:
+        project_base = root / BACKUP_DIR
+        if project_base.exists():
+            backup_base = project_base
+        else:
+            backup_base = config.backup_base
+
+    try:
+        sessions = [entry for entry in backup_base.iterdir() if entry.is_dir()]
+    except FileNotFoundError:
+        parser.exit(
+            1,
+            _("Error: no backups found under {path}\n").format(
+                path=display_path(backup_base)
+            ),
+        )
+    except PermissionError as exc:
+        parser.exit(
+            1,
+            _("Error: cannot access backup directory {path}: {error}\n").format(
+                path=display_path(backup_base),
+                error=exc,
+            ),
+        )
+
+    if not sessions:
+        parser.exit(
+            1,
+            _("Error: no backup sessions available in {path}\n").format(
+                path=display_path(backup_base)
+            ),
+        )
+
+    sessions.sort(key=lambda item: item.name, reverse=True)
+
+    print(
+        _("Available backups in {path}:").format(path=display_path(backup_base)),
+        file=sys.stdout,
+    )
+    for index, session in enumerate(sessions, start=1):
+        print(f"  [{index}] {session.name}", file=sys.stdout)
+
+    chosen_session: Path
+    if args.timestamp:
+        chosen_session = backup_base / args.timestamp
+        if not chosen_session.exists() or not chosen_session.is_dir():
+            parser.exit(
+                1,
+                _("Error: backup session '{label}' not found in {path}\n").format(
+                    label=args.timestamp,
+                    path=display_path(backup_base),
+                ),
+            )
+    else:
+        if args.non_interactive:
+            parser.exit(
+                1,
+                _(
+                    "Error: --timestamp is required when running in non-interactive "
+                    "mode.\n"
+                ),
+            )
+        chosen_session = _prompt_for_backup_choice(sessions)
+
+    if not args.assume_yes:
+        if args.non_interactive:
+            parser.exit(
+                1,
+                _(
+                    "Error: --yes is required when running in non-interactive mode.\n"
+                ),
+            )
+        confirmed = _prompt_for_confirmation(chosen_session.name)
+        if not confirmed:
+            print(_("Restore cancelled."), file=sys.stdout)
+            return 1
+
+    if args.dry_run:
+        restored = _simulate_restore(root, chosen_session)
+        print(
+            _("Dry-run: {count} files would be restored from {label}.").format(
+                count=restored, label=chosen_session.name
+            ),
+            file=sys.stdout,
+        )
+        return 0
+
+    try:
+        restored = _perform_restore(root, chosen_session)
+    except (OSError, PermissionError) as exc:
+        parser.exit(
+            1,
+            _("Error: failed to restore files from {label}: {error}\n").format(
+                label=chosen_session.name,
+                error=exc,
+            ),
+        )
+
+    print(
+        _("Restored {count} files from backup {label}.").format(
+            count=restored, label=chosen_session.name
+        ),
+        file=sys.stdout,
+    )
+    return 0
+
+
+def _prompt_for_backup_choice(sessions: list[Path]) -> Path:
+    while True:
+        selection = input(_("Select a backup to restore [1]: ")).strip()
+        if not selection:
+            return sessions[0]
+        if selection.isdigit():
+            index = int(selection)
+            if 1 <= index <= len(sessions):
+                return sessions[index - 1]
+        for session in sessions:
+            if session.name == selection:
+                return session
+        print(_("Invalid selection. Please choose one of the listed backups."))
+
+
+def _prompt_for_confirmation(label: str) -> bool:
+    answer = input(
+        _(
+            "Restore the files from backup {label}? Current files will be overwritten. "
+            "[y/N]: "
+        ).format(label=label)
+    ).strip()
+    return answer.lower() in {"y", "yes"}
+
+
+def _simulate_restore(root: Path, backup_dir: Path) -> int:
+    count = 0
+    for src in backup_dir.rglob("*"):
+        if not src.is_file():
+            continue
+        dest = root / src.relative_to(backup_dir)
+        print(
+            _("Would copy {src} -> {dest}").format(
+                src=display_path(src), dest=display_path(dest)
+            )
+        )
+        count += 1
+    return count
+
+
+def _perform_restore(root: Path, backup_dir: Path) -> int:
+    count = 0
+    for src in backup_dir.rglob("*"):
+        if not src.is_file():
+            continue
+        dest = root / src.relative_to(backup_dir)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        count += 1
+    return count
 
 
 def run_config(argv: Sequence[str] | None = None) -> int:

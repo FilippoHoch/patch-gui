@@ -64,6 +64,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args[0] == "download-exe":
         return cli.run_download_exe(args[1:])
 
+    if args[0] == "restore":
+        return cli.run_restore(args[1:])
+
     if any(opt in {"-h", "--help"} for opt in args):
         _print_help()
         return 0
@@ -126,7 +129,7 @@ def _print_help() -> None:
     parser.add_argument(
         "command",
         nargs="?",
-        choices=["gui", "apply", "config", "download-exe"],
+        choices=["gui", "apply", "config", "download-exe", "restore"],
         help=_tr("Command to execute (default: gui)."),
     )
     parser.print_help()
@@ -136,6 +139,8 @@ def _print_help() -> None:
     cli.build_config_parser().print_help()
     print(_tr("\nExecutable download command:"), file=sys.stdout)
     cli.build_download_parser().print_help()
+    print(_tr("\nRestore command:"), file=sys.stdout)
+    cli.build_restore_parser().print_help()
 
 
 def _ensure_translator() -> None:
