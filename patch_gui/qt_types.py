@@ -11,6 +11,7 @@ __all__ = ["QObjectBase", "QWidgetBase", "QFrameBase"]
 
 
 if TYPE_CHECKING:
+
     class QObjectBase(QObject):
         """Concrete ``QObject`` subclass recognised by static type checkers."""
 
@@ -24,4 +25,3 @@ else:
     QObjectBase = QObject
     QWidgetBase = QWidget
     QFrameBase = QFrame
-

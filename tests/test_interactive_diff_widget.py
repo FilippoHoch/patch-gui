@@ -159,6 +159,7 @@ def test_split_diff_view_synchronized_scroll(qt_app: Any) -> None:
             f"PySide6 non disponibile: {_WIDGET_IMPORT_ERROR or _QT_IMPORT_ERROR}"
         )
     assert QtWidgets is not None
+    assert SplitDiffView is not None
     assert build_diff_highlight_palette is not None
     entry = _build_entry(_long_diff())
     palette_widget = QtWidgets.QWidget()
@@ -191,6 +192,7 @@ def test_interactive_diff_inline_toggle_emits_signal(qt_app: Any) -> None:
         )
     assert QtWidgets is not None
     assert QtCore is not None
+    assert InteractiveDiffWidget is not None
     widget = InteractiveDiffWidget()
     patch_set = PatchSet(_two_hunk_diff())
     widget.set_patch(patch_set)
@@ -227,6 +229,7 @@ def test_interactive_diff_export_respects_selection(qt_app: Any) -> None:
         )
     assert QtWidgets is not None
     assert QtCore is not None
+    assert InteractiveDiffWidget is not None
     widget = InteractiveDiffWidget()
     patch_set = PatchSet(_two_hunk_diff())
     widget.set_patch(patch_set)

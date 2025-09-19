@@ -97,6 +97,7 @@ ignore_missing_imports = true
 module = [
     "patch_gui.app",
     "patch_gui.logo_widgets",
+    "patch_gui.qt_types",
 ]
 allow_subclassing_any = true
 
