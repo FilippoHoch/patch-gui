@@ -10,6 +10,7 @@ import shutil
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, TypeVar, cast
 
@@ -22,6 +23,7 @@ from unidiff import PatchSet
 from .ai_candidate_selector import AISuggestion, rank_candidates
 from .ai_summaries import generate_session_summary
 from .config import AppConfig, Theme, load_config, save_config
+from .diff_search import DiffSearchHelper, DiffSearchMatch
 from .filetypes import inspect_file_type
 from .highlighter import DiffHighlighter
 from .i18n import install_translators
@@ -104,6 +106,12 @@ _BRAND_SURFACE = QColor("#1f2b4d")
 _BRAND_PRIMARY = QColor("#4a7bd6")
 _BRAND_ACCENT = QColor("#7aa2ff")
 _BRAND_LIGHT = QColor("#f1f5ff")
+
+
+@dataclass(slots=True)
+class _DiffLineMetadata:
+    file_label: str | None
+    hunk_header: str | None
 
 
 def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
@@ -1359,6 +1367,12 @@ class MainWindow(_QMainWindowBase):
         self.diff_text: str = ""
         self.patch: Optional[PatchSet] = None
 
+        self._search_history: list[str] = self._load_search_history()
+        self._file_item_by_label: dict[str, QtWidgets.QTreeWidgetItem] = {}
+        self._hunk_item_by_key: dict[tuple[str, str], QtWidgets.QTreeWidgetItem] = {}
+        self._diff_line_metadata: list[_DiffLineMetadata] = []
+        self._diff_metadata_dirty = True
+
         self.threshold: float = self.app_config.threshold
         self.exclude_dirs: tuple[str, ...] = self.app_config.exclude_dirs
         self.reports_enabled: bool = self.app_config.write_reports
@@ -1583,6 +1597,11 @@ class MainWindow(_QMainWindowBase):
 
         right = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right)
+        diff_container = QtWidgets.QWidget()
+        diff_container_layout = QtWidgets.QVBoxLayout(diff_container)
+        diff_container_layout.setContentsMargins(0, 0, 0, 0)
+        diff_container_layout.setSpacing(4)
+
         self.diff_tabs = QtWidgets.QTabWidget()
 
         self.text_diff = QtWidgets.QPlainTextEdit()
@@ -1603,7 +1622,93 @@ class MainWindow(_QMainWindowBase):
         self.interactive_diff.diffReordered.connect(self._on_diff_reordered)
         self.diff_tabs.addTab(self.interactive_diff, _("Diff interattivo"))
 
-        right_layout.addWidget(self.diff_tabs, 1)
+        diff_container_layout.addWidget(self.diff_tabs, 1)
+
+        self.find_bar = QtWidgets.QWidget()
+        find_layout = QtWidgets.QHBoxLayout(self.find_bar)
+        find_layout.setContentsMargins(0, 0, 0, 0)
+        find_layout.setSpacing(6)
+
+        self.find_label = QtWidgets.QLabel(_("Trova:"))
+        find_layout.addWidget(self.find_label)
+
+        self.find_combo = QtWidgets.QComboBox()
+        self.find_combo.setEditable(True)
+        self.find_combo.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
+        self.find_combo.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+        line_edit = self.find_combo.lineEdit()
+        if line_edit is not None:
+            line_edit.setPlaceholderText(_("Cerca nel diff…"))
+            line_edit.textChanged.connect(self._on_find_text_changed)
+            line_edit.returnPressed.connect(self._on_find_return_pressed)
+        find_layout.addWidget(self.find_combo, 1)
+
+        self.find_status_label = QtWidgets.QLabel("")
+        self.find_status_label.setMinimumWidth(120)
+        find_layout.addWidget(self.find_status_label)
+
+        self.find_prev_button = QtWidgets.QToolButton()
+        self.find_prev_button.setIcon(
+            self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_ArrowUp)
+        )
+        self.find_prev_button.setToolTip(_("Trova precedente (Shift+F3)"))
+        self.find_prev_button.clicked.connect(self._on_find_previous_clicked)
+        self.find_prev_button.setEnabled(False)
+        find_layout.addWidget(self.find_prev_button)
+
+        self.find_next_button = QtWidgets.QToolButton()
+        self.find_next_button.setIcon(
+            self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_ArrowDown)
+        )
+        self.find_next_button.setToolTip(_("Trova successivo (F3)"))
+        self.find_next_button.clicked.connect(self._on_find_next_clicked)
+        self.find_next_button.setEnabled(False)
+        find_layout.addWidget(self.find_next_button)
+
+        self.find_case_box = QtWidgets.QCheckBox(_("Maiuscole/minuscole"))
+        self.find_case_box.toggled.connect(self._on_find_case_toggled)
+        find_layout.addWidget(self.find_case_box)
+
+        self.find_close_button = QtWidgets.QToolButton()
+        self.find_close_button.setIcon(
+            self.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogCloseButton)
+        )
+        self.find_close_button.setToolTip(_("Nascondi barra di ricerca"))
+        self.find_close_button.clicked.connect(self._hide_find_bar)
+        find_layout.addWidget(self.find_close_button)
+
+        self.find_bar.setVisible(False)
+        diff_container_layout.addWidget(self.find_bar)
+
+        self._diff_search_helper = DiffSearchHelper(self.text_diff)
+        self._diff_search_helper.resultsChanged.connect(
+            self._on_diff_search_results_changed
+        )
+        self._diff_search_helper.currentMatchChanged.connect(
+            self._on_diff_search_current_match
+        )
+        self.text_diff.textChanged.connect(self._on_diff_text_changed)
+        self._update_search_history_model()
+
+        self._find_shortcut = QtGui.QShortcut(
+            QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Find), self
+        )
+        self._find_shortcut.activated.connect(self._show_find_bar)
+
+        self._find_next_shortcut = QtGui.QShortcut(
+            QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.FindNext), self
+        )
+        self._find_next_shortcut.activated.connect(self._on_find_next_shortcut)
+
+        self._find_prev_shortcut = QtGui.QShortcut(
+            QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.FindPrevious), self
+        )
+        self._find_prev_shortcut.activated.connect(self._on_find_previous_shortcut)
+
+        right_layout.addWidget(diff_container, 1)
 
         log_header = QtWidgets.QHBoxLayout()
         log_header.addWidget(QtWidgets.QLabel(_("Log:")))
@@ -1687,6 +1792,235 @@ class MainWindow(_QMainWindowBase):
         self._log_messages.clear()
         self._refresh_log_view()
         self.statusBar().showMessage(_("Log pulito"), 3000)
+
+    def _on_find_text_changed(self, text: str) -> None:
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.search(text)
+
+    def _on_find_return_pressed(self) -> None:
+        if self._diff_search_helper is None:
+            return
+        query = self.find_combo.currentText().strip()
+        if not query and not self._diff_search_helper.query:
+            return
+        if query:
+            self._diff_search_helper.search(query)
+            self._remember_search_query(query)
+        if self._diff_search_helper.matches:
+            self._diff_search_helper.find_next()
+
+    def _on_find_previous_clicked(self) -> None:
+        if not self._ensure_search_query():
+            self._show_find_bar()
+            return
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.find_previous()
+        self._remember_search_query(self._diff_search_helper.query)
+
+    def _on_find_next_clicked(self) -> None:
+        if not self._ensure_search_query():
+            self._show_find_bar()
+            return
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.find_next()
+        self._remember_search_query(self._diff_search_helper.query)
+
+    def _on_find_case_toggled(self, checked: bool) -> None:
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.set_case_sensitive(checked)
+        if self._diff_search_helper.query:
+            self._remember_search_query(self._diff_search_helper.query)
+
+    def _show_find_bar(self) -> None:
+        self.find_bar.setVisible(True)
+        line_edit = self.find_combo.lineEdit()
+        if line_edit is not None:
+            line_edit.setFocus()
+            line_edit.selectAll()
+
+    def _hide_find_bar(self) -> None:
+        self.find_bar.setVisible(False)
+        self.text_diff.setFocus()
+
+    def _on_find_next_shortcut(self) -> None:
+        if not self._ensure_search_query():
+            self._show_find_bar()
+            return
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.find_next()
+        self._remember_search_query(self._diff_search_helper.query)
+
+    def _on_find_previous_shortcut(self) -> None:
+        if not self._ensure_search_query():
+            self._show_find_bar()
+            return
+        if self._diff_search_helper is None:
+            return
+        self._diff_search_helper.find_previous()
+        self._remember_search_query(self._diff_search_helper.query)
+
+    def _ensure_search_query(self) -> bool:
+        if self._diff_search_helper is None:
+            return False
+        current = self.find_combo.currentText().strip()
+        if current:
+            if current != self._diff_search_helper.query:
+                self._diff_search_helper.search(current)
+            return bool(self._diff_search_helper.matches)
+        if self._diff_search_helper.query:
+            return bool(self._diff_search_helper.matches)
+        if self._search_history:
+            remembered = self._search_history[0]
+            self.find_combo.setEditText(remembered)
+            self._diff_search_helper.search(remembered)
+            return bool(self._diff_search_helper.matches)
+        return False
+
+    def _on_diff_search_results_changed(self, total: int) -> None:
+        has_results = total > 0
+        self.find_prev_button.setEnabled(has_results)
+        self.find_next_button.setEnabled(has_results)
+        query = self._diff_search_helper.query if self._diff_search_helper else ""
+        if total == 0 and not query:
+            self.find_status_label.setText("")
+        elif total == 0:
+            self.find_status_label.setText(_("Nessuna corrispondenza"))
+
+    def _on_diff_search_current_match(
+        self,
+        match: DiffSearchMatch | None,
+        index: int,
+        total: int,
+    ) -> None:
+        if total <= 0 or match is None:
+            if total == 0 and (self._diff_search_helper.query if self._diff_search_helper else ""):
+                self.find_status_label.setText(_("Nessuna corrispondenza"))
+            return
+        self.find_status_label.setText(
+            _("Risultato {index} di {total}").format(index=index + 1, total=total)
+        )
+        self._focus_diff_match(match)
+
+    def _remember_search_query(self, query: str) -> None:
+        normalized = query.strip()
+        if not normalized:
+            return
+        if normalized in self._search_history:
+            self._search_history.remove(normalized)
+        self._search_history.insert(0, normalized)
+        self._search_history = self._search_history[:20]
+        self.settings.setValue("diff_search_history", self._search_history)
+        self.settings.sync()
+        self._update_search_history_model()
+
+    def _update_search_history_model(self) -> None:
+        line_edit = self.find_combo.lineEdit()
+        current_text = line_edit.text() if line_edit is not None else ""
+        cursor_pos = line_edit.cursorPosition() if line_edit is not None else 0
+        selection_start = line_edit.selectionStart() if line_edit is not None else -1
+        selection_length = (
+            len(line_edit.selectedText()) if selection_start >= 0 else 0
+        )
+
+        combo_blocked = self.find_combo.blockSignals(True)
+        line_blocked = line_edit.blockSignals(True) if line_edit is not None else False
+        self.find_combo.clear()
+        self.find_combo.addItems(self._search_history)
+        self.find_combo.setCurrentIndex(-1)
+        self.find_combo.setEditText(current_text)
+        if line_edit is not None:
+            if selection_start >= 0:
+                line_edit.setSelection(selection_start, selection_length)
+            else:
+                line_edit.setCursorPosition(cursor_pos)
+        if line_edit is not None:
+            line_edit.blockSignals(line_blocked)
+        self.find_combo.blockSignals(combo_blocked)
+
+    def _load_search_history(self) -> list[str]:
+        raw = self.settings.value("diff_search_history")
+        history: list[str] = []
+        if isinstance(raw, list):
+            history = [str(entry) for entry in raw if isinstance(entry, str)]
+        elif isinstance(raw, str):
+            history = [entry for entry in raw.splitlines() if entry]
+        return history[:20]
+
+    @staticmethod
+    def _normalize_diff_path(path: str | None) -> str | None:
+        if not path:
+            return None
+        cleaned = path.strip().strip('"')
+        if cleaned in {"/dev/null", "a/dev/null", "b/dev/null"}:
+            return None
+        if cleaned.startswith("a/") or cleaned.startswith("b/"):
+            cleaned = cleaned[2:]
+        return cleaned
+
+    def _ensure_diff_line_metadata(self) -> None:
+        if not self._diff_metadata_dirty:
+            return
+        text = self.text_diff.toPlainText()
+        lines = text.splitlines()
+        if text.endswith(("\n", "\r", "\r\n")):
+            lines.append("")
+        metadata: list[_DiffLineMetadata] = []
+        current_file: str | None = None
+        current_hunk: str | None = None
+        for line in lines:
+            stripped = line.strip()
+            if line.startswith("diff --git"):
+                parts = line.split()
+                candidate: str | None = None
+                if len(parts) >= 4:
+                    candidate = parts[3]
+                elif len(parts) >= 3:
+                    candidate = parts[2]
+                current_file = self._normalize_diff_path(candidate)
+                current_hunk = None
+            elif line.startswith("+++"):
+                normalized = self._normalize_diff_path(line[4:])
+                if normalized is not None:
+                    current_file = normalized
+                current_hunk = None
+            elif line.startswith("---"):
+                normalized = self._normalize_diff_path(line[4:])
+                if normalized is not None and current_file is None:
+                    current_file = normalized
+                current_hunk = None
+            elif line.startswith("@@"):
+                current_hunk = stripped
+            metadata.append(
+                _DiffLineMetadata(file_label=current_file, hunk_header=current_hunk)
+            )
+        self._diff_line_metadata = metadata
+        self._diff_metadata_dirty = False
+
+    def _focus_diff_match(self, match: DiffSearchMatch) -> None:
+        self._ensure_diff_line_metadata()
+        if match.line < 0 or match.line >= len(self._diff_line_metadata):
+            return
+        info = self._diff_line_metadata[match.line]
+        file_label = info.file_label
+        if not file_label:
+            return
+        tree_item = None
+        if info.hunk_header is not None:
+            tree_item = self._hunk_item_by_key.get((file_label, info.hunk_header))
+        if tree_item is None:
+            tree_item = self._file_item_by_label.get(file_label)
+        if tree_item is not None:
+            self.tree.setCurrentItem(tree_item)
+            self.tree.scrollToItem(tree_item)
+        self.interactive_diff.focus_file(file_label)
+
+    def _on_diff_text_changed(self) -> None:
+        self._diff_metadata_dirty = True
 
     @_qt_slot(str, int)
     def _handle_log_message(
@@ -1873,6 +2207,8 @@ class MainWindow(_QMainWindowBase):
         self.patch = patch
 
         self.tree.clear()
+        self._file_item_by_label.clear()
+        self._hunk_item_by_key.clear()
         self.preview_view.clear()
         for pf in patch:
             rel = pf.path or pf.target_file or pf.source_file or _("<sconosciuto>")
@@ -1880,11 +2216,14 @@ class MainWindow(_QMainWindowBase):
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole, rel)
             node.setData(0, QtCore.Qt.ItemDataRole.UserRole + 1, [])
             self.tree.addTopLevelItem(node)
+            self._file_item_by_label[str(rel)] = node
             for h in pf:
                 hv = patcher_build_hunk_view(h)
                 child = QtWidgets.QTreeWidgetItem([hv.header, ""])
                 child.setData(0, QtCore.Qt.ItemDataRole.UserRole, hv)
                 node.addChild(child)
+                header_key = hv.header.strip()
+                self._hunk_item_by_key[(str(rel), header_key)] = child
                 file_hunks = list(
                     node.data(0, QtCore.Qt.ItemDataRole.UserRole + 1) or []
                 )

@@ -577,6 +577,22 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._update_order_label()
         self._update_enabled_state()
 
+    def focus_file(self, file_label: str | None) -> bool:
+        """Select and focus the entry matching ``file_label`` if present."""
+
+        if not file_label:
+            return False
+        for idx in range(self._list_widget.count()):
+            item = self._list_widget.item(idx)
+            entry = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if isinstance(entry, FileDiffEntry) and entry.file_label == file_label:
+                self._list_widget.setCurrentItem(item)
+                self._list_widget.scrollToItem(
+                    item, QtWidgets.QAbstractItemView.ScrollHint.PositionAtCenter
+                )
+                return True
+        return False
+
     def _update_ai_note_visibility(self) -> None:
         for idx in range(self._list_widget.count()):
             item = self._list_widget.item(idx)

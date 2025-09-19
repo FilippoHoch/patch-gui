@@ -30,6 +30,8 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 3. **Analizza il diff**
    - Nel pannello sinistro vengono elencati i file e gli hunk trovati.
    - Selezionando un elemento puoi vedere il contesto e le modifiche.
+   - Apri la barra di ricerca con **Ctrl/Cmd+F** per cercare testo nel diff: le corrispondenze vengono evidenziate nell'editor, nel pannello ad albero e nella vista diff interattiva.
+   - Usa **F3** e **Shift+F3** per spostarti rapidamente tra i risultati; le ricerche recenti vengono memorizzate nella cronologia e riproposte automaticamente nelle sessioni successive.
 4. **Configura l'esecuzione**
    - La modalità **Dry‑run** è abilitata di default e consente di simulare l'applicazione senza modificare i file.
    - Imposta la **Soglia fuzzy** (es. `0.85`) per controllare la tolleranza nel matching del contesto. I valori validi sono maggiori di 0 e non superano 1.
