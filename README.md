@@ -128,7 +128,9 @@ git diff | patch-gui apply --root . --backup ~/diff_backups -
 `patch-gui apply` condivide le stesse euristiche della GUI. Le opzioni più
 utili:
 
-- `--dry-run`: simula l'esecuzione senza modificare i file.
+- `--dry-run` / `--apply`: simula l'esecuzione oppure forza
+  l'applicazione anche se la configurazione prevede il dry-run
+  (il default segue le impostazioni salvate).
 - `--threshold`: regola la tolleranza fuzzy (default `0.85`).
 - `--backup`: directory personalizzata per backup e report.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
