@@ -132,7 +132,8 @@ utili:
 - `--threshold`: regola la tolleranza fuzzy (default `0.85`).
 - `--backup`: directory personalizzata per backup e report.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
-- `--no-report`: disattiva la generazione dei file di report.
+- `--report` / `--no-report`: forza l'abilitazione o la disattivazione dei file di
+  report (di default segue la configurazione salvata).
 - `--summary-format`: controlla il riepilogo su stdout (`text`, `json`, `none`).
 - `--exclude-dir`: aggiunge cartelle all'elenco di esclusioni.
 - `--no-default-exclude`: rimuove le esclusioni predefinite (es. `.git`,

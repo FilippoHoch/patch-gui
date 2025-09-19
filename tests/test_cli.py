@@ -946,6 +946,7 @@ def test_run_cli_uses_config_defaults(
         exclude_dirs=("foo", "bar"),
         backup_base=tmp_path / "custom-backups",
         log_level="debug",
+        write_reports=False,
     )
 
     captured: dict[str, object] = {}
@@ -966,6 +967,7 @@ def test_run_cli_uses_config_defaults(
         captured["exclude_dirs"] = kwargs.get("exclude_dirs")
         captured["backup_base"] = kwargs.get("backup_base")
         captured["config"] = kwargs.get("config")
+        captured["write_report_files"] = kwargs.get("write_report_files")
         return _create_dummy_session(tmp_path)
 
     monkeypatch.setattr(cli, "load_patch", fake_load_patch)
@@ -986,6 +988,51 @@ def test_run_cli_uses_config_defaults(
     assert captured["exclude_dirs"] == config.exclude_dirs
     assert captured["backup_base"] is None
     assert captured["config"] is config
+    assert captured["write_report_files"] is config.write_reports
+
+
+def test_run_cli_can_override_config_report_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config = AppConfig(write_reports=False)
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cli, "load_config", lambda: config)
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["source"] = source
+        captured["encoding"] = encoding
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(
+        patch: PatchSet,
+        project_root: Path,
+        **kwargs: object,
+    ) -> _DummySession:
+        captured["write_report_files"] = kwargs.get("write_report_files")
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--dry-run",
+            "--report",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["write_report_files"] is True
 
 
 def test_run_cli_respects_config_path_override(

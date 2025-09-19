@@ -97,7 +97,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         summary_formats = ["text"]
         summary_controlled = False
 
-    if args.no_report and (
+    if (not args.write_reports) and (
         (args.report_json is not REPORT_JSON_UNSET and args.report_json is not None)
         or (args.report_txt is not REPORT_TXT_UNSET and args.report_txt is not None)
     ):
@@ -170,7 +170,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             auto_accept=args.auto_accept,
             report_json=report_json_arg,
             report_txt=report_txt_arg,
-            write_report_files=not args.no_report,
+            write_report_files=args.write_reports,
             write_report_json="json" in requested_report_formats,
             write_report_txt="text" in requested_report_formats,
             exclude_dirs=exclude_dirs,
@@ -203,7 +203,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                     _("Reports saved to: {details}").format(details=", ".join(details))
                 )
             else:
-                print(_("Reports disabled (--no-report)"))
+                print(_("Reports disabled (--no-report or configuration)"))
 
     emitted_text = False
     for fmt in summary_formats:
@@ -236,7 +236,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                     ", ".join(details),
                 )
             else:
-                logger.info(_("Reports disabled (--no-report)"))
+                logger.info(_("Reports disabled (--no-report or configuration)"))
 
     return 0 if session_completed(session) else 1
 
