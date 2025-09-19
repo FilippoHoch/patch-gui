@@ -53,9 +53,7 @@ def set_diff_note_client(client: _DiffNoteClient | None) -> None:
     _ai_note_client = client
 
 
-def enrich_entry_with_ai_note(
-    entry: FileDiffEntry, *, enabled: bool
-) -> FileDiffEntry:
+def enrich_entry_with_ai_note(entry: FileDiffEntry, *, enabled: bool) -> FileDiffEntry:
     """Populate ``entry`` with an AI-generated note when possible."""
 
     if not enabled or _ai_note_client is None:

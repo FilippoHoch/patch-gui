@@ -17,7 +17,9 @@ class ConflictSuggestion:
     confidence: float | None = None
 
 
-def _build_patch(before_lines: Sequence[str], after_lines: Sequence[str], header: str) -> str | None:
+def _build_patch(
+    before_lines: Sequence[str], after_lines: Sequence[str], header: str
+) -> str | None:
     """Return a minimal diff that the user can copy to apply manually."""
 
     diff_lines = list(
@@ -38,7 +40,9 @@ def _build_patch(before_lines: Sequence[str], after_lines: Sequence[str], header
     return "\n".join(result).strip() or None
 
 
-def _extract_context(file_context: str, before_text: str, window: int = 120) -> str | None:
+def _extract_context(
+    file_context: str, before_text: str, window: int = 120
+) -> str | None:
     if not file_context or not before_text:
         return None
     idx = file_context.find(before_text)
@@ -99,9 +103,13 @@ def generate_conflict_suggestion(
         message_lines.append("Contesto trovato nel file:")
         message_lines.append(context_excerpt)
 
-    patch_text = (original_diff.strip() or None) or _build_patch(before_lines, after_lines, hunk_header)
+    patch_text = (original_diff.strip() or None) or _build_patch(
+        before_lines, after_lines, hunk_header
+    )
     if patch_text:
-        message_lines.append("È possibile copiare il diff suggerito per applicarlo manualmente.")
+        message_lines.append(
+            "È possibile copiare il diff suggerito per applicarlo manualmente."
+        )
 
     message = "\n".join(message_lines)
 
