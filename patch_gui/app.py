@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
+from .ai_summaries import generate_session_summary
 from .config import (
     AppConfig,
     DEFAULT_LOG_BACKUP_COUNT,
@@ -2117,12 +2118,37 @@ class MainWindow(_QMainWindowBase):
         self, session: ApplySession
     ) -> None:  # pragma: no cover - UI feedback
         self._current_worker = None
+        summary = generate_session_summary(session)
+        if summary is not None:
+            session.ai_summary = summary.overall
+            session.file_summaries = summary.per_file
+            if summary.per_file:
+                for fr in session.results:
+                    candidate_keys = [fr.relative_to_root, str(fr.file_path)]
+                    for key in candidate_keys:
+                        if key and key in summary.per_file:
+                            fr.ai_summary = summary.per_file[key]
+                            break
         write_session_reports(
             session,
             report_json=None,
             report_txt=None,
             enable_reports=self.app_config.write_reports,
         )
+        if session.ai_summary:
+            text = _("Sintesi AI: {text}").format(text=session.ai_summary)
+            logger.info(text)
+            self.log.appendPlainText(text)
+        if session.file_summaries:
+            per_file_header = _("Dettaglio sintesi AI per file:")
+            logger.info(per_file_header)
+            self.log.appendPlainText(per_file_header)
+            for path, summary_text in session.file_summaries.items():
+                detail = _("- {path}: {summary}").format(
+                    path=path, summary=summary_text
+                )
+                logger.info(detail)
+                self.log.appendPlainText(detail)
         logger.info(_("\n=== RISULTATO ===\n%s"), session.to_txt())
         self._set_busy(False)
         self.progress_bar.setValue(100)
@@ -2136,6 +2162,10 @@ class MainWindow(_QMainWindowBase):
             completion_message = _(
                 "Operazione terminata. Report disabilitati nelle impostazioni."
             )
+        if session.ai_summary:
+            completion_message += "\n\n" + _(
+                "Sintesi AI: {summary}"
+            ).format(summary=session.ai_summary)
         QtWidgets.QMessageBox.information(
             self,
             _("Completato"),
