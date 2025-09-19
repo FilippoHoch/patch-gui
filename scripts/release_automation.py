@@ -39,6 +39,8 @@ from typing import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 KEEP_BRANCHES = {"master", "develop"}
+DEFAULT_REMOTE = "origin"
+DEFAULT_PRUNE_PREFIXES: tuple[str, ...] = ("codex",)
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 VERSION_MODULE_PATH = REPO_ROOT / "patch_gui" / "_version.py"
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
@@ -74,6 +76,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Salta l'esecuzione dei controlli (pytest, build, twine)",
     )
+    parser.add_argument(
+        "--remote",
+        default=DEFAULT_REMOTE,
+        help="Remote Git principale su cui operare (default: origin)",
+    )
+    parser.add_argument(
+        "--prune-remote-prefix",
+        dest="prune_remote_prefixes",
+        action="append",
+        help=(
+            "Prefisso dei branch remoti da eliminare."
+            " Può essere indicato più volte; default: codex"
+        ),
+    )
+    parser.add_argument(
+        "--no-prune-remote",
+        dest="prune_remote",
+        action="store_false",
+        help="Non elimina alcun branch remoto prima del rilascio",
+    )
+    parser.set_defaults(prune_remote=True)
     return parser.parse_args(argv)
 
 
@@ -130,9 +153,21 @@ def prune_local_branches(*, dry_run: bool) -> None:
         run_cmd(["git", "branch", "-D", branch], dry_run=dry_run)
 
 
-def prune_remote_branches(*, dry_run: bool, remote: str = "origin") -> None:
+def prune_remote_branches(
+    *, dry_run: bool, remote: str, prefixes: Sequence[str]
+) -> None:
+    normalized = [prefix.strip() for prefix in prefixes if prefix and prefix.strip()]
+    if not normalized:
+        print(
+            f"[nota] Nessun prefisso specificato per {remote}:"
+            " salto la pulizia dei branch remoti"
+        )
+        return
     if dry_run:
-        print(f"[dry-run] Analizzo i branch remoti su {remote}")
+        print(
+            f"[dry-run] Analizzo i branch remoti su {remote}"
+            f" con prefissi: {', '.join(normalized)}"
+        )
     output = run_cmd(
         ["git", "for-each-ref", "--format=%(refname:short)", f"refs/remotes/{remote}"],
         dry_run=False,
@@ -147,19 +182,27 @@ def prune_remote_branches(*, dry_run: bool, remote: str = "origin") -> None:
             _, branch = full_ref.split("/", 1)
         except ValueError:  # pragma: no cover - difesa extra
             continue
-        if branch in KEEP_BRANCHES:
+        if branch in KEEP_BRANCHES or not any(
+            branch.startswith(prefix) for prefix in normalized
+        ):
             continue
         action = "Elimino" if not dry_run else "Eliminerei"
         print(f"{action} il branch remoto {branch} da {remote}")
-        run_cmd(["git", "push", remote, "--delete", branch], dry_run=dry_run)
+        try:
+            run_cmd(["git", "push", remote, "--delete", branch], dry_run=dry_run)
+        except ReleaseError as error:
+            print(
+                "Impossibile completare l'eliminazione del branch "
+                f"{branch}: {error}"
+            )
 
 
 def checkout_branch(branch: str, *, dry_run: bool) -> None:
     run_cmd(["git", "checkout", branch], dry_run=dry_run)
 
 
-def pull_branch(branch: str, *, dry_run: bool) -> None:
-    run_cmd(["git", "pull", "--ff-only", "origin", branch], dry_run=dry_run)
+def pull_branch(branch: str, remote: str, *, dry_run: bool) -> None:
+    run_cmd(["git", "pull", "--ff-only", remote, branch], dry_run=dry_run)
 
 
 def merge_squash(source: str, *, dry_run: bool) -> None:
@@ -265,9 +308,18 @@ def tag_version(version: str, *, dry_run: bool) -> None:
     )
 
 
-def push_refs(*refs: str, dry_run: bool) -> None:
+def push_refs(remote: str, *refs: str, dry_run: bool) -> None:
     for ref in refs:
-        run_cmd(["git", "push", "origin", ref], dry_run=dry_run)
+        run_cmd(["git", "push", remote, ref], dry_run=dry_run)
+
+
+def ensure_remote_exists(remote: str) -> None:
+    remotes = run_cmd(["git", "remote"], dry_run=False, capture_output=True)
+    available = {item.strip() for item in remotes.splitlines() if item.strip()}
+    if remote not in available:
+        raise ReleaseError(
+            f"Remote '{remote}' non trovato. Remoti disponibili: {', '.join(sorted(available))}"
+        )
 
 
 def run_checks(*, dry_run: bool) -> None:
@@ -305,20 +357,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     print(f"==> Preparazione release {args.version}")
     ensure_clean_worktree(dry_run=args.dry_run)
+    ensure_remote_exists(args.remote)
 
     print("==> Fetch e pulizia branch locali")
     run_cmd(["git", "fetch", "--all", "--prune"], dry_run=args.dry_run)
     prune_local_branches(dry_run=args.dry_run)
     print("==> Pulizia branch remoti")
-    prune_remote_branches(dry_run=args.dry_run)
+    if args.prune_remote:
+        prune_prefixes = (
+            args.prune_remote_prefixes
+            if args.prune_remote_prefixes is not None
+            else list(DEFAULT_PRUNE_PREFIXES)
+        )
+        prune_remote_branches(
+            dry_run=args.dry_run,
+            remote=args.remote,
+            prefixes=prune_prefixes,
+        )
+    else:
+        print("[nota] Pulizia branch remoti disattivata (--no-prune-remote)")
 
     print("==> Aggiorno develop")
     checkout_branch("develop", dry_run=args.dry_run)
-    pull_branch("develop", dry_run=args.dry_run)
+    pull_branch("develop", args.remote, dry_run=args.dry_run)
 
     print("==> Aggiorno master")
     checkout_branch("master", dry_run=args.dry_run)
-    pull_branch("master", dry_run=args.dry_run)
+    pull_branch("master", args.remote, dry_run=args.dry_run)
 
     print("==> Squash merge da develop")
     merge_squash("develop", dry_run=args.dry_run)
@@ -344,11 +409,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.push:
         print("==> Push dei riferimenti")
-        push_refs("master", dry_run=args.dry_run)
-        push_refs(f"v{args.version}", dry_run=args.dry_run)
+        push_refs(args.remote, "master", dry_run=args.dry_run)
+        push_refs(args.remote, f"v{args.version}", dry_run=args.dry_run)
     else:
         print(
-            "[nota] Push saltato: lanciare manualmente 'git push origin master' e 'git push origin v{args.version}'"
+            "[nota] Push saltato: lanciare manualmente '
+            f"git push {args.remote} master' e 'git push {args.remote} v{args.version}'"
         )
 
     print("==> Allineo develop al commit di release")
@@ -365,16 +431,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             dry_run=args.dry_run,
         )
         if args.push:
-            push_refs("develop", dry_run=args.dry_run)
+            push_refs(args.remote, "develop", dry_run=args.dry_run)
         else:
             print(
-                "[nota] Esegui 'git push origin develop' per aggiornare il branch remoto"
+                f"[nota] Esegui 'git push {args.remote} develop' per aggiornare il branch remoto"
             )
     else:
         if args.push:
-            push_refs("develop", dry_run=args.dry_run)
+            push_refs(args.remote, "develop", dry_run=args.dry_run)
         else:
-            print("[nota] Ricordati di eseguire 'git push origin develop'")
+            print(f"[nota] Ricordati di eseguire 'git push {args.remote} develop'")
 
     print("==> Release completata! 🎉")
     return 0
