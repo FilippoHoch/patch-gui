@@ -16,6 +16,7 @@ from .interactive_diff_model import (
     enrich_entry_with_ai_note,
 )
 from .split_diff_view import SplitDiffView
+from .theme import ThemeSnapshot, theme_manager
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +66,241 @@ def _colour_name(color: QtGui.QColor, *, with_alpha: bool = False) -> str:
     )
     return str(QtGui.QColor(color).name(format_))
 
+
+_HEADER_STYLE_TEMPLATE = """
+QFrame#interactiveDiffHeader {{
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 {gradient_start},
+        stop: 1 {gradient_end}
+    );
+    border: 1px solid {border};
+    border-radius: 10px;
+}}
+QLabel#interactiveDiffTitle {{
+    font-size: 16px;
+    font-weight: 700;
+    color: {title_color};
+}}
+QLabel#interactiveDiffSubtitle {{
+    color: {subtitle_color};
+}}
+QLabel#interactiveDiffSubtitle .highlight {{
+    color: {accent};
+    font-weight: 600;
+}}
+"""
+
+
+_SPLITTER_STYLE_TEMPLATE = """
+QSplitter::handle {{
+    background-color: {border_subtle};
+    margin: 6px;
+}}
+QSplitter::handle:hover {{
+    background-color: {accent};
+}}
+"""
+
+
+_ORDER_CONTAINER_TEMPLATE = """
+QFrame#interactiveDiffOrderContainer {{
+    background-color: {surface};
+    border: 1px solid {border};
+    border-top: 4px solid {accent};
+    border-radius: 10px;
+}}
+QLabel#interactiveDiffOrderTitle {{
+    font-weight: 600;
+    color: {title};
+}}
+QLabel#interactiveDiffOrderLabel {{
+    padding: 0px;
+    margin: 0px;
+}}
+QLabel#interactiveDiffOrderLabel .diff-order-entry {{
+    margin-bottom: 6px;
+    font-size: 12px;
+}}
+QLabel#interactiveDiffOrderLabel .diff-order-entry:last-child {{
+    margin-bottom: 0;
+}}
+QLabel#interactiveDiffOrderLabel .diff-order-index {{
+    font-weight: 600;
+    margin-right: 6px;
+    color: {index_color};
+}}
+QLabel#interactiveDiffOrderLabel .diff-order-name {{
+    color: {name_color};
+}}
+QLabel#interactiveDiffOrderLabel .diff-badge {{
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-weight: 600;
+    font-size: 11px;
+}}
+QLabel#interactiveDiffOrderLabel .diff-badge.additions {{
+    background-color: {badge_add_bg};
+    color: {badge_add_fg};
+}}
+QLabel#interactiveDiffOrderLabel .diff-badge.deletions {{
+    background-color: {badge_del_bg};
+    color: {badge_del_fg};
+}}
+QLabel#interactiveDiffOrderLabel .diff-badge.neutral {{
+    background-color: {badge_neutral_bg};
+    color: {badge_neutral_fg};
+}}
+"""
+
+
+_LIST_WIDGET_TEMPLATE = """
+QListWidget {{
+    background-color: {background};
+    border: 1px solid {border};
+    border-radius: 10px;
+    padding: 6px 4px;
+}}
+QListWidget::item {{
+    border-radius: 6px;
+    margin: 2px 4px;
+    padding: 0px;
+}}
+QListWidget::item:selected {{
+    background-color: {selected};
+    border: 1px solid {selected_border};
+}}
+QListWidget::item:hover {{
+    background-color: {hover};
+}}
+"""
+
+
+_PRIMARY_BUTTON_TEMPLATE = """
+QPushButton {{
+    background-color: {accent};
+    color: {on_accent};
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    border: none;
+}}
+QPushButton:hover {{
+    background-color: {accent_hover};
+}}
+QPushButton:pressed {{
+    background-color: {accent_pressed};
+}}
+QPushButton:disabled {{
+    background-color: {accent_disabled_bg};
+    color: {accent_disabled_fg};
+}}
+"""
+
+
+_SECONDARY_BUTTON_TEMPLATE = """
+QPushButton {{
+    background-color: {surface};
+    color: {text};
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    border: 1px solid {border};
+}}
+QPushButton:hover {{
+    background-color: {hover};
+    border-color: {accent};
+}}
+QPushButton:pressed {{
+    background-color: {pressed};
+}}
+QPushButton:disabled {{
+    background-color: {disabled};
+    color: {disabled_text};
+    border-color: {border_subtle};
+}}
+"""
+
+
+_LIST_ITEM_TEMPLATE = """
+QFrame#diffListItem {{
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 1,
+        stop: 0 {gradient_start},
+        stop: 1 {gradient_end}
+    );
+    border: 1px solid {border};
+    border-radius: 6px;
+    padding: 8px 12px;
+}}
+QFrame#diffListItem[selected="true"] {{
+    border-color: {selected_border};
+    background-color: {selected_bg};
+}}
+QLabel#diffListItemPath {{
+    font-weight: 600;
+    color: {text};
+}}
+QLabel#diffListItemPath[selected="true"] {{
+    color: {accent};
+}}
+QLabel#diffListItemNote {{
+    color: {note_color};
+    font-style: italic;
+    font-size: 11px;
+}}
+QLabel#diffListItemNote[selected="true"] {{
+    color: {selected_note_color};
+}}
+QLabel.diffStatBadge {{
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-weight: 600;
+    font-size: 11px;
+    background-color: {badge_neutral_bg};
+    color: {badge_neutral_fg};
+}}
+QLabel.diffStatBadge[badgeType="additions"] {{
+    background-color: {badge_add_bg};
+    color: {badge_add_fg};
+}}
+QLabel.diffStatBadge[badgeType="deletions"] {{
+    background-color: {badge_del_bg};
+    color: {badge_del_fg};
+}}
+QLabel.diffStatBadge[badgeType="neutral"] {{
+    background-color: {badge_neutral_bg};
+    color: {badge_neutral_fg};
+}}
+"""
+
+
+_BADGE_TEMPLATE = """
+QLabel#diffStatBadge {{
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-weight: 600;
+    font-size: 11px;
+    background-color: {neutral_bg};
+    color: {neutral_fg};
+}}
+QLabel#diffStatBadge[badgeType="additions"] {{
+    background-color: {add_bg};
+    color: {add_fg};
+}}
+QLabel#diffStatBadge[badgeType="deletions"] {{
+    background-color: {del_bg};
+    color: {del_fg};
+}}
+QLabel#diffStatBadge[badgeType="neutral"] {{
+    background-color: {neutral_bg};
+    color: {neutral_fg};
+}}
+"""
+
+
+def _format_styles(template: str, **values: str) -> str:
+    return template.format(**values)
 
 def _build_diff_palette(widget: QtWidgets.QWidget) -> _DiffPalette:
     palette = widget.palette()
@@ -162,39 +398,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         header = QtWidgets.QFrame()
         header.setObjectName("interactiveDiffHeader")
-        header.setStyleSheet(
-            """
-            QFrame#interactiveDiffHeader {
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 %(gradient_start)s,
-                    stop: 1 %(gradient_end)s
-                );
-                border: 1px solid %(border)s;
-                border-radius: 10px;
-            }
-            QLabel#interactiveDiffTitle {
-                font-size: 16px;
-                font-weight: 700;
-                color: %(title_color)s;
-            }
-            QLabel#interactiveDiffSubtitle {
-                color: %(subtitle_color)s;
-            }
-            QLabel#interactiveDiffSubtitle .highlight {
-                color: %(accent)s;
-                font-weight: 600;
-            }
-            """
-            % {
-                "gradient_start": self._colors.header_gradient_start,
-                "gradient_end": self._colors.header_gradient_end,
-                "border": self._colors.border,
-                "title_color": self._colors.text_primary,
-                "subtitle_color": self._colors.text_secondary,
-                "accent": self._colors.accent,
-            }
-        )
+        self._header_widget = header
         header_layout = QtWidgets.QVBoxLayout(header)
         header_layout.setContentsMargins(16, 14, 16, 14)
         header_layout.setSpacing(6)
@@ -238,21 +442,6 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._content_splitter = QtWidgets.QSplitter()
         self._content_splitter.setOrientation(QtCore.Qt.Orientation.Horizontal)
         self._content_splitter.setChildrenCollapsible(False)
-        self._content_splitter.setStyleSheet(
-            """
-            QSplitter::handle {
-                background-color: %(border_subtle)s;
-                margin: 6px;
-            }
-            QSplitter::handle:hover {
-                background-color: %(accent)s;
-            }
-            """
-            % {
-                "border_subtle": self._colors.border_subtle,
-                "accent": self._colors.accent,
-            }
-        )
         layout.addWidget(self._content_splitter, 1)
 
         list_panel = QtWidgets.QWidget()
@@ -262,71 +451,7 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
 
         order_container = QtWidgets.QFrame()
         order_container.setObjectName("interactiveDiffOrderContainer")
-        order_container.setStyleSheet(
-            """
-            QFrame#interactiveDiffOrderContainer {
-                background-color: %(surface)s;
-                border: 1px solid %(border)s;
-                border-top: 4px solid %(accent)s;
-                border-radius: 10px;
-            }
-            QLabel#interactiveDiffOrderTitle {
-                font-weight: 600;
-                color: %(title)s;
-            }
-            QLabel#interactiveDiffOrderLabel {
-                padding: 0px;
-                margin: 0px;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-order-entry {
-                margin-bottom: 6px;
-                font-size: 12px;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-order-entry:last-child {
-                margin-bottom: 0;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-order-index {
-                font-weight: 600;
-                margin-right: 6px;
-                color: %(index_color)s;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-order-name {
-                color: %(name_color)s;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-badge {
-                border-radius: 10px;
-                padding: 1px 8px;
-                font-weight: 600;
-                font-size: 11px;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-badge.additions {
-                background-color: %(badge_add_bg)s;
-                color: %(badge_add_fg)s;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-badge.deletions {
-                background-color: %(badge_del_bg)s;
-                color: %(badge_del_fg)s;
-            }
-            QLabel#interactiveDiffOrderLabel .diff-badge.neutral {
-                background-color: %(badge_neutral_bg)s;
-                color: %(badge_neutral_fg)s;
-            }
-            """
-            % {
-                "surface": self._colors.surface,
-                "border": self._colors.border,
-                "accent": self._colors.accent,
-                "title": self._colors.text_primary,
-                "index_color": self._colors.order_index_color,
-                "name_color": self._colors.order_name_color,
-                "badge_add_bg": self._colors.badge_add_bg,
-                "badge_add_fg": self._colors.badge_add_fg,
-                "badge_del_bg": self._colors.badge_del_bg,
-                "badge_del_fg": self._colors.badge_del_fg,
-                "badge_neutral_bg": self._colors.badge_neutral_bg,
-                "badge_neutral_fg": self._colors.badge_neutral_fg,
-            }
-        )
+        self._order_container = order_container
         order_layout = QtWidgets.QVBoxLayout(order_container)
         order_layout.setContentsMargins(16, 14, 16, 14)
         order_layout.setSpacing(4)
@@ -348,35 +473,6 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._list_widget.setDefaultDropAction(QtCore.Qt.DropAction.MoveAction)
         self._list_widget.setVerticalScrollMode(
             QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
-        )
-        self._list_widget.setStyleSheet(
-            """
-            QListWidget {
-                background-color: %(background)s;
-                border: 1px solid %(border)s;
-                border-radius: 10px;
-                padding: 6px 4px;
-            }
-            QListWidget::item {
-                border-radius: 6px;
-                margin: 2px 4px;
-                padding: 0px;
-            }
-            QListWidget::item:selected {
-                background-color: %(selected)s;
-                border: 1px solid %(selected_border)s;
-            }
-            QListWidget::item:hover {
-                background-color: %(hover)s;
-            }
-            """
-            % {
-                "background": self._colors.list_background,
-                "border": self._colors.border,
-                "selected": self._colors.list_selected_bg,
-                "selected_border": self._colors.list_selected_border,
-                "hover": self._colors.list_hover_bg,
-            }
         )
         self._list_widget.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self._list_widget.setAlternatingRowColors(False)
@@ -401,75 +497,10 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         buttons.setSpacing(12)
 
         self._btn_apply = QtWidgets.QPushButton(_("Aggiorna editor diff"))
-        self._btn_apply.setStyleSheet(
-            """
-            QPushButton {
-                background-color: %(accent)s;
-                color: %(on_accent)s;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: 600;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: %(accent_hover)s;
-            }
-            QPushButton:pressed {
-                background-color: %(accent_pressed)s;
-            }
-            QPushButton:disabled {
-                background-color: %(accent_disabled_bg)s;
-                color: %(accent_disabled_fg)s;
-            }
-            """
-            % {
-                "accent": self._colors.accent,
-                "on_accent": self._colors.on_accent,
-                "accent_hover": self._colors.accent_hover,
-                "accent_pressed": self._colors.accent_pressed,
-                "accent_disabled_bg": self._colors.accent_disabled_bg,
-                "accent_disabled_fg": self._colors.accent_disabled_fg,
-            }
-        )
         self._btn_apply.clicked.connect(self._apply_reordered_diff)
         buttons.addWidget(self._btn_apply)
 
         self._btn_reset = QtWidgets.QPushButton(_("Ripristina ordine iniziale"))
-        self._btn_reset.setStyleSheet(
-            """
-            QPushButton {
-                background-color: %(surface)s;
-                color: %(text)s;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: 600;
-                border: 1px solid %(border)s;
-            }
-            QPushButton:hover {
-                background-color: %(hover)s;
-                border-color: %(accent)s;
-            }
-            QPushButton:pressed {
-                background-color: %(pressed)s;
-            }
-            QPushButton:disabled {
-                background-color: %(disabled)s;
-                color: %(disabled_text)s;
-                border-color: %(border_subtle)s;
-            }
-            """
-            % {
-                "surface": self._colors.surface,
-                "text": self._colors.text_primary,
-                "border": self._colors.border,
-                "hover": self._colors.surface_hover,
-                "accent": self._colors.accent,
-                "pressed": self._colors.surface_pressed,
-                "disabled": self._colors.surface_disabled,
-                "disabled_text": self._colors.text_secondary,
-                "border_subtle": self._colors.border_subtle,
-            }
-        )
         self._btn_reset.clicked.connect(self._reset_order)
         buttons.addWidget(self._btn_reset)
 
@@ -481,6 +512,100 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._list_widget.itemSelectionChanged.connect(self._refresh_item_selection)
 
         self._update_enabled_state()
+
+        self._theme_listener = theme_manager.add_listener(self._apply_theme)
+        self._apply_theme(theme_manager.snapshot)
+        self.destroyed.connect(
+            lambda: theme_manager.remove_listener(self._apply_theme)
+        )
+
+    def _apply_theme(self, snapshot: ThemeSnapshot) -> None:
+        qpalette = snapshot.palette or self.palette()
+        self._highlight_palette = build_diff_highlight_palette(qpalette)
+        self._split_view.set_highlight_palette(self._highlight_palette)
+        self._colors = _build_diff_palette(self)
+
+        self._header_widget.setStyleSheet(
+            _format_styles(
+                _HEADER_STYLE_TEMPLATE,
+                gradient_start=self._colors.header_gradient_start,
+                gradient_end=self._colors.header_gradient_end,
+                border=self._colors.border,
+                title_color=self._colors.text_primary,
+                subtitle_color=self._colors.text_secondary,
+                accent=self._colors.accent,
+            )
+        )
+        self._content_splitter.setStyleSheet(
+            _format_styles(
+                _SPLITTER_STYLE_TEMPLATE,
+                border_subtle=self._colors.border_subtle,
+                accent=self._colors.accent,
+            )
+        )
+        self._order_container.setStyleSheet(
+            _format_styles(
+                _ORDER_CONTAINER_TEMPLATE,
+                surface=self._colors.surface,
+                border=self._colors.border,
+                accent=self._colors.accent,
+                title=self._colors.text_primary,
+                index_color=self._colors.order_index_color,
+                name_color=self._colors.order_name_color,
+                badge_add_bg=self._colors.badge_add_bg,
+                badge_add_fg=self._colors.badge_add_fg,
+                badge_del_bg=self._colors.badge_del_bg,
+                badge_del_fg=self._colors.badge_del_fg,
+                badge_neutral_bg=self._colors.badge_neutral_bg,
+                badge_neutral_fg=self._colors.badge_neutral_fg,
+            )
+        )
+        self._list_widget.setStyleSheet(
+            _format_styles(
+                _LIST_WIDGET_TEMPLATE,
+                background=self._colors.list_background,
+                border=self._colors.border,
+                selected=self._colors.list_selected_bg,
+                selected_border=self._colors.list_selected_border,
+                hover=self._colors.list_hover_bg,
+            )
+        )
+        self._btn_apply.setStyleSheet(
+            _format_styles(
+                _PRIMARY_BUTTON_TEMPLATE,
+                accent=self._colors.accent,
+                on_accent=self._colors.on_accent,
+                accent_hover=self._colors.accent_hover,
+                accent_pressed=self._colors.accent_pressed,
+                accent_disabled_bg=self._colors.accent_disabled_bg,
+                accent_disabled_fg=self._colors.accent_disabled_fg,
+            )
+        )
+        self._btn_reset.setStyleSheet(
+            _format_styles(
+                _SECONDARY_BUTTON_TEMPLATE,
+                surface=self._colors.surface,
+                text=self._colors.text_primary,
+                border=self._colors.border,
+                hover=self._colors.surface_hover,
+                accent=self._colors.accent,
+                pressed=self._colors.surface_pressed,
+                disabled=self._colors.surface_disabled,
+                disabled_text=self._colors.text_secondary,
+                border_subtle=self._colors.border_subtle,
+            )
+        )
+
+        current_entries = self._current_entries()
+        current_row = self._list_widget.currentRow()
+        if current_entries:
+            self._populate(current_entries)
+            target_row = current_row if 0 <= current_row < len(current_entries) else 0
+            self._list_widget.setCurrentRow(target_row)
+        else:
+            self._populate([])
+        self._refresh_item_selection()
+        self._update_order_label()
 
     def clear(self) -> None:
         """Reset the widget to an empty state."""
@@ -815,75 +940,26 @@ class _DiffListItemWidget(QtWidgets.QFrame):  # type: ignore[misc]
         super().__init__()
         self.setObjectName("diffListItem")
         self.setProperty("selected", False)
+        self._colors = colors
         self.setStyleSheet(
-            """
-            QFrame#diffListItem {
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 %(gradient_start)s,
-                    stop: 1 %(gradient_end)s
-                );
-                border: 1px solid %(border)s;
-                border-radius: 6px;
-                padding: 8px 12px;
-            }
-            QFrame#diffListItem[selected="true"] {
-                border-color: %(selected_border)s;
-                background-color: %(selected_bg)s;
-            }
-            QLabel#diffListItemPath {
-                font-weight: 600;
-                color: %(text)s;
-            }
-            QLabel#diffListItemPath[selected="true"] {
-                color: %(accent)s;
-            }
-            QLabel#diffListItemNote {
-                color: %(note_color)s;
-                font-style: italic;
-                font-size: 11px;
-            }
-            QLabel#diffListItemNote[selected="true"] {
-                color: %(selected_note_color)s;
-            }
-            QLabel.diffStatBadge {
-                border-radius: 10px;
-                padding: 2px 10px;
-                font-weight: 600;
-                font-size: 11px;
-                background-color: %(badge_neutral_bg)s;
-                color: %(badge_neutral_fg)s;
-            }
-            QLabel.diffStatBadge[badgeType="additions"] {
-                background-color: %(badge_add_bg)s;
-                color: %(badge_add_fg)s;
-            }
-            QLabel.diffStatBadge[badgeType="deletions"] {
-                background-color: %(badge_del_bg)s;
-                color: %(badge_del_fg)s;
-            }
-            QLabel.diffStatBadge[badgeType="neutral"] {
-                background-color: %(badge_neutral_bg)s;
-                color: %(badge_neutral_fg)s;
-            }
-            """
-            % {
-                "gradient_start": colors.header_gradient_start,
-                "gradient_end": colors.surface,
-                "border": colors.border,
-                "selected_border": colors.list_selected_border,
-                "selected_bg": colors.list_selected_bg,
-                "text": colors.text_primary,
-                "accent": colors.accent,
-                "note_color": colors.text_secondary,
-                "selected_note_color": colors.text_primary,
-                "badge_neutral_bg": colors.badge_neutral_bg,
-                "badge_neutral_fg": colors.badge_neutral_fg,
-                "badge_add_bg": colors.badge_add_bg,
-                "badge_add_fg": colors.badge_add_fg,
-                "badge_del_bg": colors.badge_del_bg,
-                "badge_del_fg": colors.badge_del_fg,
-            }
+            _format_styles(
+                _LIST_ITEM_TEMPLATE,
+                gradient_start=colors.header_gradient_start,
+                gradient_end=colors.surface,
+                border=colors.border,
+                selected_border=colors.list_selected_border,
+                selected_bg=colors.list_selected_bg,
+                text=colors.text_primary,
+                accent=colors.accent,
+                note_color=colors.text_secondary,
+                selected_note_color=colors.text_primary,
+                badge_neutral_bg=colors.badge_neutral_bg,
+                badge_neutral_fg=colors.badge_neutral_fg,
+                badge_add_bg=colors.badge_add_bg,
+                badge_add_fg=colors.badge_add_fg,
+                badge_del_bg=colors.badge_del_bg,
+                badge_del_fg=colors.badge_del_fg,
+            )
         )
 
         layout = QtWidgets.QHBoxLayout(self)
@@ -975,36 +1051,15 @@ def _make_badge(text: str, badge_type: str, colors: _DiffPalette) -> QtWidgets.Q
     badge.setProperty("class", "diffStatBadge")
     badge.setProperty("badgeType", badge_type)
     badge.setStyleSheet(
-        """
-        QLabel#diffStatBadge {
-            border-radius: 10px;
-            padding: 2px 10px;
-            font-weight: 600;
-            font-size: 11px;
-            background-color: %(neutral_bg)s;
-            color: %(neutral_fg)s;
-        }
-        QLabel#diffStatBadge[badgeType="additions"] {
-            background-color: %(add_bg)s;
-            color: %(add_fg)s;
-        }
-        QLabel#diffStatBadge[badgeType="deletions"] {
-            background-color: %(del_bg)s;
-            color: %(del_fg)s;
-        }
-        QLabel#diffStatBadge[badgeType="neutral"] {
-            background-color: %(neutral_bg)s;
-            color: %(neutral_fg)s;
-        }
-        """
-        % {
-            "neutral_bg": colors.badge_neutral_bg,
-            "neutral_fg": colors.badge_neutral_fg,
-            "add_bg": colors.badge_add_bg,
-            "add_fg": colors.badge_add_fg,
-            "del_bg": colors.badge_del_bg,
-            "del_fg": colors.badge_del_fg,
-        }
+        _format_styles(
+            _BADGE_TEMPLATE,
+            neutral_bg=colors.badge_neutral_bg,
+            neutral_fg=colors.badge_neutral_fg,
+            add_bg=colors.badge_add_bg,
+            add_fg=colors.badge_add_fg,
+            del_bg=colors.badge_del_bg,
+            del_fg=colors.badge_del_fg,
+        )
     )
     return badge
 

@@ -124,6 +124,16 @@ class DiffHighlighter(_QSyntaxHighlighter):
         self._meta_format.setFontItalic(True)
         self.set_palette(palette or DEFAULT_DIFF_PALETTE)
 
+    def set_qpalette(self, palette: QtGui.QPalette | None) -> DiffHighlightPalette:
+        """Derive colours from ``palette`` and apply them."""
+
+        if palette is None:
+            applied = DEFAULT_DIFF_PALETTE
+        else:
+            applied = build_diff_highlight_palette(palette)
+        self.set_palette(applied)
+        return applied
+
     def set_palette(self, palette: DiffHighlightPalette) -> None:
         """Update the highlight colours used by the highlighter."""
 

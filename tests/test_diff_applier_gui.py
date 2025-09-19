@@ -6,7 +6,7 @@ from typing import Any, cast
 import pytest
 
 from patch_gui import diff_applier_gui
-from patch_gui.config import AppConfig
+from patch_gui.config import AppConfig, Theme
 from tests._pytest_typing import typed_fixture, typed_parametrize
 
 try:  # pragma: no cover - environment-dependent
@@ -170,6 +170,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     dialog.backup_retention_edit.setText("7")
     dialog.ai_assistant_check.setChecked(False)
     dialog.ai_auto_check.setChecked(True)
+    dialog.theme_buttons[Theme.LIGHT].setChecked(True)
 
     updated = dialog._gather_config()
 
@@ -178,6 +179,7 @@ def test_settings_dialog_gathers_config(qt_app: Any, tmp_path: Path) -> None:
     assert updated.backup_base == new_backup
     assert updated.log_level == "debug"
     assert updated.dry_run_default is False
+    assert updated.theme is Theme.LIGHT
     assert updated.write_reports is False
     assert updated.log_file == new_log_file
     assert updated.log_max_bytes == 8192

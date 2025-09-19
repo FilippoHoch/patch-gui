@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, MutableMapping, TYPE_CHECKING
+from types import MappingProxyType
+from typing import Callable, Mapping, MutableMapping, TYPE_CHECKING
+from weakref import WeakMethod
 
 from .config import Theme
 from .platform import running_on_windows_native, running_under_wsl
@@ -537,39 +541,171 @@ def build_stylesheet(theme: Theme) -> str:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ThemeSnapshot:
+    """Snapshot of the currently applied palette."""
+
+    theme: Theme
+    tokens: Mapping[str, str]
+    palette: "QtGui.QPalette | None"
+    stylesheet: str
+
+
+class ThemeManager:
+    """Central theme registry used to broadcast palette changes."""
+
+    def __init__(self) -> None:
+        base_tokens = _resolve_tokens(Theme.DARK)
+        self._available_tokens: dict[Theme, Mapping[str, str]] = {
+            theme: MappingProxyType(dict(_resolve_tokens(theme)))
+            for theme in (Theme.DARK, Theme.LIGHT, Theme.HIGH_CONTRAST)
+        }
+        self._requested_theme: Theme = Theme.AUTO
+        self._snapshot = ThemeSnapshot(
+            theme=Theme.DARK,
+            tokens=MappingProxyType(dict(base_tokens)),
+            palette=None,
+            stylesheet=build_stylesheet(Theme.DARK),
+        )
+        self._listeners: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        self._log = logging.getLogger(__name__)
+
+    @property
+    def requested_theme(self) -> Theme:
+        return self._requested_theme
+
+    @property
+    def snapshot(self) -> ThemeSnapshot:
+        return self._snapshot
+
+    @property
+    def palettes(self) -> Mapping[Theme, Mapping[str, str]]:
+        return MappingProxyType(self._available_tokens)
+
+    def register_theme_tokens(
+        self, theme: Theme, overrides: Mapping[str, str]
+    ) -> None:
+        tokens = dict(_BASE_TOKENS)
+        tokens.update(overrides)
+        self._available_tokens[theme] = MappingProxyType(tokens)
+
+    def add_listener(
+        self, callback: Callable[[ThemeSnapshot], None], *, fire_immediately: bool = False
+    ) -> Callable[[ThemeSnapshot], None]:
+        listener: Callable[[ThemeSnapshot], None] | WeakMethod
+        if hasattr(callback, "__self__") and getattr(callback, "__self__") is not None:
+            listener = WeakMethod(callback)  # type: ignore[arg-type]
+        else:
+            listener = callback
+        self._listeners.append(listener)
+        if fire_immediately:
+            try:
+                callback(self._snapshot)
+            except Exception:  # pragma: no cover - defensive logging
+                self._log.exception("Theme listener failed during registration")
+        return callback
+
+    def remove_listener(self, callback: Callable[[ThemeSnapshot], None]) -> None:
+        retained: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        for listener in self._listeners:
+            if isinstance(listener, WeakMethod):
+                resolved = listener()
+                if resolved is None or resolved is callback:
+                    continue
+                retained.append(listener)
+            elif listener is callback:
+                continue
+            else:
+                retained.append(listener)
+        self._listeners = retained
+
+    def apply_theme(
+        self, theme: Theme, app: "QtWidgets.QApplication | None"
+    ) -> ThemeSnapshot:
+        self._requested_theme = theme
+
+        if app is None or QtWidgets is None:
+            resolved = resolve_theme_choice(theme, None)
+            tokens = self._available_tokens.get(resolved)
+            if tokens is None:
+                tokens = MappingProxyType(dict(_resolve_tokens(resolved)))
+            stylesheet = build_stylesheet(resolved)
+            self._snapshot = ThemeSnapshot(resolved, tokens, None, stylesheet)
+            self._emit()
+            return self._snapshot
+
+        style_override = os.getenv("QT_STYLE_OVERRIDE")
+        if style_override:
+            app.setStyle(style_override)
+        elif not running_under_wsl():
+            available_styles = {
+                name.lower(): name for name in QtWidgets.QStyleFactory.keys()
+            }
+            fusion = available_styles.get("fusion")
+            if fusion:
+                app.setStyle(fusion)
+
+        resolved = resolve_theme_choice(theme, app)
+        tokens = self._available_tokens.get(resolved)
+        if tokens is None:
+            tokens = MappingProxyType(dict(_resolve_tokens(resolved)))
+            self._available_tokens[resolved] = tokens
+
+        palette = build_palette(resolved)
+        if palette is not None:
+            app.setPalette(palette)
+            palette_copy: QtGui.QPalette | None = QtGui.QPalette(palette)
+        else:
+            palette_copy = None
+
+        font = _resolve_default_font(app)
+        if font is not None:
+            app.setFont(font)
+
+        stylesheet = build_stylesheet(resolved)
+        app.setStyleSheet(stylesheet)
+
+        self._snapshot = ThemeSnapshot(resolved, tokens, palette_copy, stylesheet)
+        self._emit()
+        return self._snapshot
+
+    def _emit(self) -> None:
+        snapshot = self._snapshot
+        retained: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        for listener in list(self._listeners):
+            if isinstance(listener, WeakMethod):
+                callback = listener()
+                if callback is None:
+                    continue
+                try:
+                    callback(snapshot)
+                except Exception:  # pragma: no cover - defensive logging
+                    self._log.exception("Theme listener failed during update")
+                retained.append(listener)
+            else:
+                try:
+                    listener(snapshot)
+                except Exception:  # pragma: no cover - defensive logging
+                    self._log.exception("Theme listener failed during update")
+                retained.append(listener)
+        self._listeners = retained
+
+
 def apply_modern_theme(theme: Theme, app: "QtWidgets.QApplication | None") -> None:
     """Apply the selected theme to ``app`` while remaining WSL-friendly."""
 
-    if app is None or QtWidgets is None:
-        return
+    theme_manager.apply_theme(theme, app)
 
-    style_override = os.getenv("QT_STYLE_OVERRIDE")
-    if style_override:
-        app.setStyle(style_override)
-    elif not running_under_wsl():
-        available_styles = {
-            name.lower(): name for name in QtWidgets.QStyleFactory.keys()
-        }
-        fusion = available_styles.get("fusion")
-        if fusion:
-            app.setStyle(fusion)
 
-    resolved = resolve_theme_choice(theme, app)
-
-    palette = build_palette(resolved)
-    if palette is not None:
-        app.setPalette(palette)
-
-    font = _resolve_default_font(app)
-    if font is not None:
-        app.setFont(font)
-
-    app.setStyleSheet(build_stylesheet(resolved))
+theme_manager = ThemeManager()
 
 
 __all__ = [
+    "ThemeSnapshot",
+    "ThemeManager",
     "apply_modern_theme",
     "build_palette",
     "build_stylesheet",
     "resolve_theme_choice",
+    "theme_manager",
 ]

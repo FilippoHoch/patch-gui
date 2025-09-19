@@ -98,3 +98,12 @@ Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi 
 - Per applicare automaticamente il suggerimento migliore quando viene richiesta una scelta manuale usa la spunta *Applica il suggerimento AI senza chiedere* nella GUI o la flag `--ai-select` in CLI.
 - Il servizio AI utilizza l'endpoint configurato tramite la variabile d'ambiente `PATCH_GUI_AI_ENDPOINT` (opzionalmente con token `PATCH_GUI_AI_TOKEN`). Se non è disponibile, il programma ricade su una valutazione locale basata sulla similarità del testo.
 - Quando nessun candidato viene applicato automaticamente, CLI e GUI mostrano comunque un messaggio esplicativo e un diff copiabile per facilitare l'intervento manuale: le informazioni sono incluse anche nei report generati.
+
+## QA manuale: cambio tema
+
+1. Avvia l'applicazione e apri **Impostazioni → Preferenze…**.
+2. Nella sezione *Tema* alterna tra **Scuro** e **Chiaro** verificando che:
+   - lo sfondo generale della finestra e i testi cambino tonalità;
+   - le icone della toolbar e il pulsante **Carica diff** adottino i nuovi colori.
+3. Conferma un tema, riapri le preferenze e passa a **Alto contrasto**: gli editor diff (incluso il tab *Diff interattivo*) devono evidenziare aggiunte/rimozioni con tinte coerenti e facilmente leggibili.
+4. Ripristina l'opzione **Automatico**, salva e riavvia l'app: il tema selezionato in precedenza deve essere applicato all'avvio.
