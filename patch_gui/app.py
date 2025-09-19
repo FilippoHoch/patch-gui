@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QDialog, QMainWindow
 from unidiff import PatchSet
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
+from .binary_patch import annotate_binary_patches, apply_binary_patch, BinaryPatchError
 from .ai_summaries import generate_session_summary
 from .config import AppConfig, Theme, load_config, save_config
 from .filetypes import inspect_file_type
@@ -1112,10 +1113,6 @@ class PatchApplyWorker(_QThreadBase):
         file_type_info = inspect_file_type(pf)
         fr.file_type = file_type_info.name
 
-        if file_type_info.name == "binary":
-            fr.skipped_reason = "Patch binaria non supportata nella GUI"
-            return fr
-
         is_added_file = bool(getattr(pf, "is_added_file", False))
         is_removed_file = bool(getattr(pf, "is_removed_file", False))
         source_file = getattr(pf, "source_file", None)
@@ -1178,6 +1175,54 @@ class PatchApplyWorker(_QThreadBase):
         fr.file_path = path
         fr.relative_to_root = display_relative_path(path, project_root)
         fr.hunks_total = len(pf)
+
+        if file_type_info.name == "binary":
+            fr.hunks_total = 1
+            if is_new_file:
+                existing: bytes | None = None
+            else:
+                try:
+                    existing = path.read_bytes()
+                except Exception as e:
+                    fr.skipped_reason = f"Impossibile leggere file binario: {e}"
+                    return fr
+
+            try:
+                new_bytes = apply_binary_patch(pf, existing)
+            except BinaryPatchError as exc:
+                fr.skipped_reason = str(exc)
+                return fr
+
+            if self.session.dry_run:
+                fr.hunks_applied = 1
+                return fr
+
+            if not is_new_file:
+                backup_file(project_root, path, self.session.backup_dir)
+
+            if is_removed_file:
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError as exc:
+                    fr.skipped_reason = (
+                        "Impossibile eliminare il file binario dopo la patch: "
+                        f"{exc}"
+                    )
+                    return fr
+                fr.hunks_applied = 1
+                return fr
+
+            if is_new_file:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                path.write_bytes(new_bytes)
+            except OSError as exc:
+                fr.skipped_reason = f"Impossibile scrivere il file binario: {exc}"
+                return fr
+
+            fr.hunks_applied = 1
+            return fr
 
         lines: List[str]
         file_encoding = "utf-8"
@@ -1876,6 +1921,7 @@ class MainWindow(_QMainWindowBase):
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, _("Errore parsing diff"), str(e))
             return
+        annotate_binary_patches(patch, preprocessed)
         self.patch = patch
 
         self.tree.clear()
@@ -2209,6 +2255,8 @@ class MainWindow(_QMainWindowBase):
         fr = FileResult(file_path=Path(), relative_to_root=rel_path)
 
         assert self.project_root is not None
+        file_type_info = inspect_file_type(pf)
+        fr.file_type = file_type_info.name
         candidates = find_file_candidates(
             self.project_root,
             rel_path,
@@ -2240,6 +2288,54 @@ class MainWindow(_QMainWindowBase):
         fr.file_path = path
         fr.relative_to_root = display_relative_path(path, self.project_root)
         fr.hunks_total = len(pf)
+
+        if file_type_info.name == "binary":
+            fr.hunks_total = 1
+            is_removed = bool(getattr(pf, "is_removed_file", False))
+            target_file = getattr(pf, "target_file", None)
+            if isinstance(target_file, str) and target_file.strip() == "/dev/null":
+                is_removed = True
+            try:
+                existing = path.read_bytes()
+            except Exception as e:
+                fr.skipped_reason = _("Impossibile leggere file: {error}").format(error=e)
+                return fr
+
+            try:
+                new_bytes = apply_binary_patch(pf, existing)
+            except BinaryPatchError as exc:
+                fr.skipped_reason = str(exc)
+                return fr
+
+            if session.dry_run:
+                fr.hunks_applied = 1
+                return fr
+
+            backup_file(self.project_root, path, session.backup_dir)
+
+            if is_removed:
+                try:
+                    if path.exists():
+                        path.unlink()
+                except OSError as exc:
+                    fr.skipped_reason = (
+                        "Impossibile eliminare il file binario dopo la patch: "
+                        f"{exc}"
+                    )
+                    return fr
+                fr.hunks_applied = 1
+                return fr
+
+            try:
+                path.write_bytes(new_bytes)
+            except OSError as exc:
+                fr.skipped_reason = _(
+                    "Impossibile scrivere il file binario: {error}"
+                ).format(error=exc)
+                return fr
+
+            fr.hunks_applied = 1
+            return fr
 
         try:
             raw = path.read_bytes()

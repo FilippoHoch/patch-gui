@@ -19,6 +19,7 @@ from tests._pytest_typing import typed_parametrize
 
 import patch_gui
 from patch_gui import cli, localization
+from patch_gui.binary_patch import annotate_binary_patches
 from patch_gui.config import AppConfig, load_config, save_config
 from patch_gui.downloader import DownloadError
 import patch_gui.executor as executor
@@ -122,6 +123,16 @@ OUTSIDE_DIFF = """--- /dev/null
 @@ -0,0 +1,2 @@
 +blocked line
 +another line
+"""
+
+BINARY_MOD_DIFF = """diff --git a/assets/data.bin b/assets/data.bin
+index db12d84d7d09898766cc3d68c37aa7d58f6c3702..f6768f96345337859062f580acdd501f5cea0ed4 100644
+GIT binary patch
+literal 9
+Qcmc~u&B@7UNY5+*01*2FSpWb4
+
+literal 11
+Scmc~u&B@7UD9<m-NdW*EO9VXt
 """
 
 RENAME_ONLY_DIFF = """diff --git a/sample.txt b/docs/renamed.txt
@@ -2132,3 +2143,32 @@ def test_cli_auto_accept_resolves_context_candidates(tmp_path: Path) -> None:
     assert decision.similarity is not None
     assert decision.message
     assert "auto-accept" in decision.message
+
+
+def test_apply_patchset_updates_binary_file(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    target = project / "assets" / "data.bin"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    original = b"hello\x00world"
+    target.write_bytes(original)
+
+    patch = PatchSet(BINARY_MOD_DIFF)
+    annotate_binary_patches(patch, BINARY_MOD_DIFF)
+
+    session = cli.apply_patchset(
+        patch,
+        project,
+        dry_run=False,
+        threshold=0.85,
+    )
+
+    assert target.read_bytes() == b"hello\x00git"
+    backup_copy = session.backup_dir / "assets" / "data.bin"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == original
+
+    file_result = session.results[0]
+    assert file_result.file_type == "binary"
+    assert file_result.hunks_applied == file_result.hunks_total == 1
+    assert file_result.skipped_reason is None

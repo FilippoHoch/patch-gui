@@ -17,6 +17,7 @@ from unidiff.errors import UnidiffParseError
 
 from .ai_candidate_selector import AISuggestion, rank_candidates
 from .ai_summaries import generate_session_summary
+from .binary_patch import annotate_binary_patches, apply_binary_patch, BinaryPatchError
 from .config import AppConfig, load_config
 from .filetypes import inspect_file_type
 from .localization import gettext as _
@@ -156,6 +157,7 @@ def load_patch(source: str, encoding: str | None = None) -> PatchSet:
         raise CLIError(
             _("Unexpected error while parsing the diff: {error}").format(error=exc)
         ) from exc
+    annotate_binary_patches(patch, processed)
     return patch
 
 
@@ -359,10 +361,9 @@ def _apply_file_patch(
 
     file_type_info = inspect_file_type(pf)
     fr.file_type = file_type_info.name
-
-    if file_type_info.name == "binary":
-        fr.skipped_reason = _("Binary patches are not supported in CLI mode")
-        return fr
+    is_binary = file_type_info.name == "binary"
+    if is_binary:
+        fr.hunks_total = 1
 
     is_added_file = bool(getattr(pf, "is_added_file", False))
     is_removed_file = bool(getattr(pf, "is_removed_file", False))
@@ -582,6 +583,18 @@ def _apply_file_patch(
                     return fr
             content_path = path
 
+    if is_binary:
+        return _apply_binary_file_patch(
+            pf,
+            fr,
+            project_root=project_root,
+            path=path,
+            content_path=content_path,
+            is_new_file=is_new_file,
+            is_removed_file=is_removed_file,
+            session=session,
+        )
+
     if not is_new_file:
         try:
             raw = content_path.read_bytes()
@@ -723,6 +736,90 @@ def _apply_file_patch(
                 logger.error(message)
                 raise CLIError(message) from exc
 
+    return fr
+
+
+def _apply_binary_file_patch(
+    pf: Any,
+    fr: FileResult,
+    *,
+    project_root: Path,
+    path: Path,
+    content_path: Path,
+    is_new_file: bool,
+    is_removed_file: bool,
+    session: ApplySession,
+) -> FileResult:
+    existing: bytes | None
+    if is_new_file:
+        existing = None
+    else:
+        try:
+            existing = content_path.read_bytes()
+        except Exception as exc:
+            fr.skipped_reason = _("Cannot read the file: {error}").format(error=exc)
+            return fr
+
+    try:
+        new_bytes = apply_binary_patch(pf, existing)
+    except BinaryPatchError as exc:
+        fr.skipped_reason = str(exc)
+        return fr
+
+    if session.dry_run:
+        fr.hunks_applied = 1
+        return fr
+
+    if not is_new_file:
+        try:
+            backup_file(project_root, path, session.backup_dir)
+        except OSError as exc:
+            relative_path = display_relative_path(path, project_root)
+            message = _("Failed to create backup for {path}: {error}").format(
+                path=relative_path, error=exc
+            )
+            logger.error(message)
+            fr.skipped_reason = message
+            fr.decisions.append(
+                HunkDecision(
+                    hunk_header="binary",
+                    strategy="failed",
+                    message=message,
+                )
+            )
+            return fr
+
+    if is_removed_file:
+        try:
+            if path.exists():
+                path.unlink()
+        except OSError as exc:
+            message = _("Failed to delete binary file: {error}").format(error=exc)
+            fr.skipped_reason = message
+            return fr
+        fr.hunks_applied = 1
+        return fr
+
+    if is_new_file:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            fr.skipped_reason = _(
+                "Failed to create directories for {path}: {error}"
+            ).format(path=path, error=exc)
+            return fr
+
+    try:
+        path.write_bytes(new_bytes)
+    except OSError as exc:
+        relative_path = display_relative_path(path, project_root)
+        message = _("Failed to write updated content to {path}: {error}").format(
+            path=relative_path, error=exc
+        )
+        logger.error(message)
+        raise CLIError(message) from exc
+
+    fr.hunks_applied = 1
     return fr
 
 
