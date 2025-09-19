@@ -1,178 +1,282 @@
-"""Helpers for fuzzy matching candidate ranges within files."""
+"""Candidate matching strategies for locating diff hunk insertion points."""
 
 from __future__ import annotations
 
-import hashlib
 import logging
-from collections import Counter, defaultdict
+import time
+from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
+from typing import Iterable, Sequence
+
+try:  # pragma: no cover - exercised through fallback tests
+    from rapidfuzz import fuzz
+
+    _HAS_RAPIDFUZZ = True
+except ImportError:  # pragma: no cover - handled in tests
+    fuzz = None  # type: ignore[assignment]
+    _HAS_RAPIDFUZZ = False
+
+
 from difflib import SequenceMatcher
-from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
 
 class MatchingStrategy(str, Enum):
-    """Available matching strategies for locating diff hunk candidates."""
+    """High level strategy choices exposed to the configuration layer."""
 
     AUTO = "auto"
     LEGACY = "legacy"
-    TOKEN = "token"
+    RAPIDFUZZ = "rapidfuzz"
+    TOKEN = "token"  # Backwards compatible alias for the optimised matcher.
+
+    @property
+    def resolved(self) -> "MatchingStrategy":
+        if self is MatchingStrategy.TOKEN:
+            return MatchingStrategy.RAPIDFUZZ
+        return self
+
+
+@dataclass(frozen=True)
+class MatchingOptions:
+    """Configuration knobs influencing the candidate search."""
+
+    strategy: MatchingStrategy = MatchingStrategy.AUTO
+    use_anchors: bool = True
+    max_candidates: int | None = None
+
+
+@dataclass(frozen=True)
+class CandidateMatch:
+    """Describe a single candidate location."""
+
+    position: int
+    score: float
+    anchor_hits: int = 0
+
+    def as_tuple(self) -> tuple[int, float]:
+        return (self.position, self.score)
 
 
 @dataclass(frozen=True)
 class MatchingStats:
-    """Track diagnostic metrics for candidate discovery."""
+    """Diagnostic metrics recorded during matching."""
 
     evaluated_windows: int
-    sequence_matches: int
+    total_windows: int
+    anchor_windows: int
+    strategy: MatchingStrategy
+    backend: str
+    duration: float
+
+    @property
+    def anchor_pruned(self) -> bool:
+        return self.anchor_windows < self.total_windows
 
 
-def _hash_lines(lines: Sequence[str]) -> bytes:
-    """Return a stable hash for ``lines`` suitable for indexing."""
+@dataclass(frozen=True)
+class CandidateSearchResult:
+    """Outcome of :func:`find_candidates`."""
 
-    hasher = hashlib.blake2b(digest_size=16)
-    for line in lines:
-        # ``surrogatepass`` preserves undecodable bytes while ensuring the hash
-        # remains stable across Python versions.
-        hasher.update(line.encode("utf-8", "surrogatepass"))
-        hasher.update(b"\0")
-    return hasher.digest()
+    candidates: list[CandidateMatch]
+    stats: MatchingStats
 
 
-def _joined_text(lines: Sequence[str]) -> str:
-    return "".join(lines)
+def _resolve_strategy(strategy: MatchingStrategy | str | None) -> MatchingStrategy:
+    if strategy is None:
+        return MatchingStrategy.AUTO
+    if isinstance(strategy, MatchingStrategy):
+        return strategy.resolved
+    try:
+        resolved = MatchingStrategy(str(strategy))
+    except ValueError:
+        logger.warning("Unknown matching strategy %s – defaulting to legacy", strategy)
+        return MatchingStrategy.LEGACY
+    return resolved.resolved
 
 
-def _legacy_find_candidates(
-    file_lines: Sequence[str], before_lines: Sequence[str], threshold: float
-) -> tuple[list[tuple[int, float]], MatchingStats]:
-    """Replicate the historical behaviour using a full sliding window scan."""
+def _sequence_ratio(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
 
-    candidates: list[tuple[int, float]] = []
-    if not before_lines:
-        return candidates, MatchingStats(evaluated_windows=0, sequence_matches=0)
+
+def _rapidfuzz_ratio(a: str, b: str) -> float:
+    if not _HAS_RAPIDFUZZ or fuzz is None:  # pragma: no cover - guarded by tests
+        return _sequence_ratio(a, b)
+    return fuzz.ratio(a, b) / 100.0
+
+
+def _candidate_positions_with_anchors(
+    file_lines: Sequence[str], before_lines: Sequence[str]
+) -> Counter[int]:
+    """Return candidate positions keyed by the amount of matching anchors."""
+
     window_len = len(before_lines)
-    target_text = _joined_text(before_lines)
-    evaluated = 0
+    if window_len == 0 or window_len > len(file_lines):
+        return Counter()
 
-    file_text = _joined_text(file_lines)
-    logger.debug(
-        "Ricerca candidati (legacy): window_len=%d, threshold=%.3f, testo_target=%d char",
-        window_len,
-        threshold,
-        len(target_text),
-    )
-    idx = file_text.find(target_text)
-    if idx != -1:
-        cumulative = 0
-        for i, line in enumerate(file_lines):
-            if cumulative == idx:
-                return [(i, 1.0)], MatchingStats(evaluated_windows=1, sequence_matches=1)
-            cumulative += len(line)
+    anchors: list[tuple[int, str]] = []
+    anchors.append((0, before_lines[0]))
+    if window_len > 1:
+        anchors.append((window_len - 1, before_lines[-1]))
 
-    matches = 0
-    for i in range(0, len(file_lines) - window_len + 1):
-        window_text = _joined_text(file_lines[i : i + window_len])
-        score = SequenceMatcher(None, window_text, target_text).ratio()
-        evaluated += 1
-        matches += 1
-        if score >= threshold:
-            candidates.append((i, score))
-
-    candidates.sort(key=lambda x: (-x[1], x[0]))
-    logger.debug(
-        "Trovati %d candidati (legacy) con soglia %.3f",
-        len(candidates),
-        threshold,
-    )
-    return candidates, MatchingStats(evaluated_windows=evaluated, sequence_matches=matches)
+    hits: Counter[int] = Counter()
+    max_start = len(file_lines) - window_len
+    for offset, anchor_line in anchors:
+        for idx, line in enumerate(file_lines):
+            if line != anchor_line:
+                continue
+            start = idx - offset
+            if 0 <= start <= max_start:
+                hits[start] += 1
+    return hits
 
 
-def _build_gram_index(file_lines: Sequence[str], gram_size: int) -> dict[bytes, list[int]]:
-    index: dict[bytes, list[int]] = defaultdict(list)
-    if gram_size <= 0 or gram_size > len(file_lines):
-        return index
-    for pos in range(len(file_lines) - gram_size + 1):
-        digest = _hash_lines(file_lines[pos : pos + gram_size])
-        index[digest].append(pos)
-    return index
+def _iter_windows(
+    file_lines: Sequence[str],
+    window_len: int,
+    positions: Iterable[int],
+) -> Iterable[tuple[int, str]]:
+    for start in positions:
+        end = start + window_len
+        if end > len(file_lines):
+            continue
+        yield start, "".join(file_lines[start:end])
 
 
-def _token_find_candidates(
+def _score_windows(
+    window_texts: Sequence[str],
+    target_text: str,
+    *,
+    use_rapidfuzz: bool,
+) -> list[float]:
+    if not window_texts:
+        return []
+    if use_rapidfuzz and _HAS_RAPIDFUZZ and fuzz is not None:
+        return [_rapidfuzz_ratio(text, target_text) for text in window_texts]
+    return [_sequence_ratio(text, target_text) for text in window_texts]
+
+
+def find_candidates(
     file_lines: Sequence[str],
     before_lines: Sequence[str],
     threshold: float,
-    *,
-    gram_size: int = 4,
-) -> tuple[list[tuple[int, float]], MatchingStats]:
-    """Locate candidate positions using hashed n-grams to prune comparisons."""
+    options: MatchingOptions | None = None,
+) -> CandidateSearchResult:
+    """Return matching candidates sorted by similarity score."""
 
-    if not before_lines:
-        return [], MatchingStats(evaluated_windows=0, sequence_matches=0)
+    opts = options or MatchingOptions()
+    resolved_strategy = _resolve_strategy(opts.strategy)
     window_len = len(before_lines)
-    if window_len > len(file_lines):
-        return [], MatchingStats(evaluated_windows=0, sequence_matches=0)
+    total_windows = max(len(file_lines) - window_len + 1, 0)
 
-    target_text = _joined_text(before_lines)
-    file_text = _joined_text(file_lines)
-    logger.debug(
-        "Ricerca candidati (token): window_len=%d, threshold=%.3f, testo_target=%d char",
-        window_len,
-        threshold,
-        len(target_text),
-    )
+    if window_len == 0 or total_windows == 0:
+        stats = MatchingStats(
+            evaluated_windows=0,
+            total_windows=total_windows,
+            anchor_windows=0,
+            strategy=resolved_strategy,
+            backend="none" if window_len == 0 else "sequence",
+            duration=0.0,
+        )
+        return CandidateSearchResult(candidates=[], stats=stats)
 
-    # Quick exact match shortcut identical to the legacy implementation.
-    idx = file_text.find(target_text)
-    if idx != -1:
+    start_time = time.perf_counter()
+    target_text = "".join(before_lines)
+    exact_join = "".join(file_lines)
+    exact_index = exact_join.find(target_text)
+    if exact_index != -1:
         cumulative = 0
-        for i, line in enumerate(file_lines):
-            if cumulative == idx:
-                return [(i, 1.0)], MatchingStats(evaluated_windows=1, sequence_matches=1)
+        for idx, line in enumerate(file_lines):
+            if cumulative == exact_index:
+                match = CandidateMatch(position=idx, score=1.0, anchor_hits=window_len)
+                duration = time.perf_counter() - start_time
+                stats = MatchingStats(
+                    evaluated_windows=1,
+                    total_windows=total_windows,
+                    anchor_windows=1,
+                    strategy=resolved_strategy,
+                    backend="exact",
+                    duration=duration,
+                )
+                return CandidateSearchResult(candidates=[match], stats=stats)
             cumulative += len(line)
 
-    gram = max(1, min(gram_size, window_len))
-    index = _build_gram_index(file_lines, gram)
-    if not index:
-        return [], MatchingStats(evaluated_windows=0, sequence_matches=0)
+    anchors = Counter[int]()
+    if opts.use_anchors:
+        anchors = _candidate_positions_with_anchors(file_lines, before_lines)
 
-    counts: Counter[int] = Counter()
-    for offset in range(window_len - gram + 1):
-        digest = _hash_lines(before_lines[offset : offset + gram])
-        positions = index.get(digest)
-        if not positions:
-            continue
-        for pos in positions:
-            start = pos - offset
-            if 0 <= start <= len(file_lines) - window_len:
-                counts[start] += 1
+    if anchors:
+        candidate_positions = sorted(anchors.keys())
+        anchor_windows = len(candidate_positions)
+    else:
+        candidate_positions = list(range(total_windows))
+        anchor_windows = total_windows
 
-    if not counts:
-        return [], MatchingStats(evaluated_windows=0, sequence_matches=0)
-
-    sorted_positions = [pos for pos, _ in counts.most_common()]
-    evaluated = 0
-    matched = 0
-    candidates: list[tuple[int, float]] = []
-
-    for pos in sorted_positions:
-        window_text = _joined_text(file_lines[pos : pos + window_len])
-        evaluated += 1
-        score = SequenceMatcher(None, window_text, target_text).ratio()
-        matched += 1
-        if score >= threshold:
-            candidates.append((pos, score))
-
-    candidates.sort(key=lambda item: (-item[1], item[0]))
-    logger.debug(
-        "Trovati %d candidati (token) con soglia %.3f dopo %d confronti",
-        len(candidates),
-        threshold,
-        evaluated,
+    use_rapidfuzz = _HAS_RAPIDFUZZ and resolved_strategy in (
+        MatchingStrategy.AUTO,
+        MatchingStrategy.RAPIDFUZZ,
     )
-    return candidates, MatchingStats(evaluated_windows=evaluated, sequence_matches=matched)
+
+    if resolved_strategy is MatchingStrategy.LEGACY:
+        use_rapidfuzz = False
+
+    backend = "rapidfuzz" if use_rapidfuzz else "sequence"
+
+    window_texts: list[str] = []
+    ordered_positions: list[int] = []
+    for start, text in _iter_windows(file_lines, window_len, candidate_positions):
+        ordered_positions.append(start)
+        window_texts.append(text)
+
+    scores = _score_windows(window_texts, target_text, use_rapidfuzz=use_rapidfuzz)
+
+    evaluated = len(scores)
+    candidates: list[CandidateMatch] = []
+    for start, score in zip(ordered_positions, scores):
+        if score >= threshold:
+            candidates.append(
+                CandidateMatch(
+                    position=start,
+                    score=score,
+                    anchor_hits=anchors.get(start, 0),
+                )
+            )
+
+    candidates.sort(key=lambda m: (-m.score, -m.anchor_hits, m.position))
+    if opts.max_candidates is not None:
+        candidates = candidates[: opts.max_candidates]
+
+    duration = time.perf_counter() - start_time
+    stats = MatchingStats(
+        evaluated_windows=evaluated,
+        total_windows=total_windows,
+        anchor_windows=anchor_windows,
+        strategy=resolved_strategy,
+        backend=backend,
+        duration=duration,
+    )
+
+    logger.debug(
+        "Matching completed: strategy=%s backend=%s evaluated=%d/%d anchors=%d duration=%.4fs",
+        resolved_strategy.value,
+        backend,
+        evaluated,
+        total_windows,
+        anchor_windows,
+        duration,
+    )
+
+    if not candidates and resolved_strategy is MatchingStrategy.AUTO and use_rapidfuzz:
+        logger.debug("RapidFuzz yielded no candidates – retrying with legacy scorer")
+        legacy_opts = MatchingOptions(
+            strategy=MatchingStrategy.LEGACY,
+            use_anchors=opts.use_anchors,
+            max_candidates=opts.max_candidates,
+        )
+        return find_candidates(file_lines, before_lines, threshold, legacy_opts)
+
+    return CandidateSearchResult(candidates=candidates, stats=stats)
 
 
 def find_candidate_positions(
@@ -181,46 +285,25 @@ def find_candidate_positions(
     threshold: float,
     *,
     strategy: MatchingStrategy = MatchingStrategy.AUTO,
+    use_anchors: bool = True,
 ) -> list[tuple[int, float]]:
-    """Return candidate start positions sorted by similarity score."""
+    """Compatibility wrapper returning legacy tuple results."""
 
-    if isinstance(strategy, MatchingStrategy):
-        resolved_strategy = strategy
-    else:
-        try:
-            resolved_strategy = MatchingStrategy(str(strategy))
-        except ValueError:
-            logger.warning(
-                "Strategia matching sconosciuta %s – fallback legacy", strategy
-            )
-            resolved_strategy = MatchingStrategy.LEGACY
-
-    legacy_candidates: list[tuple[int, float]] | None = None
-
-    if resolved_strategy in {MatchingStrategy.AUTO, MatchingStrategy.TOKEN}:
-        token_candidates, stats = _token_find_candidates(
-            file_lines, before_lines, threshold
-        )
-        if token_candidates:
-            logger.debug(
-                "Strategia token restituisce %d candidati (windows=%d)",
-                len(token_candidates),
-                stats.evaluated_windows,
-            )
-            return token_candidates
-        logger.debug(
-            "Strategia token senza risultati, ricaduta al legacy (windows=%d)",
-            stats.evaluated_windows,
-        )
-        legacy_candidates, _ = _legacy_find_candidates(file_lines, before_lines, threshold)
-        return legacy_candidates
-
-    legacy_candidates, _ = _legacy_find_candidates(file_lines, before_lines, threshold)
-    return legacy_candidates
+    result = find_candidates(
+        file_lines,
+        before_lines,
+        threshold,
+        MatchingOptions(strategy=strategy, use_anchors=use_anchors),
+    )
+    return [candidate.as_tuple() for candidate in result.candidates]
 
 
 __all__ = [
-    "MatchingStrategy",
+    "CandidateMatch",
+    "CandidateSearchResult",
+    "MatchingOptions",
     "MatchingStats",
+    "MatchingStrategy",
+    "find_candidates",
     "find_candidate_positions",
 ]

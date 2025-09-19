@@ -71,6 +71,7 @@ _CONFIG_KEYS = (
     "ai_auto_apply",
     "ai_diff_notes_enabled",
     "matching_strategy",
+    "use_structural_anchors",
 )
 
 
@@ -215,6 +216,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             config=config,
             ai_assistant=ai_assistant_enabled,
             ai_auto_select=ai_auto_select,
+            use_structural_anchors=args.anchors,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
@@ -744,6 +746,8 @@ def config_reset(
             config.ai_diff_notes_enabled = defaults.ai_diff_notes_enabled
         elif key == "matching_strategy":
             config.matching_strategy = defaults.matching_strategy
+        elif key == "use_structural_anchors":
+            config.use_structural_anchors = defaults.use_structural_anchors
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -830,6 +834,14 @@ def _apply_config_value(
             config.ai_auto_apply = config_value
         else:
             config.ai_diff_notes_enabled = config_value
+        return
+
+    if key == "use_structural_anchors":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The use_structural_anchors key expects exactly one value."),
+            )
+        config.use_structural_anchors = _parse_bool(values[0])
         return
 
     if key == "matching_strategy":

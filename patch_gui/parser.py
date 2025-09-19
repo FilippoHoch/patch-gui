@@ -115,6 +115,26 @@ def build_parser(
         default=resolved_config.threshold,
         help=_("Matching threshold (0-1) for fuzzy context alignment."),
     )
+    anchor_group = parser.add_mutually_exclusive_group()
+    anchor_group.set_defaults(
+        anchors=getattr(resolved_config, "use_structural_anchors", True)
+    )
+    anchor_group.add_argument(
+        "--anchors",
+        dest="anchors",
+        action="store_true",
+        help=_(
+            "Enable structural anchor heuristics when searching for candidate positions."
+        ),
+    )
+    anchor_group.add_argument(
+        "--no-anchors",
+        dest="anchors",
+        action="store_false",
+        help=_(
+            "Disable structural anchors and rely solely on fuzzy similarity scoring."
+        ),
+    )
     parser.add_argument(
         "--matching-strategy",
         choices=[strategy.value for strategy in MatchingStrategy],

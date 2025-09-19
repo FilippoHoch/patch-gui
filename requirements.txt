@@ -1,6 +1,7 @@
 PySide6==6.7.3
 charset-normalizer==3.3.2
 unidiff==0.7.5
+rapidfuzz==3.9.2
 
 # Development (optional)
 mypy==1.11.1
