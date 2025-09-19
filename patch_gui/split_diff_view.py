@@ -7,7 +7,11 @@ from typing import Sequence
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .highlighter import DiffHighlighter, DiffHighlightPalette
+from .highlighter import (
+    DEFAULT_DIFF_PALETTE,
+    DiffHighlighter,
+    DiffHighlightPalette,
+)
 from .diff_formatting import RenderedHunk
 from .interactive_diff_model import FileDiffEntry
 from .localization import gettext as _
@@ -88,6 +92,14 @@ class SplitDiffView(QtWidgets.QWidget):  # type: ignore[misc]
         self._clear_hunks()
         self._scroll_area.setVisible(False)
         self._placeholder.setVisible(False)
+
+    def set_highlight_palette(
+        self, palette: DiffHighlightPalette | None
+    ) -> None:
+        self._highlighter_palette = palette
+        self._header_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
+        for widget in self._hunk_widgets:
+            widget.set_highlight_palette(palette)
 
     def set_entry(
         self,
@@ -206,6 +218,12 @@ class _HunkWidget(QtWidgets.QFrame):  # type: ignore[misc]
 
         self.set_applied(applied)
 
+    def set_highlight_palette(
+        self, palette: DiffHighlightPalette | None
+    ) -> None:
+        self._palette = palette
+        self._columns.set_highlight_palette(palette)
+
     def set_applied(self, applied: bool) -> None:
         self._applied = applied
         target_id = 1 if applied else 0
@@ -246,8 +264,12 @@ class _HunkColumns(QtWidgets.QWidget):  # type: ignore[misc]
         layout.addWidget(self.left_editor, 1)
         layout.addWidget(self.right_editor, 1)
 
-        DiffHighlighter(self.left_editor.document(), palette=highlighter_palette)
-        DiffHighlighter(self.right_editor.document(), palette=highlighter_palette)
+        self._left_highlighter = DiffHighlighter(
+            self.left_editor.document(), palette=highlighter_palette
+        )
+        self._right_highlighter = DiffHighlighter(
+            self.right_editor.document(), palette=highlighter_palette
+        )
 
         left_text, right_text = _split_columns(annotated_text)
         self.left_editor.setPlainText(left_text)
@@ -256,6 +278,12 @@ class _HunkColumns(QtWidgets.QWidget):  # type: ignore[misc]
         self._sync_guard = False
         self.left_editor.verticalScrollBar().valueChanged.connect(self._sync_right)
         self.right_editor.verticalScrollBar().valueChanged.connect(self._sync_left)
+
+    def set_highlight_palette(
+        self, palette: DiffHighlightPalette | None
+    ) -> None:
+        self._left_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
+        self._right_highlighter.set_palette(palette or DEFAULT_DIFF_PALETTE)
 
     def _sync_right(self, value: int) -> None:
         if self._sync_guard:

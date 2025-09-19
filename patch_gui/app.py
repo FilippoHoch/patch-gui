@@ -12,7 +12,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Tuple, TypeVar, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, QThread
@@ -36,7 +36,7 @@ from .interactive_diff import InteractiveDiffWidget
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
-from .theme import apply_modern_theme
+from .theme import ThemeSnapshot, apply_modern_theme, theme_manager
 from .logging_utils import configure_logging
 from .patcher import (
     ApplySession,
@@ -123,6 +123,29 @@ def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
     pen = QPen(color)
     pen.setWidthF(max(1.0, size.width() * scale))
     return pen
+
+
+def _update_brand_colors(tokens: Mapping[str, str]) -> None:
+    """Tune the procedurally-generated icon palette using ``tokens``."""
+
+    global _BRAND_BASE, _BRAND_SURFACE, _BRAND_PRIMARY, _BRAND_ACCENT, _BRAND_LIGHT
+
+    surface = QColor(tokens.get("background_surface", _BRAND_SURFACE.name()))
+    window = QColor(tokens.get("background_window", surface.name()))
+    accent = QColor(tokens.get("accent", _BRAND_PRIMARY.name()))
+    accent_hover = QColor(tokens.get("accent_hover", accent.name()))
+    text = QColor(tokens.get("text_primary", _BRAND_LIGHT.name()))
+
+    _BRAND_SURFACE = surface
+    base = QColor(surface)
+    if surface.lightness() > 180:
+        base = surface.darker(130)
+    elif surface.lightness() < 60:
+        base = window
+    _BRAND_BASE = base.darker(130)
+    _BRAND_PRIMARY = accent
+    _BRAND_ACCENT = accent_hover
+    _BRAND_LIGHT = text.lighter(150)
 
 
 def _draw_document(
@@ -902,13 +925,25 @@ class SettingsDialog(_QDialogBase):
             Theme.LIGHT: _("Chiaro"),
             Theme.HIGH_CONTRAST: _("Alto contrasto"),
         }
-        self.theme_combo = QtWidgets.QComboBox()
+        theme_widget = QtWidgets.QWidget()
+        theme_layout = QtWidgets.QHBoxLayout(theme_widget)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(12)
+        self.theme_group = QtWidgets.QButtonGroup(self)
+        self.theme_buttons: dict[Theme, QtWidgets.QRadioButton] = {}
         for theme in Theme:
-            self.theme_combo.addItem(theme_labels[theme], theme)
-        theme_index = self.theme_combo.findData(self._original_config.theme)
-        if theme_index >= 0:
-            self.theme_combo.setCurrentIndex(theme_index)
-        form.addRow(_("Tema"), self.theme_combo)
+            button = QtWidgets.QRadioButton(theme_labels[theme])
+            self.theme_group.addButton(button)
+            button.setProperty("theme", theme)
+            self.theme_buttons[theme] = button
+            theme_layout.addWidget(button)
+        theme_layout.addStretch(1)
+        current_button = self.theme_buttons.get(self._original_config.theme)
+        if current_button is not None:
+            current_button.setChecked(True)
+        else:
+            self.theme_buttons[Theme.AUTO].setChecked(True)
+        form.addRow(_("Tema"), theme_widget)
 
         self.dry_run_check = QtWidgets.QCheckBox(
             _("Esegui sempre in dry-run inizialmente")
@@ -991,11 +1026,11 @@ class SettingsDialog(_QDialogBase):
         else:
             log_file = self._original_config.log_file
 
-        theme_data = self.theme_combo.currentData()
-        if isinstance(theme_data, Theme):
-            theme_choice = theme_data
-        else:
-            theme_choice = self._original_config.theme
+        selected_theme = self._original_config.theme
+        for theme, button in self.theme_buttons.items():
+            if button.isChecked():
+                selected_theme = theme
+                break
 
         log_max_bytes = self._parse_non_negative_int(
             self.log_max_edit.text(), self._original_config.log_max_bytes
@@ -1013,7 +1048,7 @@ class SettingsDialog(_QDialogBase):
             exclude_dirs=excludes,
             backup_base=backup_base,
             log_level=log_level,
-            theme=theme_choice,
+            theme=selected_theme,
             dry_run_default=self.dry_run_check.isChecked(),
             write_reports=self.reports_check.isChecked(),
             log_file=log_file,
@@ -1434,6 +1469,7 @@ class MainWindow(_QMainWindowBase):
     def __init__(self, *, app_config: AppConfig | None = None) -> None:
         super().__init__()
         self.app_config: AppConfig = app_config or load_config()
+        _update_brand_colors(theme_manager.snapshot.tokens)
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
 
@@ -1517,6 +1553,8 @@ class MainWindow(_QMainWindowBase):
                 return generated
 
             return style.standardIcon(fallback)
+
+        self._load_icon_fn = load_icon
 
         self.toolbar = QtWidgets.QToolBar(_("Azioni"))
         self.toolbar.setToolButtonStyle(
@@ -1691,9 +1729,10 @@ class MainWindow(_QMainWindowBase):
         self.text_diff.setPlaceholderText(
             _("Incolla qui il diff se non stai aprendo un file…")
         )
+        initial_qpalette = theme_manager.snapshot.palette or self.text_diff.palette()
         self._diff_highlighter = DiffHighlighter(
             self.text_diff.document(),
-            palette=build_diff_highlight_palette(self.text_diff.palette()),
+            palette=build_diff_highlight_palette(initial_qpalette),
         )
         self.diff_tabs.addTab(self.text_diff, _("Editor diff"))
 
@@ -1701,7 +1740,7 @@ class MainWindow(_QMainWindowBase):
         self.preview_view.setReadOnly(True)
         self._preview_highlighter = DiffHighlighter(
             self.preview_view.document(),
-            palette=build_diff_highlight_palette(self.preview_view.palette()),
+            palette=build_diff_highlight_palette(initial_qpalette),
         )
         self.diff_tabs.addTab(self.preview_view, _("Anteprima"))
 
@@ -1824,6 +1863,12 @@ class MainWindow(_QMainWindowBase):
 
         self._apply_config_to_widgets()
         self._setup_gui_logging()
+
+        self._theme_listener = theme_manager.add_listener(self._on_theme_changed)
+        self._on_theme_changed(theme_manager.snapshot)
+        self.destroyed.connect(
+            lambda: theme_manager.remove_listener(self._on_theme_changed)
+        )
 
         status_bar = self.statusBar()
         status_bar.showMessage(_("Pronto"))
@@ -2138,6 +2183,53 @@ class MainWindow(_QMainWindowBase):
             self._qt_log_handler.close()
             self._qt_log_handler = None
         super().closeEvent(event)
+
+    def _refresh_icons(self) -> None:
+        loader = getattr(self, "_load_icon_fn", None)
+        if not callable(loader):
+            return
+        if hasattr(self, "action_choose_root"):
+            self.action_choose_root.setIcon(
+                loader("choose_root", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon)
+            )
+        if hasattr(self, "action_load_file"):
+            self.action_load_file.setIcon(
+                loader(
+                    "load_file",
+                    QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton,
+                )
+            )
+        if hasattr(self, "action_from_clip"):
+            self.action_from_clip.setIcon(
+                loader(
+                    "from_clipboard",
+                    QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton,
+                )
+            )
+        if hasattr(self, "action_from_text"):
+            self.action_from_text.setIcon(
+                loader(
+                    "from_text",
+                    QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView,
+                )
+            )
+        if hasattr(self, "load_diff_button"):
+            self.load_diff_button.setIcon(
+                loader(
+                    "load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart
+                )
+            )
+        if hasattr(self, "action_analyze"):
+            self.action_analyze.setIcon(
+                loader("analyze", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay)
+            )
+
+    def _on_theme_changed(self, snapshot: ThemeSnapshot) -> None:
+        _update_brand_colors(snapshot.tokens)
+        self._refresh_icons()
+        palette = snapshot.palette or self.text_diff.palette()
+        self._diff_highlighter.set_qpalette(palette)
+        self._preview_highlighter.set_qpalette(palette)
 
     def _apply_config_to_widgets(self) -> None:
         self.threshold = float(self.app_config.threshold)

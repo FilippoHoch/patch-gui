@@ -68,3 +68,28 @@ def test_apply_modern_theme_gracefully_handles_missing_qt(monkeypatch: pytest.Mo
     theme_module.apply_modern_theme(Theme.DARK, None)
     assert theme_module.build_palette(Theme.DARK) is None
     assert theme_module.resolve_theme_choice(Theme.AUTO, None) is Theme.DARK
+
+
+def test_theme_manager_exposes_core_palettes() -> None:
+    palettes = theme_module.theme_manager.palettes
+    assert Theme.DARK in palettes
+    assert Theme.LIGHT in palettes
+    assert "background_window" in palettes[Theme.DARK]
+
+
+@pytest.mark.skipif(QtWidgets is None, reason="PySide6 non disponibile")
+def test_theme_manager_notifies_listeners(themed_app: Any) -> None:
+    assert QtGui is not None
+    previous = theme_module.theme_manager.snapshot
+    received: list[Theme] = []
+
+    def listener(snapshot: theme_module.ThemeSnapshot) -> None:
+        received.append(snapshot.theme)
+
+    theme_module.theme_manager.add_listener(listener)
+    try:
+        theme_module.apply_modern_theme(Theme.LIGHT, themed_app)
+        assert received and received[-1] == Theme.LIGHT
+    finally:
+        theme_module.theme_manager.remove_listener(listener)
+        theme_module.apply_modern_theme(previous.theme, themed_app)
