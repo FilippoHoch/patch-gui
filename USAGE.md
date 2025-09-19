@@ -84,9 +84,24 @@ Oltre a usare la GUI, puoi ispezionare e modificare le impostazioni persistenti 
 
 Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi `--config-path /percorso/custom/settings.toml` dopo il nome del sottocomando.
 
+## Preferenze e tema dell'interfaccia
+
+Dal menu **Preferenze** puoi modificare rapidamente i parametri della GUI senza uscire dall'applicazione. Oltre ai campi già descritti, il menu a tendina *Tema* consente di scegliere fra **Automatico**, **Scuro**, **Chiaro** e **Alto contrasto**. La selezione viene salvata nel profilo (`settings.toml`) quando confermi il dialogo, così alla riapertura della finestra viene ripristinata la stessa combinazione.
+
+Il cambio di tema aggiorna all'istante palette, diff interattivo e icone della toolbar. Le icone generate dinamicamente vengono rigenerate con i nuovi colori e gli asset SVG interni vengono ricolorati di conseguenza. Se usi la modalità *Automatico*, il tema attivo viene deciso da Qt in base alle preferenze di sistema, ma puoi sempre forzare manualmente una palette alternativa.
+
 ## Assistente AI (sperimentale)
 
 - L'assistente può essere abilitato o disabilitato sia dalla GUI (Preferenze → *Suggerisci automaticamente con l'assistente AI*) sia tramite CLI con `--ai-assistant` / `--no-ai-assistant`.
 - Per applicare automaticamente il suggerimento migliore quando viene richiesta una scelta manuale usa la spunta *Applica il suggerimento AI senza chiedere* nella GUI o la flag `--ai-select` in CLI.
 - Il servizio AI utilizza l'endpoint configurato tramite la variabile d'ambiente `PATCH_GUI_AI_ENDPOINT` (opzionalmente con token `PATCH_GUI_AI_TOKEN`). Se non è disponibile, il programma ricade su una valutazione locale basata sulla similarità del testo.
 - Quando nessun candidato viene applicato automaticamente, CLI e GUI mostrano comunque un messaggio esplicativo e un diff copiabile per facilitare l'intervento manuale: le informazioni sono incluse anche nei report generati.
+
+## Checklist QA manuale: cambio tema
+
+Usa questa breve lista per verificare che la gestione dei temi funzioni correttamente dopo modifiche rilevanti:
+
+1. Apri **Preferenze** e imposta il tema su **Scuro**. Conferma il dialogo e controlla che: (a) il diff interattivo cambi colori, (b) le icone della toolbar vengano ridisegnate con la nuova palette e (c) i pulsanti principali rispettino la combinazione scura.
+2. Riapri **Preferenze**, seleziona **Chiaro** e conferma. Verifica che i nuovi colori sostituiscano quelli precedenti senza riavviare l'applicazione.
+3. Chiudi e riapri Patch GUI: assicurati che il tema scelto al punto 2 venga ripristinato automaticamente e che le icone generate risultino coerenti.
+4. Ripeti la procedura selezionando **Alto contrasto** per controllare che i colori ad alto contrasto vengano applicati a testi, diff e icone.

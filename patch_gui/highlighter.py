@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from PySide6 import QtGui
 
+from .theme import ThemePalette, theme_manager
+
 if TYPE_CHECKING:
     # ``PySide6`` exposes ``QSyntaxHighlighter`` as ``Any`` to type checkers.
     # Providing a lightweight stub in the ``TYPE_CHECKING`` branch gives mypy a
@@ -30,25 +32,31 @@ class DiffHighlighter(_QSyntaxHighlighter):
     def __init__(self, document: QtGui.QTextDocument) -> None:
         super().__init__(document)
         self._addition_format = QtGui.QTextCharFormat()
-        self._addition_format.setBackground(QtGui.QColor("#e6ffed"))
-        self._addition_format.setForeground(QtGui.QColor("#033a16"))
-
         self._removal_format = QtGui.QTextCharFormat()
-        self._removal_format.setBackground(QtGui.QColor("#ffeef0"))
-        self._removal_format.setForeground(QtGui.QColor("#86181d"))
-
         self._context_format = QtGui.QTextCharFormat()
-        self._context_format.setBackground(QtGui.QColor("#f6f8fa"))
-        self._context_format.setForeground(QtGui.QColor("#24292e"))
-
         self._header_format = QtGui.QTextCharFormat()
-        self._header_format.setBackground(QtGui.QColor("#dbe9ff"))
-        self._header_format.setForeground(QtGui.QColor("#032f62"))
         self._header_format.setFontWeight(QtGui.QFont.Weight.Bold)
 
         self._meta_format = QtGui.QTextCharFormat()
-        self._meta_format.setForeground(QtGui.QColor("#6a737d"))
         self._meta_format.setFontItalic(True)
+
+        self._theme_manager = theme_manager()
+        self._apply_palette(self._theme_manager.palette)
+        self._theme_manager.palette_changed.connect(self._apply_palette)
+
+    def _apply_palette(self, palette: ThemePalette) -> None:
+        self._addition_format.setBackground(palette.qcolor("diff_add_bg"))
+        self._addition_format.setForeground(palette.qcolor("diff_add_fg"))
+        self._removal_format.setBackground(palette.qcolor("diff_remove_bg"))
+        self._removal_format.setForeground(palette.qcolor("diff_remove_fg"))
+        self._context_format.setBackground(palette.qcolor("diff_context_bg"))
+        self._context_format.setForeground(palette.qcolor("diff_context_fg"))
+        self._header_format.setBackground(palette.qcolor("diff_header_bg"))
+        self._header_format.setForeground(palette.qcolor("diff_header_fg"))
+        meta_color = palette.get("diff_meta_fg")
+        if meta_color:
+            self._meta_format.setForeground(QtGui.QColor(meta_color))
+        self.rehighlight()
 
     def highlightBlock(self, text: str) -> None:  # noqa: N802 (Qt signature)
         if not text:

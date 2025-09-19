@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Tuple, TypeVar, cast
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, QThread
@@ -29,7 +29,7 @@ from .interactive_diff import InteractiveDiffWidget
 from .localization import gettext as _
 from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
-from .theme import apply_modern_theme
+from .theme import ThemePalette, apply_modern_theme, theme_manager
 from .logging_utils import configure_logging
 from .patcher import (
     ApplySession,
@@ -99,11 +99,29 @@ _ICON_FILE_NAMES: dict[str, str] = {
 }
 
 _ICON_SIZE = QSize(28, 28)
-_BRAND_BASE = QColor("#0f172a")
-_BRAND_SURFACE = QColor("#1f2b4d")
-_BRAND_PRIMARY = QColor("#4a7bd6")
-_BRAND_ACCENT = QColor("#7aa2ff")
-_BRAND_LIGHT = QColor("#f1f5ff")
+
+_ICON_TOKEN_DEFAULTS: dict[str, tuple[str, str]] = {
+    "base": ("icon_base", "#0f172a"),
+    "surface": ("icon_surface", "#1f2b4d"),
+    "primary": ("icon_primary", "#4a7bd6"),
+    "accent": ("icon_accent", "#7aa2ff"),
+    "light": ("icon_light", "#f1f5ff"),
+}
+
+
+def _icon_palette() -> dict[str, QColor]:
+    manager = theme_manager()
+    palette = getattr(manager, "palette", None)
+    colors: dict[str, QColor] = {}
+    for key, (token, default) in _ICON_TOKEN_DEFAULTS.items():
+        if palette is not None:
+            try:
+                colors[key] = palette.qcolor(token)
+                continue
+            except Exception:
+                pass
+        colors[key] = QColor(default)
+    return colors
 
 
 def _configured_pen(color: QColor, size: QSize, *, scale: float = 0.05) -> QPen:
@@ -117,10 +135,15 @@ def _draw_document(
     size: QSize,
     *,
     offset: QPointF = QPointF(0, 0),
-    body_color: QColor = _BRAND_SURFACE,
+    palette: dict[str, QColor] | None = None,
+    body_color: QColor | None = None,
     corner_color: QColor | None = None,
     radius: float = 4.0,
 ) -> None:
+    colors = palette or _icon_palette()
+    body = body_color or colors["surface"]
+    corner = corner_color or colors["primary"]
+
     width = size.width() * 0.52
     height = size.height() * 0.64
     x = size.width() * 0.24 + offset.x()
@@ -129,11 +152,10 @@ def _draw_document(
 
     rect = QRectF(x, y, width, height)
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(body_color)
+    painter.setBrush(body)
     painter.drawRoundedRect(rect, radius, radius)
 
-    corner_color = corner_color or _BRAND_PRIMARY
-    corner = QPolygonF(
+    corner_polygon = QPolygonF(
         [
             rect.topRight() - QPointF(fold, 0),
             rect.topRight(),
@@ -141,16 +163,24 @@ def _draw_document(
         ]
     )
 
-    painter.setBrush(corner_color)
-    painter.drawPolygon(corner)
+    painter.setBrush(corner)
+    painter.drawPolygon(corner_polygon)
 
 
-def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
+def _generate_choose_root_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    folder_pen = _configured_pen(_BRAND_BASE, size, scale=0.045)
+    base = colors["base"]
+    surface = colors["surface"]
+    primary = colors["primary"]
+    accent = colors["accent"]
+    light = colors["light"]
+
+    folder_pen = _configured_pen(base, size, scale=0.045)
     painter.setPen(folder_pen)
-    painter.setBrush(_BRAND_SURFACE)
+    painter.setBrush(surface)
 
     tab_rect = QRectF(
         size.width() * 0.14,
@@ -176,8 +206,8 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     gradient = QLinearGradient(
         center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer
     )
-    gradient.setColorAt(0.0, _BRAND_PRIMARY)
-    gradient.setColorAt(1.0, _BRAND_ACCENT)
+    gradient.setColorAt(0.0, primary)
+    gradient.setColorAt(1.0, accent)
     painter.setBrush(gradient)
 
     painter.drawEllipse(center, outer, outer)
@@ -191,16 +221,18 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawPolygon(pointer)
 
-    painter.setBrush(_BRAND_LIGHT)
+    painter.setBrush(light)
     painter.drawEllipse(center, inner, inner)
 
 
-def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
+def _generate_load_file_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    _draw_document(painter, size)
+    _draw_document(painter, size, palette=dict(colors))
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(colors["accent"])
 
     arrow_top = size.height() * 0.32
     arrow_bottom = size.height() * 0.74
@@ -225,10 +257,12 @@ def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
     painter.drawPolygon(arrow)
 
 
-def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
+def _generate_clipboard_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(_configured_pen(_BRAND_BASE, size, scale=0.04))
-    painter.setBrush(_BRAND_SURFACE)
+    painter.setPen(_configured_pen(colors["base"], size, scale=0.04))
+    painter.setBrush(colors["surface"])
 
     body_rect = QRectF(
         size.width() * 0.2,
@@ -239,7 +273,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     painter.drawRoundedRect(body_rect, 4, 4)
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_PRIMARY)
+    painter.setBrush(colors["primary"])
     clip_rect = QRectF(
         size.width() * 0.32,
         size.height() * 0.16,
@@ -248,7 +282,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawRoundedRect(clip_rect, 4, 4)
 
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(colors["accent"])
     handle_rect = QRectF(
         size.width() * 0.42,
         size.height() * 0.12,
@@ -257,7 +291,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawRoundedRect(handle_rect, 3, 3)
 
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(colors["accent"])
     arrow_top = body_rect.center().y() - size.height() * 0.06
     arrow_bottom = body_rect.bottom() - size.height() * 0.08
     arrow_x = body_rect.center().x()
@@ -281,11 +315,19 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     painter.drawPolygon(arrow)
 
 
-def _generate_text_icon(painter: QPainter, size: QSize) -> None:
+def _generate_text_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+    _draw_document(
+        painter,
+        size,
+        palette=dict(colors),
+        body_color=colors["surface"],
+        corner_color=colors["accent"],
+    )
 
-    pen = _configured_pen(_BRAND_LIGHT, size, scale=0.035)
+    pen = _configured_pen(colors["light"], size, scale=0.035)
     pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(pen)
 
@@ -298,7 +340,7 @@ def _generate_text_icon(painter: QPainter, size: QSize) -> None:
         y = baseline + line_spacing * i
         painter.drawLine(QPointF(start_x, y), QPointF(end_x, y))
 
-    accent_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    accent_pen = _configured_pen(colors["accent"], size, scale=0.045)
     accent_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(accent_pen)
 
@@ -318,7 +360,9 @@ def _generate_text_icon(painter: QPainter, size: QSize) -> None:
     )
 
 
-def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
+def _generate_load_diff_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     shadow_offset = QPointF(-size.width() * 0.08, size.height() * 0.08)
@@ -327,14 +371,21 @@ def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
         painter,
         size,
         offset=shadow_offset,
-        body_color=_BRAND_BASE,
-        corner_color=_BRAND_PRIMARY,
+        palette=dict(colors),
+        body_color=colors["base"],
+        corner_color=colors["primary"],
     )
     painter.setOpacity(1.0)
-    _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
+    _draw_document(
+        painter,
+        size,
+        palette=dict(colors),
+        body_color=colors["surface"],
+        corner_color=colors["accent"],
+    )
 
     painter.setPen(QtCore.Qt.NoPen)
-    painter.setBrush(_BRAND_ACCENT)
+    painter.setBrush(colors["accent"])
 
     arrow = QtGui.QPolygonF(
         [
@@ -346,7 +397,9 @@ def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
     painter.drawPolygon(arrow)
 
 
-def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
+def _generate_analyze_icon(
+    painter: QPainter, size: QSize, colors: Mapping[str, QColor]
+) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     center = QPointF(size.width() / 2, size.height() / 2)
@@ -359,8 +412,8 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
         center.x() + radius,
         center.y() + radius,
     )
-    gradient.setColorAt(0.0, _BRAND_SURFACE)
-    gradient.setColorAt(1.0, _BRAND_BASE)
+    gradient.setColorAt(0.0, colors["surface"])
+    gradient.setColorAt(1.0, colors["base"])
     painter.setBrush(gradient)
     painter.drawEllipse(center, radius, radius)
 
@@ -371,10 +424,10 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
             QPointF(size.width() * 0.68, size.height() * 0.5),
         ]
     )
-    painter.setBrush(_BRAND_PRIMARY)
+    painter.setBrush(colors["primary"])
     painter.drawPolygon(play_path)
 
-    bar_pen = _configured_pen(_BRAND_ACCENT, size, scale=0.045)
+    bar_pen = _configured_pen(colors["accent"], size, scale=0.045)
     bar_pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
     painter.setPen(bar_pen)
     painter.drawLine(
@@ -387,7 +440,7 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
     )
 
 
-_ICON_GENERATORS: dict[str, Callable[[QPainter, QSize], None]] = {
+_ICON_GENERATORS: dict[str, Callable[[QPainter, QSize, Mapping[str, QColor]], None]] = {
     "choose_root": _generate_choose_root_icon,
     "load_file": _generate_load_file_icon,
     "from_clipboard": _generate_clipboard_icon,
@@ -406,7 +459,7 @@ def _create_generated_icon(name: str, size: QSize) -> QtGui.QIcon | None:
     pixmap.fill(QtCore.Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     try:
-        generator(painter, size)
+        generator(painter, size, _icon_palette())
     finally:
         painter.end()
 
@@ -1368,6 +1421,11 @@ class MainWindow(_QMainWindowBase):
         self._qt_log_handler: Optional[GuiLogHandler] = None
         self._current_worker: Optional[PatchApplyWorker] = None
         self._log_messages: List[str] = []
+        self._theme_manager = theme_manager()
+        self._theme_manager.palette_changed.connect(self._on_theme_palette_changed)
+        self._icon_targets: list[
+            tuple[object, str, QtWidgets.QStyle.StandardPixmap]
+        ] = []
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -1401,26 +1459,6 @@ class MainWindow(_QMainWindowBase):
 
         layout.addSpacing(6)
 
-        style = self.style()
-
-        def load_icon(
-            name: str,
-            fallback: QtWidgets.QStyle.StandardPixmap,
-        ) -> QtGui.QIcon:
-            filename = _ICON_FILE_NAMES.get(name)
-            if filename:
-                icon_path = _ICON_DIR / filename
-                if icon_path.exists():
-                    icon = QtGui.QIcon(str(icon_path))
-                    if not icon.isNull():
-                        return icon
-
-            generated = _create_generated_icon(name, _ICON_SIZE)
-            if generated is not None:
-                return generated
-
-            return style.standardIcon(fallback)
-
         self.toolbar = QtWidgets.QToolBar(_("Azioni"))
         self.toolbar.setToolButtonStyle(
             QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
@@ -1438,10 +1476,11 @@ class MainWindow(_QMainWindowBase):
         root_widget_action.setDefaultWidget(self.root_edit)
         self.toolbar.addAction(root_widget_action)
 
-        self.action_choose_root = QtGui.QAction(
-            load_icon("choose_root", QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon),
-            _("Scegli root…"),
-            self,
+        self.action_choose_root = QtGui.QAction(_("Scegli root…"), self)
+        self._register_icon_target(
+            self.action_choose_root,
+            "choose_root",
+            QtWidgets.QStyle.StandardPixmap.SP_DirOpenIcon,
         )
         self.action_choose_root.setToolTip(
             _("Seleziona la cartella radice del progetto da analizzare")
@@ -1454,21 +1493,21 @@ class MainWindow(_QMainWindowBase):
 
         self.toolbar.addSeparator()
 
-        self.action_load_file = QtGui.QAction(
-            load_icon("load_file", QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton),
-            _("Apri file diff…"),
-            self,
+        self.action_load_file = QtGui.QAction(_("Apri file diff…"), self)
+        self._register_icon_target(
+            self.action_load_file,
+            "load_file",
+            QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton,
         )
         self.action_load_file.setToolTip(_("Seleziona un file .diff da aprire"))
         self.action_load_file.setStatusTip(_("Carica un file diff dal disco"))
         self.action_load_file.triggered.connect(self.load_diff_file)
 
-        self.action_from_clip = QtGui.QAction(
-            load_icon(
-                "from_clipboard", QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton
-            ),
-            _("Da appunti"),
-            self,
+        self.action_from_clip = QtGui.QAction(_("Da appunti"), self)
+        self._register_icon_target(
+            self.action_from_clip,
+            "from_clipboard",
+            QtWidgets.QStyle.StandardPixmap.SP_DialogYesButton,
         )
         self.action_from_clip.setToolTip(_("Incolla il diff dagli appunti"))
         self.action_from_clip.setStatusTip(
@@ -1476,12 +1515,11 @@ class MainWindow(_QMainWindowBase):
         )
         self.action_from_clip.triggered.connect(self.load_from_clipboard)
 
-        self.action_from_text = QtGui.QAction(
-            load_icon(
-                "from_text", QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView
-            ),
-            _("Da testo"),
-            self,
+        self.action_from_text = QtGui.QAction(_("Da testo"), self)
+        self._register_icon_target(
+            self.action_from_text,
+            "from_text",
+            QtWidgets.QStyle.StandardPixmap.SP_FileDialogDetailedView,
         )
         self.action_from_text.setToolTip(
             _("Analizza il diff inserito nell'editor di testo")
@@ -1498,8 +1536,10 @@ class MainWindow(_QMainWindowBase):
 
         self.load_diff_button = QtWidgets.QToolButton()
         self.load_diff_button.setText(_("Carica diff"))
-        self.load_diff_button.setIcon(
-            load_icon("load_diff", QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart)
+        self._register_icon_target(
+            self.load_diff_button,
+            "load_diff",
+            QtWidgets.QStyle.StandardPixmap.SP_FileDialogStart,
         )
         self.load_diff_button.setToolTip(
             _("Scegli come caricare o analizzare il diff da elaborare")
@@ -1519,10 +1559,11 @@ class MainWindow(_QMainWindowBase):
         load_diff_widget_action.setDefaultWidget(self.load_diff_button)
         self.toolbar.addAction(load_diff_widget_action)
 
-        self.action_analyze = QtGui.QAction(
-            load_icon("analyze", QtWidgets.QStyle.StandardPixmap.SP_MediaPlay),
-            _("Analizza diff"),
-            self,
+        self.action_analyze = QtGui.QAction(_("Analizza diff"), self)
+        self._register_icon_target(
+            self.action_analyze,
+            "analyze",
+            QtWidgets.QStyle.StandardPixmap.SP_MediaPlay,
         )
         self.action_analyze.setToolTip(
             _("Analizza il diff attualmente caricato o incollato")
@@ -1650,6 +1691,43 @@ class MainWindow(_QMainWindowBase):
         handler.setLevel(logging.NOTSET)
         logging.getLogger().addHandler(handler)
         self._qt_log_handler = handler
+
+    def _load_icon(
+        self, name: str, fallback: QtWidgets.QStyle.StandardPixmap
+    ) -> QtGui.QIcon:
+        filename = _ICON_FILE_NAMES.get(name)
+        if filename:
+            icon_path = _ICON_DIR / filename
+            if icon_path.exists():
+                icon = QtGui.QIcon(str(icon_path))
+                if not icon.isNull():
+                    return icon
+        generated = _create_generated_icon(name, _ICON_SIZE)
+        if generated is not None:
+            return generated
+        return self.style().standardIcon(fallback)
+
+    def _apply_icon(
+        self, target: object, name: str, fallback: QtWidgets.QStyle.StandardPixmap
+    ) -> None:
+        icon = self._load_icon(name, fallback)
+        if isinstance(target, QtGui.QAction):
+            target.setIcon(icon)
+        elif isinstance(target, QtWidgets.QAbstractButton):
+            target.setIcon(icon)
+
+    def _register_icon_target(
+        self, target: object, name: str, fallback: QtWidgets.QStyle.StandardPixmap
+    ) -> None:
+        self._icon_targets.append((target, name, fallback))
+        self._apply_icon(target, name, fallback)
+
+    def _refresh_icons(self) -> None:
+        for target, name, fallback in self._icon_targets:
+            self._apply_icon(target, name, fallback)
+
+    def _on_theme_palette_changed(self, _palette: ThemePalette) -> None:
+        self._refresh_icons()
 
     def _append_log_message(self, message: str) -> None:
         if message is None:
