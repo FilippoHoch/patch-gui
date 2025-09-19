@@ -144,6 +144,9 @@ utili:
   per classificare i candidati manuali.
 - `--ai-select`: applica automaticamente il suggerimento restituito
   dall'assistente (con fallback locale se l'endpoint non è configurato).
+- Quando nessun candidato viene applicato automaticamente, il comando stampa
+  comunque un suggerimento con spiegazione e diff copiabile, riportato anche nei
+  report e nel log CLI.
 - `--log-level`: livello di logging (`debug`, `info`, `warning`, `error`,
   `critical`).
 
