@@ -109,11 +109,22 @@ def build_parser(
         help=_("Path of the generated text report; defaults to '<backup>/%s'.")
         % REPORT_TXT,
     )
-    parser.add_argument(
-        "--no-report",
+    report_group = parser.add_mutually_exclusive_group()
+    report_group.add_argument(
+        "--report",
+        dest="write_reports",
         action="store_true",
+        help=_(
+            "Create JSON/TXT report files even if disabled in the configuration."
+        ),
+    )
+    report_group.add_argument(
+        "--no-report",
+        dest="write_reports",
+        action="store_false",
         help=_("Do not create JSON/TXT report files."),
     )
+    parser.set_defaults(write_reports=bool(resolved_config.write_reports))
     parser.add_argument(
         "--summary-format",
         action="append",
