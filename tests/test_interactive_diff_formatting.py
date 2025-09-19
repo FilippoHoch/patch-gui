@@ -5,6 +5,11 @@ from __future__ import annotations
 from unidiff import PatchSet
 
 from patch_gui.diff_formatting import format_diff_with_line_numbers
+from patch_gui.interactive_diff_model import (
+    FileDiffEntry,
+    enrich_entry_with_ai_note,
+    set_diff_note_client,
+)
 
 
 def test_format_diff_with_line_numbers_includes_real_positions() -> None:
@@ -41,3 +46,66 @@ def test_format_diff_with_line_numbers_returns_fallback_for_binary() -> None:
     formatted = format_diff_with_line_numbers(patched_file, diff_text)
 
     assert formatted == diff_text
+
+
+class _DummyNoteClient:
+    def __init__(self, *, note: str | None = None, raise_error: bool = False) -> None:
+        self.note = note
+        self.raise_error = raise_error
+        self.calls: list[tuple[str, str]] = []
+
+    def generate_diff_note(self, file_label: str, diff_text: str) -> str | None:
+        self.calls.append((file_label, diff_text))
+        if self.raise_error:
+            raise RuntimeError("boom")
+        return self.note
+
+
+def test_enrich_entry_with_ai_note_populates_note() -> None:
+    entry = FileDiffEntry(
+        file_label="foo.py",
+        diff_text="-old\n+new\n",
+        annotated_diff_text="annotated",
+        additions=1,
+        deletions=1,
+    )
+    client = _DummyNoteClient(note="Rilevati cambiamenti nel modulo foo.")
+    set_diff_note_client(client)
+    try:
+        enriched = enrich_entry_with_ai_note(entry, enabled=True)
+    finally:
+        set_diff_note_client(None)
+
+    assert enriched is not entry
+    assert enriched.ai_note == "Rilevati cambiamenti nel modulo foo."
+    assert client.calls == [("foo.py", "-old\n+new\n")]
+
+
+def test_enrich_entry_with_ai_note_handles_disabled_or_errors() -> None:
+    entry = FileDiffEntry(
+        file_label="bar.txt",
+        diff_text="-a\n+b\n",
+        annotated_diff_text="annotated",
+        additions=1,
+        deletions=1,
+    )
+
+    disabled_client = _DummyNoteClient(note="ignored")
+    set_diff_note_client(disabled_client)
+    try:
+        untouched = enrich_entry_with_ai_note(entry, enabled=False)
+    finally:
+        set_diff_note_client(None)
+
+    assert untouched is entry
+    assert disabled_client.calls == []
+
+    failing_client = _DummyNoteClient(raise_error=True)
+    set_diff_note_client(failing_client)
+    try:
+        fallback = enrich_entry_with_ai_note(entry, enabled=True)
+    finally:
+        set_diff_note_client(None)
+
+    assert fallback is entry
+    assert failing_client.calls == [("bar.txt", "-a\n+b\n")]

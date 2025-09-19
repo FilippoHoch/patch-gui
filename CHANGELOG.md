@@ -18,8 +18,11 @@ e il progetto aderisce al [Versionamento Semantico](https://semver.org/lang/it/)
 - Nuovi controlli nelle preferenze della GUI e nel dialog dei candidati per
   mostrare confidenza, spiegazione e consentire l'applicazione rapida del
   suggerimento AI.
+- Note AI contestuali nella vista diff interattiva, abilitate da una nuova
+  preferenza e mostrate direttamente nell'elenco e nell'anteprima.
 - Generazione opzionale di sintesi AI della sessione con endpoint configurabile,
   integrazione nei report e nella GUI.
+
 ### Modificato
 - La configurazione persistente include ora le impostazioni dedicate
   all'assistente AI ed è documentata nella guida d'uso.
