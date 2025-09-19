@@ -214,7 +214,9 @@ def _cache_key_for_payload(
     if session.summary_diff_digest:
         return session.summary_diff_digest
     try:
-        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode(
+            "utf-8"
+        )
     except TypeError:  # pragma: no cover - payload contains unserialisable items
         return None
     digest = hashlib.sha256(encoded).hexdigest()
@@ -235,7 +237,10 @@ def _load_cache_entry(cache_key: str) -> Optional[tuple[AISummary, float]]:
     if cached is None:
         return None
     summary, timestamp = cached
-    return AISummary(overall=summary.overall, per_file=dict(summary.per_file)), timestamp
+    return (
+        AISummary(overall=summary.overall, per_file=dict(summary.per_file)),
+        timestamp,
+    )
 
 
 def _invoke_callback(callback: Optional[Callable[..., None]], *args: object) -> None:

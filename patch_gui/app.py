@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     List,
     Mapping,
@@ -178,7 +179,7 @@ def _draw_document(
     fold = size.width() * 0.16
 
     rect = QRectF(x, y, width, height)
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     painter.setBrush(body_color)
     painter.drawRoundedRect(rect, radius, radius)
 
@@ -222,7 +223,7 @@ def _generate_choose_root_icon(painter: QPainter, size: QSize) -> None:
     outer = size.width() * 0.16
     inner = outer * 0.45
 
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     gradient = QLinearGradient(
         center.x() - outer, center.y() - outer, center.x() + outer, center.y() + outer
     )
@@ -249,7 +250,7 @@ def _generate_load_file_icon(painter: QPainter, size: QSize) -> None:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     _draw_document(painter, size)
 
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     painter.setBrush(_BRAND_ACCENT)
 
     arrow_top = size.height() * 0.32
@@ -288,7 +289,7 @@ def _generate_clipboard_icon(painter: QPainter, size: QSize) -> None:
     )
     painter.drawRoundedRect(body_rect, 4, 4)
 
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     painter.setBrush(_BRAND_PRIMARY)
     clip_rect = QRectF(
         size.width() * 0.32,
@@ -383,7 +384,7 @@ def _generate_load_diff_icon(painter: QPainter, size: QSize) -> None:
     painter.setOpacity(1.0)
     _draw_document(painter, size, body_color=_BRAND_SURFACE, corner_color=_BRAND_ACCENT)
 
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     painter.setBrush(_BRAND_ACCENT)
 
     arrow = QtGui.QPolygonF(
@@ -402,7 +403,7 @@ def _generate_analyze_icon(painter: QPainter, size: QSize) -> None:
     center = QPointF(size.width() / 2, size.height() / 2)
     radius = min(size.width(), size.height()) * 0.42
 
-    painter.setPen(QtCore.Qt.NoPen)
+    painter.setPen(QtCore.Qt.PenStyle.NoPen)
     gradient = QLinearGradient(
         center.x() - radius,
         center.y() - radius,
@@ -654,6 +655,9 @@ class CandidateDialog(_QDialogBase):
                 )
             layout.addWidget(suggestion_group)
 
+        self.ai_label: QtWidgets.QLabel | None = None
+        self.apply_ai_btn: QtWidgets.QPushButton | None = None
+
         if self.ai_hint is not None:
             block_len = len(hv.before_lines) or len(hv.after_lines) or 1
             start_line = self.ai_hint.position + 1
@@ -681,15 +685,15 @@ class CandidateDialog(_QDialogBase):
                 confidence=self.ai_hint.confidence,
             )
             suggestion_widget = QtWidgets.QWidget()
-            suggestion_layout = QtWidgets.QHBoxLayout(suggestion_widget)
-            suggestion_layout.setContentsMargins(0, 0, 0, 0)
-            suggestion_layout.setSpacing(8)
+            hint_layout = QtWidgets.QHBoxLayout(suggestion_widget)
+            hint_layout.setContentsMargins(0, 0, 0, 0)
+            hint_layout.setSpacing(8)
             self.ai_label = QtWidgets.QLabel(suggestion_text)
             self.ai_label.setWordWrap(True)
-            suggestion_layout.addWidget(self.ai_label, 1)
+            hint_layout.addWidget(self.ai_label, 1)
             self.apply_ai_btn = QtWidgets.QPushButton(_("Applica suggerimento"))
             self.apply_ai_btn.clicked.connect(self._apply_ai)
-            suggestion_layout.addWidget(self.apply_ai_btn)
+            hint_layout.addWidget(self.apply_ai_btn)
             layout.addWidget(suggestion_widget)
             if self.ai_hint.explanation:
                 explanation_label = QtWidgets.QLabel(
@@ -885,6 +889,7 @@ class SettingsDialog(_QDialogBase):
 
         strategy_labels = {
             MatchingStrategy.AUTO: _("Automatico (ottimizzato)"),
+            MatchingStrategy.RAPIDFUZZ: _("RapidFuzz (ottimizzato)"),
             MatchingStrategy.TOKEN: _("Token ottimizzato"),
             MatchingStrategy.LEGACY: _("Legacy (completo)"),
         }
@@ -1551,7 +1556,7 @@ class AISummaryWorker(_QThreadBase):
             on_cached=self._handle_cached,
         )
 
-        kwargs: dict[str, object] = {"hooks": hooks}
+        kwargs: dict[str, Any] = {"hooks": hooks}
         if self._timeout is not None:
             kwargs["timeout"] = float(self._timeout)
 
@@ -2375,7 +2380,11 @@ class MainWindow(_QMainWindowBase):
         if dialog.result_config is None:
             return
         self.app_config = dialog.result_config
-        apply_modern_theme(self.app_config.theme, QtWidgets.QApplication.instance())
+        app_instance = QtWidgets.QApplication.instance()
+        apply_modern_theme(
+            self.app_config.theme,
+            cast("QtWidgets.QApplication | None", app_instance),
+        )
         configure_logging(
             level=self.app_config.log_level,
             log_file=self.app_config.log_file,

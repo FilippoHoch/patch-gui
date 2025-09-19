@@ -6,7 +6,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, MethodType
 from typing import Callable, Mapping, MutableMapping, TYPE_CHECKING
 from weakref import WeakMethod
 
@@ -183,7 +183,9 @@ def build_palette(theme: Theme) -> "QtGui.QPalette | None":
     palette.setColor(
         QtGui.QPalette.ColorRole.ToolTipText, QtGui.QColor(tokens["tooltip_fg"])
     )
-    palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor(tokens["text_primary"]))
+    palette.setColor(
+        QtGui.QPalette.ColorRole.Text, QtGui.QColor(tokens["text_primary"])
+    )
     palette.setColor(
         QtGui.QPalette.ColorRole.Button, QtGui.QColor(tokens["background_surface"])
     )
@@ -202,7 +204,9 @@ def build_palette(theme: Theme) -> "QtGui.QPalette | None":
 
     disabled_group = QtGui.QPalette.ColorGroup.Disabled
     palette.setColor(
-        disabled_group, QtGui.QPalette.ColorRole.Text, QtGui.QColor(tokens["text_disabled"])
+        disabled_group,
+        QtGui.QPalette.ColorRole.Text,
+        QtGui.QColor(tokens["text_disabled"]),
     )
     palette.setColor(
         disabled_group,
@@ -215,7 +219,9 @@ def build_palette(theme: Theme) -> "QtGui.QPalette | None":
         QtGui.QColor(tokens["text_disabled"]),
     )
     palette.setColor(
-        disabled_group, QtGui.QPalette.ColorRole.Base, QtGui.QColor(tokens["background_disabled"])
+        disabled_group,
+        QtGui.QPalette.ColorRole.Base,
+        QtGui.QColor(tokens["background_disabled"]),
     )
     palette.setColor(
         disabled_group,
@@ -265,8 +271,7 @@ def build_stylesheet(theme: Theme) -> str:
         "    border: 1px solid %s;"
         "    border-radius: 6px;"
         "    padding: 6px;"
-        "}"
-        % (tokens["tooltip_fg"], tokens["tooltip_bg"], tokens["tooltip_border"])
+        "}" % (tokens["tooltip_fg"], tokens["tooltip_bg"], tokens["tooltip_border"])
         + "\n"
         "QMainWindow {"
         "    background-color: %s;"
@@ -285,8 +290,7 @@ def build_stylesheet(theme: Theme) -> str:
             tokens["selection_fg"],
         )
         + "\n"
-        "QLabel { color: %s; }" % tokens["text_primary"]
-        + "\n"
+        "QLabel { color: %s; }" % tokens["text_primary"] + "\n"
         "QPushButton {"
         "    background-color: %s;"
         "    border: 1px solid %s;"
@@ -303,13 +307,11 @@ def build_stylesheet(theme: Theme) -> str:
         "QPushButton:hover {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (tokens["accent_hover"], tokens["accent"])
-        + "\n"
+        "}" % (tokens["accent_hover"], tokens["accent"]) + "\n"
         "QPushButton:pressed {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (tokens["accent_pressed"], tokens["accent_pressed"])
-        + "\n"
+        "}" % (tokens["accent_pressed"], tokens["accent_pressed"]) + "\n"
         "QPushButton:disabled {"
         "    color: %s;"
         "    background-color: %s;"
@@ -336,15 +338,12 @@ def build_stylesheet(theme: Theme) -> str:
         + "\n"
         "QSpinBox, QDoubleSpinBox {"
         "    padding-right: 32px;"
-        "}"
-        + "\n"
+        "}" + "\n"
         "QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QComboBox:focus,"
         " QSpinBox:focus, QDoubleSpinBox:focus {"
         "    border: 1px solid %s;"
         "    background-color: %s;"
-        "}"
-        % (tokens["border_focus"], tokens["background_input_focus"])
-        + "\n"
+        "}" % (tokens["border_focus"], tokens["background_input_focus"]) + "\n"
         "QSpinBox::up-button, QDoubleSpinBox::up-button {"
         "    subcontrol-origin: border;"
         "    subcontrol-position: top right;"
@@ -383,14 +382,12 @@ def build_stylesheet(theme: Theme) -> str:
         " QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (tokens["accent_hover"], tokens["accent"])
-        + "\n"
+        "}" % (tokens["accent_hover"], tokens["accent"]) + "\n"
         "QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,"
         " QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {"
         "    background-color: %s;"
         "    border-color: %s;"
-        "}" % (tokens["accent_pressed"], tokens["accent_pressed"])
-        + "\n"
+        "}" % (tokens["accent_pressed"], tokens["accent_pressed"]) + "\n"
         "QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,"
         " QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {"
         "    background-color: %s;"
@@ -405,22 +402,18 @@ def build_stylesheet(theme: Theme) -> str:
         '    image: url("%s");'
         "    width: 12px;"
         "    height: 12px;"
-        "}" % (_SPIN_UP_ICON,)
-        + "\n"
+        "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {"
         '    image: url("%s");'
         "    width: 12px;"
         "    height: 12px;"
-        "}" % (_SPIN_DOWN_ICON,)
-        + "\n"
+        "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {"
         '    image: url("%s");'
-        "}" % (_SPIN_UP_ICON,)
-        + "\n"
+        "}" % (_SPIN_UP_ICON,) + "\n"
         "QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {"
         '    image: url("%s");'
-        "}" % (_SPIN_DOWN_ICON,)
-        + "\n"
+        "}" % (_SPIN_DOWN_ICON,) + "\n"
         "QTreeWidget, QTreeView, QListWidget, QListView {"
         "    background-color: %s;"
         "    border: 1px solid %s;"
@@ -439,16 +432,14 @@ def build_stylesheet(theme: Theme) -> str:
         '    image: url("%s");'
         "    padding: 6px;"
         "    margin: 0px;"
-        "}" % (branch_closed_icon,)
-        + "\n"
+        "}" % (branch_closed_icon,) + "\n"
         "QTreeView::branch:has-children:!has-siblings:open,"
         "QTreeView::branch:has-children:!has-siblings:open:hover,"
         "QTreeView::branch:has-children:!has-siblings:open:pressed {"
         '    image: url("%s");'
         "    padding: 6px;"
         "    margin: 0px;"
-        "}" % (branch_open_icon,)
-        + "\n"
+        "}" % (branch_open_icon,) + "\n"
         "QHeaderView::section {"
         "    background-color: %s;"
         "    color: %s;"
@@ -467,18 +458,14 @@ def build_stylesheet(theme: Theme) -> str:
         "    border: 1px solid %s;"
         "    margin: 4px;"
         "    border-radius: 4px;"
-        "}"
-        % (tokens["splitter_handle_bg"], tokens["border"])
-        + "\n"
+        "}" % (tokens["splitter_handle_bg"], tokens["border"]) + "\n"
         "QSplitter::handle:hover {"
         "    background: %s;"
         "    border-color: %s;"
-        "}" % (tokens["accent"], tokens["accent"])
-        + "\n"
+        "}" % (tokens["accent"], tokens["accent"]) + "\n"
         "QSplitter::handle:pressed {"
         "    background: %s;"
-        "}" % (tokens["accent_pressed"],)
-        + "\n"
+        "}" % (tokens["accent_pressed"],) + "\n"
         "QProgressBar {"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
@@ -496,42 +483,34 @@ def build_stylesheet(theme: Theme) -> str:
         "QProgressBar::chunk {"
         "    background-color: %s;"
         "    border-radius: 6px;"
-        "}" % (tokens["progress_chunk"],)
-        + "\n"
+        "}" % (tokens["progress_chunk"],) + "\n"
         "QScrollBar:vertical {"
         "    background: %s;"
         "    width: 14px;"
         "    margin: 4px 2px 4px 2px;"
         "    border-radius: 6px;"
-        "}" % (tokens["scrollbar_bg"],)
-        + "\n"
+        "}" % (tokens["scrollbar_bg"],) + "\n"
         "QScrollBar::handle:vertical {"
         "    background: %s;"
         "    min-height: 24px;"
         "    border-radius: 6px;"
-        "}" % (tokens["scrollbar_handle"],)
-        + "\n"
+        "}" % (tokens["scrollbar_handle"],) + "\n"
         "QScrollBar::handle:vertical:hover {"
         "    background: %s;"
-        "}" % (tokens["scrollbar_handle_hover"],)
-        + "\n"
+        "}" % (tokens["scrollbar_handle_hover"],) + "\n"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
         "    background: none;"
-        "}"
-        + "\n"
+        "}" + "\n"
         "QStatusBar {"
         "    background: %s;"
         "    color: %s;"
-        "}" % (tokens["status_bg"], tokens["text_primary"])
-        + "\n"
+        "}" % (tokens["status_bg"], tokens["text_primary"]) + "\n"
         "QGroupBox {"
         "    border: 1px solid %s;"
         "    border-radius: 8px;"
         "    margin-top: 16px;"
         "    padding: 10px;"
-        "}"
-        % (tokens["border"],)
-        + "\n"
+        "}" % (tokens["border"],) + "\n"
         "QGroupBox::title {"
         "    subcontrol-origin: margin;"
         "    subcontrol-position: top left;"
@@ -551,6 +530,10 @@ class ThemeSnapshot:
     stylesheet: str
 
 
+ThemeListener = Callable[["ThemeSnapshot"], None]
+WeakThemeListener = WeakMethod[ThemeListener]
+
+
 class ThemeManager:
     """Central theme registry used to broadcast palette changes."""
 
@@ -567,7 +550,7 @@ class ThemeManager:
             palette=None,
             stylesheet=build_stylesheet(Theme.DARK),
         )
-        self._listeners: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        self._listeners: list[ThemeListener | WeakThemeListener] = []
         self._log = logging.getLogger(__name__)
 
     @property
@@ -582,19 +565,20 @@ class ThemeManager:
     def palettes(self) -> Mapping[Theme, Mapping[str, str]]:
         return MappingProxyType(self._available_tokens)
 
-    def register_theme_tokens(
-        self, theme: Theme, overrides: Mapping[str, str]
-    ) -> None:
+    def register_theme_tokens(self, theme: Theme, overrides: Mapping[str, str]) -> None:
         tokens = dict(_BASE_TOKENS)
         tokens.update(overrides)
         self._available_tokens[theme] = MappingProxyType(tokens)
 
     def add_listener(
-        self, callback: Callable[[ThemeSnapshot], None], *, fire_immediately: bool = False
+        self,
+        callback: Callable[[ThemeSnapshot], None],
+        *,
+        fire_immediately: bool = False,
     ) -> Callable[[ThemeSnapshot], None]:
-        listener: Callable[[ThemeSnapshot], None] | WeakMethod
-        if hasattr(callback, "__self__") and getattr(callback, "__self__") is not None:
-            listener = WeakMethod(callback)  # type: ignore[arg-type]
+        listener: ThemeListener | WeakThemeListener
+        if isinstance(callback, MethodType):
+            listener = WeakMethod(callback)
         else:
             listener = callback
         self._listeners.append(listener)
@@ -606,7 +590,7 @@ class ThemeManager:
         return callback
 
     def remove_listener(self, callback: Callable[[ThemeSnapshot], None]) -> None:
-        retained: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        retained: list[ThemeListener | WeakThemeListener] = []
         for listener in self._listeners:
             if isinstance(listener, WeakMethod):
                 resolved = listener()
@@ -671,7 +655,7 @@ class ThemeManager:
 
     def _emit(self) -> None:
         snapshot = self._snapshot
-        retained: list[Callable[[ThemeSnapshot], None] | WeakMethod] = []
+        retained: list[ThemeListener | WeakThemeListener] = []
         for listener in list(self._listeners):
             if isinstance(listener, WeakMethod):
                 callback = listener()

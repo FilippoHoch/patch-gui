@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Mapping, Optional, Tuple, Literal
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple, Literal, cast
 
 import zlib
 
 try:  # pragma: no cover - optional typing import
     from unidiff.patch import PatchedFile
 except Exception:  # pragma: no cover - during docs builds
-    PatchedFile = object  # type: ignore[misc,assignment]
+    PatchedFile = object
 
 from .localization import gettext as _
 
@@ -206,9 +206,13 @@ def _parse_binary_blocks(
                     while idx < total and lines[idx]:
                         encoded.append(lines[idx])
                         idx += 1
+                    if method not in {"literal", "delta"}:
+                        raise BinaryPatchError(
+                            _("Unsupported binary patch method: %s") % method
+                        )
                     hunks.append(
                         _BinaryHunk(
-                            method=method,
+                            method=cast(Literal["literal", "delta"], method),
                             expected_size=expected_size,
                             encoded_lines=tuple(encoded),
                         )

@@ -1948,7 +1948,7 @@ def test_run_restore_non_interactive(
     assert "Restored 1 files" in captured.out
 
 
-@pytest.mark.parametrize(  # type: ignore[misc]
+@typed_parametrize(
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 3), ("", 0, False, None)],
 )
@@ -2008,7 +2008,7 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
         assert decision.similarity is not None
 
 
-@pytest.mark.parametrize(  # type: ignore[misc]
+@typed_parametrize(
     "user_input, expected_applied, expected_completed, expected_pos",
     [("2", 1, True, 4), ("", 0, False, None)],
 )

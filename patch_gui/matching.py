@@ -12,6 +12,17 @@ from typing import Any, Callable, Iterable, Sequence, cast
 
 from difflib import SequenceMatcher
 
+__all__ = [
+    "MatchingStrategy",
+    "MatchingOptions",
+    "CandidateMatch",
+    "MatchingStats",
+    "CandidateSearchResult",
+    "find_candidates",
+    "find_candidate_positions",
+    "SequenceMatcher",
+]
+
 _rapidfuzz_module: Any
 try:  # pragma: no cover - exercised through fallback tests
     _rapidfuzz_module = import_module("rapidfuzz.fuzz")

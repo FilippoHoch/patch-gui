@@ -102,7 +102,12 @@ class FileIndex:
         start = time.perf_counter()
         stripped = rel_path.strip()
         if not stripped:
-            return [], LookupEvent(rel_path=stripped, suffix_components=0, candidates_considered=0, duration=0.0)
+            return [], LookupEvent(
+                rel_path=stripped,
+                suffix_components=0,
+                candidates_considered=0,
+                duration=0.0,
+            )
 
         parts = tuple(part for part in Path(stripped).parts if part)
         name = parts[-1] if parts else stripped
@@ -118,7 +123,10 @@ class FileIndex:
             suffix_components = max(suffix_components, depth)
             for match in matches:
                 candidates[match] = (
-                    max(candidates.get(match, (0, self._mtimes.get(match, 0.0)))[0], depth),
+                    max(
+                        candidates.get(match, (0, self._mtimes.get(match, 0.0)))[0],
+                        depth,
+                    ),
                     self._mtimes.get(match, 0.0),
                 )
 
@@ -219,4 +227,3 @@ __all__ = [
     "FileLookupMetrics",
     "LookupEvent",
 ]
-

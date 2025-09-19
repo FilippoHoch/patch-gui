@@ -61,7 +61,9 @@ def run_benchmark(files: int, duplicates: int, lookups: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--files", type=int, default=5000, help="Number of files to generate")
+    parser.add_argument(
+        "--files", type=int, default=5000, help="Number of files to generate"
+    )
     parser.add_argument(
         "--duplicates",
         type=int,

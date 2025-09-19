@@ -191,11 +191,15 @@ class DiffSearchHelper(QtCore.QObject):
             cursor = QtGui.QTextCursor(self._editor.document())
             cursor.setPosition(match.start)
             cursor.setPosition(match.end, QtGui.QTextCursor.MoveMode.KeepAnchor)
-            selection.cursor = cursor
-            selection.format = (
-                self._current_format
-                if idx == self._current_index
-                else self._match_format
+            setattr(selection, "cursor", cursor)
+            setattr(
+                selection,
+                "format",
+                (
+                    self._current_format
+                    if idx == self._current_index
+                    else self._match_format
+                ),
             )
             selections.append(selection)
 

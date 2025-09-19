@@ -30,7 +30,9 @@ def test_auto_strategy_matches_legacy_results() -> None:
     assert auto == legacy
 
 
-def test_token_strategy_limits_sequence_matcher_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_token_strategy_limits_sequence_matcher_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     call_count = {"value": 0}
     original_matcher = matching.SequenceMatcher
 

@@ -20,7 +20,7 @@ from .localization import gettext as _
 _NUMBERED_RE = re.compile(r"^(?P<left>.{6}) │ (?P<right>.{6}) │ (?P<content>.*)$")
 
 
-class SplitDiffView(QtWidgets.QWidget):  # type: ignore[misc]
+class SplitDiffView(QtWidgets.QWidget):
     """Render hunks of a :class:`FileDiffEntry` in synchronized columns."""
 
     hunkToggled = QtCore.Signal(int, bool)
@@ -157,7 +157,7 @@ class SplitDiffView(QtWidgets.QWidget):  # type: ignore[misc]
         self.hunkToggled.emit(index, applied)
 
 
-class _HunkWidget(QtWidgets.QFrame):  # type: ignore[misc]
+class _HunkWidget(QtWidgets.QFrame):
     """Widget showing a single hunk with apply/skip controls."""
 
     hunkToggled = QtCore.Signal(int, bool)
@@ -241,7 +241,7 @@ class _HunkWidget(QtWidgets.QFrame):  # type: ignore[misc]
         self.hunkToggled.emit(self._index, applied)
 
 
-class _HunkColumns(QtWidgets.QWidget):  # type: ignore[misc]
+class _HunkColumns(QtWidgets.QWidget):
     """Two synchronized ``QPlainTextEdit`` widgets for a diff hunk."""
 
     def __init__(

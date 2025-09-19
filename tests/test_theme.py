@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from patch_gui import theme as theme_module
 from patch_gui.config import Theme
+from tests._pytest_typing import typed_fixture
 
 try:  # pragma: no cover - optional dependency
     from PySide6 import QtGui as _QtGui
@@ -15,16 +16,17 @@ except Exception as exc:  # pragma: no cover - bindings missing at runtime
     QtWidgets: Any | None = None
     _QT_IMPORT_ERROR: Exception | None = exc
 else:  # pragma: no cover - executed when bindings are available
-    QtGui = _QtGui
-    QtWidgets = _QtWidgets
+    QtGui = cast(Any, _QtGui)
+    QtWidgets = cast(Any, _QtWidgets)
     _QT_IMPORT_ERROR = None
 
 
-@pytest.fixture()
+@typed_fixture()
 def themed_app() -> Any:
     if QtWidgets is None:
         pytest.skip(f"PySide6 non disponibile: {_QT_IMPORT_ERROR}")
     assert QtGui is not None
+    assert QtWidgets is not None
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication([])
@@ -44,9 +46,7 @@ def test_build_palette_high_contrast_uses_tokens() -> None:
     palette = theme_module.build_palette(Theme.HIGH_CONTRAST)
     assert palette is not None
     window_color = palette.color(QtGui.QPalette.ColorRole.Window).name().lower()
-    highlight_color = palette.color(
-        QtGui.QPalette.ColorRole.Highlight
-    ).name().lower()
+    highlight_color = palette.color(QtGui.QPalette.ColorRole.Highlight).name().lower()
     assert window_color == "#000000"
     assert highlight_color == "#ffd500"
 
@@ -62,7 +62,9 @@ def test_apply_modern_theme_updates_palette_and_stylesheet(themed_app: Any) -> N
     assert "#f5f7fa" in stylesheet
 
 
-def test_apply_modern_theme_gracefully_handles_missing_qt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_modern_theme_gracefully_handles_missing_qt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(theme_module, "QtWidgets", None)
     monkeypatch.setattr(theme_module, "QtGui", None)
     theme_module.apply_modern_theme(Theme.DARK, None)
