@@ -89,12 +89,27 @@ def build_parser(
             "Override the configuration file path (default: use the standard location)."
         ),
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help=_("Simulate the execution without modifying files or creating backups."),
-    )
     resolved_config = config or load_config(config_path)
+
+    dry_run_group = parser.add_mutually_exclusive_group()
+    dry_run_group.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help=_(
+            "Simulate the execution without modifying files or creating backups. "
+            "Overrides the configured default when provided."
+        ),
+    )
+    dry_run_group.add_argument(
+        "--apply",
+        dest="dry_run",
+        action="store_false",
+        help=_(
+            "Apply changes even if the configuration defaults to dry runs."
+        ),
+    )
+    parser.set_defaults(dry_run=resolved_config.dry_run_default)
     parser.add_argument(
         "--threshold",
         type=threshold_value,

@@ -193,11 +193,13 @@ def test_build_parser_uses_config_defaults(tmp_path: Path) -> None:
         exclude_dirs=("foo", "bar"),
         backup_base=custom_backup,
         log_level="info",
+        dry_run_default=False,
     )
 
     parser_obj = parser.build_parser(config=config)
 
     assert parser_obj.get_default("threshold") == pytest.approx(config.threshold)
+    assert parser_obj.get_default("dry_run") is config.dry_run_default
     assert parser_obj.get_default("log_level") == config.log_level
 
     help_text = parser_obj.format_help()
@@ -901,6 +903,7 @@ def test_run_cli_can_include_default_excludes(tmp_path: Path) -> None:
             str(tmp_path / "backups"),
             "--no-report",
             "--no-default-exclude",
+            "--apply",
             str(patch_path),
         ]
     )
@@ -947,6 +950,7 @@ def test_run_cli_uses_config_defaults(
         backup_base=tmp_path / "custom-backups",
         log_level="debug",
         write_reports=False,
+        dry_run_default=False,
     )
 
     captured: dict[str, object] = {}
@@ -963,6 +967,7 @@ def test_run_cli_uses_config_defaults(
         project_root: Path,
         **kwargs: object,
     ) -> _DummySession:
+        captured["dry_run"] = kwargs.get("dry_run")
         captured["threshold"] = kwargs.get("threshold")
         captured["exclude_dirs"] = kwargs.get("exclude_dirs")
         captured["backup_base"] = kwargs.get("backup_base")
@@ -978,17 +983,59 @@ def test_run_cli_uses_config_defaults(
         [
             "--root",
             str(project),
-            "--dry-run",
             str(patch_path),
         ]
     )
 
     assert exit_code == 0
+    assert captured["dry_run"] is config.dry_run_default
     assert captured["threshold"] == config.threshold
     assert captured["exclude_dirs"] == config.exclude_dirs
     assert captured["backup_base"] is None
     assert captured["config"] is config
     assert captured["write_report_files"] is config.write_reports
+
+
+def test_run_cli_apply_flag_overrides_config_dry_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config = AppConfig(dry_run_default=True)
+
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
+
+    def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
+        captured["source"] = source
+        return PatchSet(SAMPLE_DIFF)
+
+    def fake_apply_patchset(
+        patch: PatchSet,
+        project_root: Path,
+        **kwargs: object,
+    ) -> _DummySession:
+        captured["dry_run"] = kwargs.get("dry_run")
+        return _create_dummy_session(tmp_path)
+
+    monkeypatch.setattr(cli, "load_patch", fake_load_patch)
+    monkeypatch.setattr(cli, "apply_patchset", fake_apply_patchset)
+    monkeypatch.setattr(cli, "session_completed", lambda session: True)
+
+    exit_code = cli.run_cli(
+        [
+            "--root",
+            str(project),
+            "--apply",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["dry_run"] is False
 
 
 def test_run_cli_can_override_config_report_default(
@@ -1002,7 +1049,7 @@ def test_run_cli_can_override_config_report_default(
 
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(cli, "load_config", lambda: config)
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
 
     def fake_load_patch(source: str, *, encoding: str | None = None) -> PatchSet:
         captured["source"] = source
@@ -1361,7 +1408,7 @@ def test_run_cli_reports_backup_creation_error(
 
     monkeypatch.setattr(executor, "backup_file", failing_backup)
 
-    exit_code = cli.run_cli(["--root", str(project), str(patch_path)])
+    exit_code = cli.run_cli(["--root", str(project), "--apply", str(patch_path)])
 
     assert exit_code == 1
     captured = capsys.readouterr()
@@ -1388,7 +1435,7 @@ def test_run_cli_reports_directory_creation_error(
     monkeypatch.setattr(Path, "mkdir", failing_mkdir, raising=False)
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.run_cli(["--root", str(project), str(patch_path)])
+        cli.run_cli(["--root", str(project), "--apply", str(patch_path)])
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
@@ -1410,7 +1457,7 @@ def test_run_cli_reports_write_error(
     monkeypatch.setattr(executor, "write_text_preserving_encoding", failing_write)
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.run_cli(["--root", str(project), str(patch_path)])
+        cli.run_cli(["--root", str(project), "--apply", str(patch_path)])
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
@@ -1434,7 +1481,7 @@ def test_run_cli_reports_prepare_backup_dir_permission_error(
     monkeypatch.setattr(executor, "prepare_backup_dir", failing_prepare)
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.run_cli(["--root", str(project), str(patch_path)])
+        cli.run_cli(["--root", str(project), "--apply", str(patch_path)])
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
@@ -1459,7 +1506,7 @@ def test_run_cli_reports_write_session_reports_permission_error(
     monkeypatch.setattr(executor, "write_session_reports", failing_reports)
 
     with pytest.raises(SystemExit) as excinfo:
-        cli.run_cli(["--root", str(project), str(patch_path)])
+        cli.run_cli(["--root", str(project), "--apply", str(patch_path)])
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
@@ -1749,7 +1796,9 @@ def test_run_restore_interactive(
     assert newer.exists()
     assert older.exists()
 
-    monkeypatch.setattr(cli, "load_config", lambda: AppConfig(backup_base=backup_base))
+    monkeypatch.setattr(
+        cli, "load_config", lambda path=None: AppConfig(backup_base=backup_base)
+    )
 
     responses = iter(["2", "y"])
 
@@ -1789,7 +1838,7 @@ def test_run_restore_non_interactive(
     )
 
     config = AppConfig(backup_base=backup_base)
-    monkeypatch.setattr(cli, "load_config", lambda: config)
+    monkeypatch.setattr(cli, "load_config", lambda path=None: config)
 
     exit_code = cli.run_restore(
         [
