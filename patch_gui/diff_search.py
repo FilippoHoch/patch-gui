@@ -58,7 +58,7 @@ class DiffSearchHelper(QtCore.QObject):
         self._current_format = QtGui.QTextCharFormat()
         self._current_format.setBackground(current)
 
-        editor.installEventFilter(self)
+        editor.textChanged.connect(self._on_editor_text_changed)
 
     @property
     def case_sensitive(self) -> bool:
@@ -175,17 +175,14 @@ class DiffSearchHelper(QtCore.QObject):
         self._apply_highlights()
         self._emit_current_match()
 
-    # ``eventFilter`` ensures that the highlights stay in sync when the user edits
-    # the document directly. The helper simply re-runs the current search when
-    # text changes are detected so that the matches and selection formats remain
-    # accurate.
-    def eventFilter(
-        self, watched: QtCore.QObject, event: QtCore.QEvent
-    ) -> bool:  # pragma: no cover - UI integration
-        if watched is self._editor and event.type() == QtCore.QEvent.Type.TextChanged:
-            if self._query:
-                QtCore.QTimer.singleShot(0, lambda: self.search(self._query))
-        return super().eventFilter(watched, event)
+    def _on_editor_text_changed(self) -> None:  # pragma: no cover - UI integration
+        if not self._query:
+            return
+        QtCore.QTimer.singleShot(0, self._refresh_matches)
+
+    def _refresh_matches(self) -> None:
+        if self._query:
+            self.search(self._query)
 
     def _apply_highlights(self) -> None:
         selections: list[QtWidgets.QTextEdit.ExtraSelection] = []
@@ -196,7 +193,9 @@ class DiffSearchHelper(QtCore.QObject):
             cursor.setPosition(match.end, QtGui.QTextCursor.MoveMode.KeepAnchor)
             selection.cursor = cursor
             selection.format = (
-                self._current_format if idx == self._current_index else self._match_format
+                self._current_format
+                if idx == self._current_index
+                else self._match_format
             )
             selections.append(selection)
 

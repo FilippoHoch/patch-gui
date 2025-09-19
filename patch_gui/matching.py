@@ -7,18 +7,19 @@ import time
 from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, Sequence
-
-try:  # pragma: no cover - exercised through fallback tests
-    from rapidfuzz import fuzz
-
-    _HAS_RAPIDFUZZ = True
-except ImportError:  # pragma: no cover - handled in tests
-    fuzz = None  # type: ignore[assignment]
-    _HAS_RAPIDFUZZ = False
-
+from importlib import import_module
+from typing import Any, Callable, Iterable, Sequence, cast
 
 from difflib import SequenceMatcher
+
+_rapidfuzz_module: Any
+try:  # pragma: no cover - exercised through fallback tests
+    _rapidfuzz_module = import_module("rapidfuzz.fuzz")
+except ModuleNotFoundError:  # pragma: no cover - handled in tests
+    _rapidfuzz_module = None
+
+_HAS_RAPIDFUZZ = _rapidfuzz_module is not None
+fuzz: Any = _rapidfuzz_module
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +102,12 @@ def _sequence_ratio(a: str, b: str) -> float:
 
 
 def _rapidfuzz_ratio(a: str, b: str) -> float:
-    if not _HAS_RAPIDFUZZ or fuzz is None:  # pragma: no cover - guarded by tests
+    if (
+        not _HAS_RAPIDFUZZ or _rapidfuzz_module is None
+    ):  # pragma: no cover - guarded by tests
         return _sequence_ratio(a, b)
-    return fuzz.ratio(a, b) / 100.0
+    ratio = cast(Callable[[str, str], float], getattr(_rapidfuzz_module, "ratio"))
+    return ratio(a, b) / 100.0
 
 
 def _candidate_positions_with_anchors(
@@ -149,11 +153,19 @@ def _score_windows(
     target_text: str,
     *,
     use_rapidfuzz: bool,
+    reuse_sequence_matcher: bool = False,
 ) -> list[float]:
     if not window_texts:
         return []
-    if use_rapidfuzz and _HAS_RAPIDFUZZ and fuzz is not None:
+    if use_rapidfuzz and _HAS_RAPIDFUZZ and _rapidfuzz_module is not None:
         return [_rapidfuzz_ratio(text, target_text) for text in window_texts]
+    if reuse_sequence_matcher:
+        matcher = SequenceMatcher(None, target_text, "")
+        scores = []
+        for text in window_texts:
+            matcher.set_seq2(text)
+            scores.append(matcher.ratio())
+        return scores
     return [_sequence_ratio(text, target_text) for text in window_texts]
 
 
@@ -208,6 +220,14 @@ def find_candidates(
 
     if anchors:
         candidate_positions = sorted(anchors.keys())
+        if resolved_strategy is MatchingStrategy.LEGACY and candidate_positions:
+            expanded = set(candidate_positions)
+            for start in candidate_positions:
+                if start > 0:
+                    expanded.add(start - 1)
+                if start + 1 < total_windows:
+                    expanded.add(start + 1)
+            candidate_positions = sorted(expanded)
         anchor_windows = len(candidate_positions)
     else:
         candidate_positions = list(range(total_windows))
@@ -229,7 +249,19 @@ def find_candidates(
         ordered_positions.append(start)
         window_texts.append(text)
 
-    scores = _score_windows(window_texts, target_text, use_rapidfuzz=use_rapidfuzz)
+    reuse_sequence_matcher = False
+    if not use_rapidfuzz and resolved_strategy in (
+        MatchingStrategy.AUTO,
+        MatchingStrategy.RAPIDFUZZ,
+    ):
+        reuse_sequence_matcher = True
+
+    scores = _score_windows(
+        window_texts,
+        target_text,
+        use_rapidfuzz=use_rapidfuzz,
+        reuse_sequence_matcher=reuse_sequence_matcher,
+    )
 
     evaluated = len(scores)
     candidates: list[CandidateMatch] = []
