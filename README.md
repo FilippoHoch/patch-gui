@@ -133,6 +133,7 @@ utili:
   dry-run.
 - `--threshold`: regola la tolleranza fuzzy (default `0.85`).
 - `--backup`: directory personalizzata per backup e report.
+- `--config-path`: usa un file di configurazione alternativo per i default.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
 - `--report` / `--no-report`: forza l'abilitazione o la disattivazione dei file di
   report (di default segue la configurazione salvata).

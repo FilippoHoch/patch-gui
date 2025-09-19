@@ -1160,6 +1160,33 @@ def test_run_cli_respects_config_path_override(
     assert captured["encoding"] is None
 
 
+def test_run_cli_rejects_directory_config_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = _create_project(tmp_path)
+    patch_path = tmp_path / "dir-config.diff"
+    patch_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    config_dir = tmp_path / "custom"
+    config_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.run_cli(
+            [
+                "--root",
+                str(project),
+                "--config-path",
+                str(config_dir),
+                str(patch_path),
+            ]
+        )
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "configuration path" in captured.err
+    assert config_dir.name in captured.err
+
+
 def test_run_cli_configures_requested_log_level(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
     patch_path = tmp_path / "run-cli.diff"

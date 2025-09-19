@@ -81,6 +81,15 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     bootstrap_parser.add_argument("--config-path", type=Path, default=None)
     bootstrap_args, _remaining = bootstrap_parser.parse_known_args(argument_list)
     config_path = bootstrap_args.config_path
+    if config_path is not None:
+        config_path = config_path.expanduser()
+        if config_path.exists() and config_path.is_dir():
+            bootstrap_parser.exit(
+                1,
+                _(
+                    "Error: configuration path {path} points to a directory.\n"
+                ).format(path=display_path(config_path)),
+            )
 
     if config_path is None:
         config = load_config()
@@ -88,6 +97,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         config = load_config(config_path)
     parser = build_parser(config=config, config_path=config_path)
     args = parser.parse_args(argument_list)
+    if config_path is not None:
+        args.config_path = config_path
 
     raw_summary_formats = list(args.summary_format) if args.summary_format else None
     if raw_summary_formats and "none" in raw_summary_formats:

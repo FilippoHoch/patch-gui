@@ -136,7 +136,7 @@ def test_run_cli_respects_log_configuration(
             logger.info(message)
         return _DummySession()
 
-    monkeypatch.setattr("patch_gui.cli.load_config", lambda: config)
+    monkeypatch.setattr("patch_gui.cli.load_config", lambda path=None: config)
     monkeypatch.setattr("patch_gui.cli.load_patch", _fake_load_patch)
     monkeypatch.setattr("patch_gui.cli.apply_patchset", _fake_apply_patchset)
     monkeypatch.setattr("patch_gui.cli.session_completed", lambda session: True)
