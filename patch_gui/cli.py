@@ -20,6 +20,7 @@ from .downloader import (
 from .executor import CLIError, apply_patchset, load_patch, session_completed
 from .localization import gettext as _
 from .logging_utils import configure_logging
+from .matching import MatchingStrategy
 from .parser import (
     _LOG_LEVEL_CHOICES,
     REPORT_JSON_UNSET,
@@ -69,6 +70,7 @@ _CONFIG_KEYS = (
     "ai_assistant_enabled",
     "ai_auto_apply",
     "ai_diff_notes_enabled",
+    "matching_strategy",
 )
 
 
@@ -180,6 +182,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     if ai_auto_select:
         ai_assistant_enabled = True
 
+    strategy_choice = MatchingStrategy(args.matching_strategy)
+
     try:
         patch = load_patch(args.patch, encoding=args.encoding)
         raw_backup = args.backup
@@ -198,6 +202,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             Path(args.root),
             dry_run=args.dry_run,
             threshold=args.threshold,
+            matching_strategy=strategy_choice,
             backup_base=backup_base,
             interactive=interactive,
             auto_accept=args.auto_accept,
@@ -737,6 +742,8 @@ def config_reset(
             config.ai_auto_apply = defaults.ai_auto_apply
         elif key == "ai_diff_notes_enabled":
             config.ai_diff_notes_enabled = defaults.ai_diff_notes_enabled
+        elif key == "matching_strategy":
+            config.matching_strategy = defaults.matching_strategy
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -823,6 +830,20 @@ def _apply_config_value(
             config.ai_auto_apply = config_value
         else:
             config.ai_diff_notes_enabled = config_value
+        return
+
+    if key == "matching_strategy":
+        if len(values) != 1:
+            raise ConfigCommandError(
+                _("The matching_strategy key expects exactly one value."),
+            )
+        choice = str(values[0]).strip().lower()
+        try:
+            config.matching_strategy = MatchingStrategy(choice)
+        except ValueError as exc:
+            raise ConfigCommandError(
+                _("Unsupported matching strategy: {value}.").format(value=values[0])
+            ) from exc
         return
 
     if key == "log_file":

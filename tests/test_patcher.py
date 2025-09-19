@@ -10,6 +10,7 @@ from unidiff import PatchSet
 
 import patch_gui.executor as executor
 from patch_gui.config import AppConfig
+from patch_gui.matching import MatchingStrategy
 from patch_gui.patcher import (
     ApplySession,
     HunkDecision,
@@ -75,6 +76,37 @@ def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
     assert result[0][1] == pytest.approx(0.9333333333)
     assert result[1][0] == 0
     assert result[1][1] == pytest.approx(0.875)
+
+
+def test_find_candidates_token_strategy_matches_legacy() -> None:
+    file_lines = [
+        "alpha\n",
+        "beta\n",
+        "gamma\n",
+        "alpha\n",
+        "beta\n",
+        "delta\n",
+    ]
+    before_lines = ["alpha\n", "beta\n"]
+    legacy = find_candidates(
+        file_lines, before_lines, threshold=0.8, strategy=MatchingStrategy.LEGACY
+    )
+    token = find_candidates(
+        file_lines, before_lines, threshold=0.8, strategy=MatchingStrategy.TOKEN
+    )
+    assert legacy == token
+
+
+def test_find_candidates_token_strategy_falls_back_to_legacy() -> None:
+    file_lines = ["abcd\n", "wxyz\n"]
+    before_lines = ["abce\n"]
+    legacy = find_candidates(
+        file_lines, before_lines, threshold=0.5, strategy=MatchingStrategy.LEGACY
+    )
+    token = find_candidates(
+        file_lines, before_lines, threshold=0.5, strategy=MatchingStrategy.TOKEN
+    )
+    assert legacy == token
 
 
 def test_find_candidates_with_empty_before_lines_returns_empty() -> None:

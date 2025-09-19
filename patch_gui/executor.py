@@ -24,6 +24,7 @@ from .binary_patch import (
     get_attached_binary_patch,
 )
 from .config import AppConfig, load_config
+from .matching import MatchingStrategy
 from .filetypes import inspect_file_type
 from .localization import gettext as _
 from .patcher import (
@@ -174,6 +175,7 @@ def apply_patchset(
     *,
     dry_run: bool,
     threshold: float,
+    matching_strategy: MatchingStrategy | str | None = None,
     backup_base: Optional[Path] = None,
     interactive: bool = True,
     auto_accept: bool = False,
@@ -190,6 +192,8 @@ def apply_patchset(
     """Apply ``patch`` to ``project_root`` and return the :class:`ApplySession`.
 
     ``threshold`` must be within the range ``(0, 1]`` to match CLI validation.
+    ``matching_strategy`` selects the candidate search algorithm used when
+    aligning hunks.
     """
 
     root = project_root.expanduser().resolve()
@@ -200,6 +204,38 @@ def apply_patchset(
         raise CLIError(_("Threshold must be between 0 (exclusive) and 1 (inclusive)."))
 
     resolved_config = config or load_config()
+
+    def _resolve_strategy(value: MatchingStrategy | str | None) -> MatchingStrategy:
+        if isinstance(value, MatchingStrategy):
+            return value
+        if value is None:
+            return MatchingStrategy.AUTO
+        normalized = str(value).strip().lower()
+        if normalized.startswith("matchingstrategy."):
+            normalized = normalized.split(".", 1)[1]
+        return MatchingStrategy(normalized)
+
+    if matching_strategy is None:
+        configured_strategy = getattr(
+            resolved_config, "matching_strategy", MatchingStrategy.AUTO
+        )
+        try:
+            resolved_strategy = _resolve_strategy(configured_strategy)
+        except ValueError:
+            logger.warning(
+                "Strategia matching configurata %s non valida, uso AUTO",
+                configured_strategy,
+            )
+            resolved_strategy = MatchingStrategy.AUTO
+    else:
+        try:
+            resolved_strategy = _resolve_strategy(matching_strategy)
+        except ValueError as exc:
+            raise CLIError(
+                _(
+                    "Unsupported matching strategy: {strategy}."
+                ).format(strategy=matching_strategy)
+            ) from exc
     started_at = time.time()
     backup_base_arg = backup_base or resolved_config.backup_base
     try:
@@ -247,6 +283,7 @@ def apply_patchset(
         threshold=threshold,
         exclude_dirs=resolved_excludes,
         started_at=started_at,
+        matching_strategy=resolved_strategy,
     )
     session.summary_diff_digest = compute_diff_digest(patch)
 
@@ -676,6 +713,7 @@ def _apply_file_patch(
         lines,
         pf,
         threshold=session.threshold,
+        matching_strategy=session.matching_strategy,
         manual_resolver=manual_resolver,
     )
 

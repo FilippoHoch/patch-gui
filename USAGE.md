@@ -62,6 +62,9 @@ Questa guida passo‑passo descrive il workflow tipico per applicare una patch c
 ## Suggerimenti utili
 
 - La soglia fuzzy più alta aumenta la precisione ma potrebbe non trovare patch leggermente disallineate.
+- La strategia `auto` combina il nuovo matcher tokenizzato con il fallback
+  legacy; usa `--matching-strategy legacy` se vuoi forzare il comportamento
+  storico o `token` per testare solo l'algoritmo ottimizzato.
 - I file binari vengono ignorati automaticamente.
 - Per diff molto grandi l'analisi può richiedere tempo; attendi il completamento prima di chiudere la finestra.
 - La creazione dei report JSON/TXT della sessione segue la configurazione salvata, ma può essere forzata dalla CLI con `--report`
@@ -87,7 +90,7 @@ patch-gui apply --root . --no-default-exclude fix.diff
 Oltre a usare la GUI, puoi ispezionare e modificare le impostazioni persistenti tramite il sottocomando `patch-gui config`:
 
 - `patch-gui config show` stampa la configurazione corrente in formato JSON;
-- `patch-gui config set <chiave> <valori…>` aggiorna un parametro (ad esempio `threshold`, `exclude_dirs`, `backup_base`, `log_level`);
+- `patch-gui config set <chiave> <valori…>` aggiorna un parametro (ad esempio `threshold`, `matching_strategy`, `exclude_dirs`, `backup_base`, `log_level`);
 - `patch-gui config reset [chiave]` ripristina un singolo valore o l'intera configurazione ai default.
 
 Se vuoi operare su un file alternativo (per test o ambienti portabili) aggiungi `--config-path /percorso/custom/settings.toml` dopo il nome del sottocomando.

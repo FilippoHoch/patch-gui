@@ -43,6 +43,7 @@ from .logo_widgets import LogoWidget, WordmarkWidget, create_logo_pixmap
 from .platform import running_on_windows_native, running_under_wsl
 from .theme import apply_modern_theme
 from .logging_utils import configure_logging
+from .matching import MatchingStrategy
 from .patcher import (
     ApplySession,
     FileResult,
@@ -839,6 +840,20 @@ class SettingsDialog(_QDialogBase):
         self.threshold_spin.setValue(self._original_config.threshold)
         form.addRow(_("Soglia fuzzy"), self.threshold_spin)
 
+        strategy_labels = {
+            MatchingStrategy.AUTO: _("Automatico (ottimizzato)"),
+            MatchingStrategy.TOKEN: _("Token ottimizzato"),
+            MatchingStrategy.LEGACY: _("Legacy (completo)"),
+        }
+        self.matching_combo = QtWidgets.QComboBox()
+        for strategy in MatchingStrategy:
+            self.matching_combo.addItem(strategy_labels[strategy], strategy)
+        current_strategy = self._original_config.matching_strategy
+        strategy_index = self.matching_combo.findData(current_strategy)
+        if strategy_index >= 0:
+            self.matching_combo.setCurrentIndex(strategy_index)
+        form.addRow(_("Strategia matching"), self.matching_combo)
+
         self.exclude_edit = QtWidgets.QLineEdit(
             ", ".join(self._original_config.exclude_dirs)
         )
@@ -1002,6 +1017,12 @@ class SettingsDialog(_QDialogBase):
         else:
             theme_choice = self._original_config.theme
 
+        matching_data = self.matching_combo.currentData()
+        if isinstance(matching_data, MatchingStrategy):
+            matching_strategy = matching_data
+        else:
+            matching_strategy = self._original_config.matching_strategy
+
         log_max_bytes = self._parse_non_negative_int(
             self.log_max_edit.text(), self._original_config.log_max_bytes
         )
@@ -1028,6 +1049,7 @@ class SettingsDialog(_QDialogBase):
             ai_assistant_enabled=self.ai_assistant_check.isChecked(),
             ai_auto_apply=self.ai_auto_check.isChecked(),
             ai_diff_notes_enabled=self.ai_diff_notes_check.isChecked(),
+            matching_strategy=matching_strategy,
         )
 
     @staticmethod
@@ -2203,6 +2225,7 @@ class MainWindow(_QMainWindowBase):
         self.ai_assistant_enabled = bool(self.app_config.ai_assistant_enabled)
         self.ai_auto_apply = bool(self.app_config.ai_auto_apply)
         self.ai_diff_notes_enabled = bool(self.app_config.ai_diff_notes_enabled)
+        self.matching_strategy = self.app_config.matching_strategy
         self.spin_thresh.setValue(self.threshold)
         excludes_text = ", ".join(self.exclude_dirs) if self.exclude_dirs else ""
         self.exclude_edit.setText(excludes_text)
@@ -2274,6 +2297,7 @@ class MainWindow(_QMainWindowBase):
         self.app_config.ai_assistant_enabled = self.ai_assistant_enabled
         self.app_config.ai_auto_apply = self.ai_auto_apply
         self.app_config.ai_diff_notes_enabled = self.ai_diff_notes_enabled
+        self.app_config.matching_strategy = self.matching_strategy
         self.threshold = self.app_config.threshold
         self.exclude_dirs = self.app_config.exclude_dirs
         self.reports_enabled = self.app_config.write_reports
@@ -2535,6 +2559,7 @@ class MainWindow(_QMainWindowBase):
             threshold=thr,
             exclude_dirs=excludes,
             started_at=started_at,
+            matching_strategy=self.app_config.matching_strategy,
         )
         session.summary_diff_digest = compute_diff_digest(self.patch)
         worker = PatchApplyWorker(
@@ -2850,6 +2875,7 @@ class MainWindow(_QMainWindowBase):
             lines,
             pf,
             threshold=session.threshold,
+            matching_strategy=session.matching_strategy,
             manual_resolver=self._dialog_hunk_choice,
         )
 
