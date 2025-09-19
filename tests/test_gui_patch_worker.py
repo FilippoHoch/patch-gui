@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from unidiff import PatchSet
 
+from patch_gui.binary_patch import annotate_binary_patches
 from patch_gui.patcher import ApplySession, prepare_backup_dir
 
 try:  # pragma: no cover - optional dependency
@@ -25,6 +26,17 @@ ADDED_DIFF = """--- /dev/null
 @@ -0,0 +1,2 @@
 +first line
 +second line
+"""
+
+
+BINARY_MOD_DIFF = """diff --git a/assets/data.bin b/assets/data.bin
+index db12d84d7d09898766cc3d68c37aa7d58f6c3702..f6768f96345337859062f580acdd501f5cea0ed4 100644
+GIT binary patch
+literal 9
+Qcmc~u&B@7UNY5+*01*2FSpWb4
+
+literal 11
+Scmc~u&B@7UD9<m-NdW*EO9VXt
 """
 
 
@@ -157,3 +169,31 @@ def test_worker_rejects_new_file_outside_project_root(
 
     outside_target = project_root.parent / "outside.txt"
     assert not outside_target.exists()
+
+
+def test_worker_applies_binary_patch(qt_app: Any, tmp_path: Path) -> None:
+    from patch_gui.app import PatchApplyWorker
+
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    target = project_root / "assets" / "data.bin"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    original = b"hello\x00world"
+    target.write_bytes(original)
+
+    patch = PatchSet(BINARY_MOD_DIFF)
+    annotate_binary_patches(patch, BINARY_MOD_DIFF)
+    pf = patch[0]
+    rel_path = _relative_from_patch(pf)
+
+    session = _build_session(project_root, dry_run=False)
+    worker = PatchApplyWorker(patch, session)
+
+    result = worker.apply_file_patch(pf, rel_path)
+
+    assert result.skipped_reason is None
+    assert result.hunks_applied == result.hunks_total == 1
+    assert target.read_bytes() == b"hello\x00git"
+    backup_copy = session.backup_dir / "assets" / "data.bin"
+    assert backup_copy.exists()
+    assert backup_copy.read_bytes() == original
