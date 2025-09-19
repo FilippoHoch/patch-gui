@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Optional, Sequence
 
+from .matching import CandidateMatch
 from .patcher import HunkView
 
 logger = logging.getLogger(__name__)
@@ -38,13 +39,15 @@ _MAX_SNIPPET_CHARS = 400
 def _build_payload(
     file_lines: Sequence[str],
     hv: HunkView,
-    candidates: Sequence[tuple[int, float]],
+    candidates: Sequence[CandidateMatch],
 ) -> dict[str, object]:
     """Return the JSON payload describing the ambiguous hunk context."""
 
     window_len = len(hv.before_lines) or len(hv.after_lines) or 1
     snippets: list[dict[str, object]] = []
-    for index, (position, similarity) in enumerate(candidates, start=1):
+    for index, candidate in enumerate(candidates, start=1):
+        position = candidate.position
+        similarity = candidate.score
         snippet_lines = file_lines[position : position + window_len]
         snippet = "".join(snippet_lines)
         if len(snippet) > _MAX_SNIPPET_CHARS:
@@ -55,6 +58,7 @@ def _build_payload(
                 "position": position,
                 "similarity": similarity,
                 "excerpt": snippet,
+                "metadata": dict(candidate.metadata),
             }
         )
 
@@ -171,7 +175,7 @@ def _parse_ai_choice(
 def _local_best_candidate(
     file_lines: Sequence[str],
     hv: HunkView,
-    candidates: Sequence[tuple[int, float]],
+    candidates: Sequence[CandidateMatch],
 ) -> Optional[AISuggestion]:
     """Return the best candidate using local heuristics only."""
 
@@ -188,7 +192,9 @@ def _local_best_candidate(
     reference_text = "".join(reference_lines) or "".join(hv.after_lines)
 
     best: Optional[AISuggestion] = None
-    for index, (position, similarity) in enumerate(candidates, start=1):
+    for index, candidate in enumerate(candidates, start=1):
+        position = candidate.position
+        similarity = candidate.score
         if similarity is not None:
             score = float(similarity)
         elif reference_text:
@@ -215,7 +221,7 @@ def _local_best_candidate(
 def rank_candidates(
     file_lines: Sequence[str],
     hv: HunkView,
-    candidates: Sequence[tuple[int, float]],
+    candidates: Sequence[CandidateMatch],
     *,
     use_ai: bool,
     logger_override: Optional[logging.Logger] = None,
@@ -234,7 +240,8 @@ def rank_candidates(
     try:
         payload = _build_payload(file_lines, hv, candidates)
         candidate_positions = {
-            index: position for index, (position, _) in enumerate(candidates, start=1)
+            index: candidate.position
+            for index, candidate in enumerate(candidates, start=1)
         }
         response = _call_ai_service(payload)
         ai_choice = _parse_ai_choice(response, candidate_positions)

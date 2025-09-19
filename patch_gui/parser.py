@@ -115,6 +115,32 @@ def build_parser(
         help=_("Matching threshold (0-1) for fuzzy context alignment."),
     )
     parser.add_argument(
+        "--rapidfuzz",
+        dest="use_rapidfuzz",
+        action="store_true",
+        help=_("Use RapidFuzz for fuzzy matching when available."),
+    )
+    parser.add_argument(
+        "--no-rapidfuzz",
+        dest="use_rapidfuzz",
+        action="store_false",
+        help=_("Disable RapidFuzz and fall back to the legacy matcher."),
+    )
+    parser.set_defaults(use_rapidfuzz=resolved_config.use_rapidfuzz)
+    parser.add_argument(
+        "--anchors",
+        dest="use_anchors",
+        action="store_true",
+        help=_("Enable structural anchors when scanning for candidates."),
+    )
+    parser.add_argument(
+        "--no-anchors",
+        dest="use_anchors",
+        action="store_false",
+        help=_("Disable anchor heuristics and consider every position."),
+    )
+    parser.set_defaults(use_anchors=resolved_config.use_structural_anchors)
+    parser.add_argument(
         "--backup",
         help=_('Base directory for backups and reports; defaults to "{path}".').format(
             path=display_path(resolved_config.backup_base)

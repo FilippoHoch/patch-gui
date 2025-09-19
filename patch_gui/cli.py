@@ -69,6 +69,8 @@ _CONFIG_KEYS = (
     "ai_assistant_enabled",
     "ai_auto_apply",
     "ai_diff_notes_enabled",
+    "use_rapidfuzz",
+    "use_structural_anchors",
 )
 
 
@@ -210,6 +212,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             config=config,
             ai_assistant=ai_assistant_enabled,
             ai_auto_select=ai_auto_select,
+            use_rapidfuzz=args.use_rapidfuzz,
+            use_anchors=args.use_anchors,
         )
     except CLIError as exc:
         parser.exit(1, _("Error: {message}\n").format(message=exc))
@@ -737,6 +741,10 @@ def config_reset(
             config.ai_auto_apply = defaults.ai_auto_apply
         elif key == "ai_diff_notes_enabled":
             config.ai_diff_notes_enabled = defaults.ai_diff_notes_enabled
+        elif key == "use_rapidfuzz":
+            config.use_rapidfuzz = defaults.use_rapidfuzz
+        elif key == "use_structural_anchors":
+            config.use_structural_anchors = defaults.use_structural_anchors
         save_config(config, path)
         message = _("{key} reset to default.").format(key=key)
 
@@ -811,7 +819,13 @@ def _apply_config_value(
             config.write_reports = config_value
         return
 
-    if key in {"ai_assistant_enabled", "ai_auto_apply", "ai_diff_notes_enabled"}:
+    if key in {
+        "ai_assistant_enabled",
+        "ai_auto_apply",
+        "ai_diff_notes_enabled",
+        "use_rapidfuzz",
+        "use_structural_anchors",
+    }:
         if len(values) != 1:
             raise ConfigCommandError(
                 _("The {key} key expects exactly one value.").format(key=key),
@@ -821,8 +835,12 @@ def _apply_config_value(
             config.ai_assistant_enabled = config_value
         elif key == "ai_auto_apply":
             config.ai_auto_apply = config_value
-        else:
+        elif key == "ai_diff_notes_enabled":
             config.ai_diff_notes_enabled = config_value
+        elif key == "use_rapidfuzz":
+            config.use_rapidfuzz = config_value
+        else:
+            config.use_structural_anchors = config_value
         return
 
     if key == "log_file":

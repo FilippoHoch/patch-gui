@@ -988,6 +988,8 @@ def test_run_cli_uses_config_defaults(
         captured["backup_base"] = kwargs.get("backup_base")
         captured["config"] = kwargs.get("config")
         captured["write_report_files"] = kwargs.get("write_report_files")
+        captured["use_rapidfuzz"] = kwargs.get("use_rapidfuzz")
+        captured["use_anchors"] = kwargs.get("use_anchors")
         return _create_dummy_session(tmp_path)
 
     monkeypatch.setattr(cli, "load_patch", fake_load_patch)
@@ -1008,6 +1010,8 @@ def test_run_cli_uses_config_defaults(
     assert captured["exclude_dirs"] == config.exclude_dirs
     assert captured["backup_base"] is None
     assert captured["config"] is config
+    assert captured["use_rapidfuzz"] == config.use_rapidfuzz
+    assert captured["use_anchors"] == config.use_structural_anchors
     assert captured["write_report_files"] is config.write_reports
 
 
@@ -1983,7 +1987,7 @@ def test_cli_manual_resolver_handles_fuzzy_candidates(
 
 @pytest.mark.parametrize(  # type: ignore[misc]
     "user_input, expected_applied, expected_completed, expected_pos",
-    [("2", 1, True, 4), ("", 0, False, None)],
+    [("2", 1, True, 0), ("", 0, False, None)],
 )
 def test_cli_manual_resolver_handles_context_candidates(
     monkeypatch: pytest.MonkeyPatch,

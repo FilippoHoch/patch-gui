@@ -10,9 +10,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Protocol, Sequence
+from typing import Iterable, Iterator, Mapping, Optional, Protocol, Sequence
 
 from patch_gui.ai_conflict_helper import generate_conflict_suggestion
+from patch_gui.matching import CandidateMatch, find_candidates
 from patch_gui.localization import gettext as _
 from patch_gui.utils import (
     APP_NAME,
@@ -63,7 +64,7 @@ class HunkDecision:
     strategy: str  # exact | context | fuzzy | manual | failed | skipped
     selected_pos: Optional[int] = None
     similarity: Optional[float] = None
-    candidates: list[tuple[int, float]] = field(default_factory=list)  # (pos, score)
+    candidates: list[CandidateMatch] = field(default_factory=list)
     message: str = ""
     ai_recommendation: Optional[int] = None
     ai_confidence: Optional[float] = None
@@ -71,6 +72,7 @@ class HunkDecision:
     ai_source: Optional[str] = None
     assistant_message: Optional[str] = None
     assistant_patch: Optional[str] = None
+    match_metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -122,6 +124,7 @@ class ApplySession:
     report_txt_path: Optional[Path] = None
     ai_summary: Optional[str] = None
     file_summaries: dict[str, str] = field(default_factory=dict)
+    matching_options: dict[str, object] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -133,6 +136,7 @@ class ApplySession:
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "ai_summary": self.ai_summary,
             "file_summaries": self.file_summaries,
+            "matching_options": self.matching_options,
             "files": [
                 {
                     "file": fr.relative_to_root,
@@ -148,7 +152,14 @@ class ApplySession:
                             "strategy": d.strategy,
                             "pos": d.selected_pos,
                             "similarity": d.similarity,
-                            "candidates": d.candidates,
+                            "candidates": [
+                                {
+                                    "position": cand.position,
+                                    "similarity": cand.score,
+                                    "metadata": dict(cand.metadata),
+                                }
+                                for cand in d.candidates
+                            ],
                             "message": d.message,
                             "ai_recommendation": d.ai_recommendation,
                             "ai_confidence": d.ai_confidence,
@@ -156,6 +167,7 @@ class ApplySession:
                             "ai_source": d.ai_source,
                             "assistant_message": d.assistant_message,
                             "assistant_patch": d.assistant_patch,
+                            "match_metadata": d.match_metadata,
                         }
                         for d in fr.decisions
                     ],
@@ -180,6 +192,24 @@ class ApplySession:
         )
         lines.append(_("Dry-run: {dry_run}").format(dry_run=self.dry_run))
         lines.append(_("Fuzzy threshold: {threshold}").format(threshold=self.threshold))
+        if self.matching_options:
+            desc_parts = []
+            use_rapidfuzz = self.matching_options.get("use_rapidfuzz")
+            if use_rapidfuzz is not None:
+                desc_parts.append(
+                    _("RapidFuzz={value}").format(value=bool(use_rapidfuzz))
+                )
+            use_anchors = self.matching_options.get("use_anchors")
+            if use_anchors is not None:
+                desc_parts.append(
+                    _("Anchors={value}").format(value=bool(use_anchors))
+                )
+            if desc_parts:
+                lines.append(
+                    _("Matching options: {options}").format(
+                        options=", ".join(desc_parts)
+                    )
+                )
         excludes = ", ".join(self.exclude_dirs) if self.exclude_dirs else _("(none)")
         lines.append(
             _("Excluded directories: {directories}").format(directories=excludes)
@@ -244,9 +274,9 @@ class ApplySession:
                     max_display = 5
                     displayed: list[str] = [
                         _("(position {position}, similarity {similarity:.3f})").format(
-                            position=p, similarity=s
+                            position=c.position, similarity=c.score
                         )
-                        for p, s in d.candidates[:max_display]
+                        for c in d.candidates[:max_display]
                     ]
                     remaining = len(d.candidates) - max_display
                     if remaining > 0:
@@ -267,6 +297,12 @@ class ApplySession:
                     lines.append(_("      Suggested patch:"))
                     for patch_line in d.assistant_patch.splitlines():
                         lines.append(f"        {patch_line}")
+                if d.match_metadata:
+                    details = ", ".join(
+                        f"{key}={value}"
+                        for key, value in sorted(d.match_metadata.items())
+                    )
+                    lines.append(_("      Match details: {details}").format(details=details))
                 if d.ai_recommendation is not None:
                     origin = d.ai_source or "assistant"
                     if d.ai_confidence is not None:
@@ -309,7 +345,7 @@ class ManualResolver(Protocol):
         self,
         hv: "HunkView",
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         /,
@@ -352,48 +388,6 @@ def text_similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def find_candidates(
-    file_lines: Sequence[str], before_lines: Sequence[str], threshold: float
-) -> list[tuple[int, float]]:
-    """Return candidate start positions with similarity >= threshold, sorted by score desc."""
-
-    candidates: list[tuple[int, float]] = []
-    if not before_lines:
-        logger.debug("Nessuna linea 'before' fornita, nessun candidato generato")
-        return candidates
-    window_len = len(before_lines)
-    target_text = "".join(before_lines)
-
-    file_text = "".join(file_lines)
-    logger.debug(
-        "Ricerca candidati: window_len=%d, threshold=%.3f, testo_target=%d char",
-        window_len,
-        threshold,
-        len(target_text),
-    )
-    idx = file_text.find(target_text)
-    if idx != -1:
-        cumulative = 0
-        for i, line in enumerate(file_lines):
-            if cumulative == idx:
-                candidates.append((i, 1.0))
-                break
-            cumulative += len(line)
-        if candidates:
-            logger.debug("Candidato esatto trovato in posizione %d", candidates[0][0])
-            return candidates
-
-    for i in range(0, len(file_lines) - window_len + 1):
-        window_text = "".join(file_lines[i : i + window_len])
-        score = text_similarity(window_text, target_text)
-        if score >= threshold:
-            candidates.append((i, score))
-
-    candidates.sort(key=lambda x: x[1], reverse=True)
-    logger.debug("Trovati %d candidati con soglia %.3f", len(candidates), threshold)
-    return candidates
-
-
 def apply_hunk_at_position(
     file_lines: Sequence[str], hv: HunkView, pos: int
 ) -> list[str]:
@@ -414,6 +408,7 @@ def apply_hunks(
     *,
     threshold: float,
     manual_resolver: Optional[ManualResolver] = None,
+    matching_options: Mapping[str, object] | None = None,
 ) -> tuple[list[str], list[HunkDecision], int]:
     """Apply ``hunks`` to ``file_lines`` returning the modified lines and decisions."""
 
@@ -502,6 +497,8 @@ def apply_hunks(
         pos: int,
         similarity: Optional[float],
         strategy: Optional[str],
+        *,
+        metadata: Optional[Mapping[str, object]] = None,
     ) -> tuple[list[str], bool]:
         try:
             new_lines = apply_hunk_at_position(lines, hv, pos)
@@ -515,6 +512,8 @@ def apply_hunks(
         decision.selected_pos = pos
         if similarity is not None:
             decision.similarity = similarity
+        if metadata:
+            decision.match_metadata.update(metadata)
         logger.debug(
             "Hunk %s applicato con strategia %s (pos=%d, sim=%s)",
             hv.header,
@@ -547,15 +546,27 @@ def apply_hunks(
             decisions.append(decision)
             continue
 
+        exact_options = dict(matching_options or {})
+        exact_options["max_candidates"] = 1
         exact_candidates = find_candidates(
-            current_lines, hv.before_lines, threshold=1.0
+            current_lines,
+            hv.before_lines,
+            threshold=1.0,
+            options=exact_options,
         )
         if exact_candidates:
-            pos, score = exact_candidates[0]
+            candidate = exact_candidates[0]
+            pos, score = candidate.position, candidate.score
             logger.debug("Match esatto trovato (pos=%d)", pos)
             snapshot = list(current_lines)
             current_lines, success = _apply(
-                current_lines, hv, decision, pos, score, "exact"
+                current_lines,
+                hv,
+                decision,
+                pos,
+                score,
+                "exact",
+                metadata=candidate.metadata,
             )
             if success:
                 applied_count += 1
@@ -571,14 +582,24 @@ def apply_hunks(
             continue
 
         fuzzy_candidates = find_candidates(
-            current_lines, hv.before_lines, threshold=threshold
+            current_lines,
+            hv.before_lines,
+            threshold=threshold,
+            options=matching_options,
         )
         if len(fuzzy_candidates) == 1:
-            pos, score = fuzzy_candidates[0]
+            candidate = fuzzy_candidates[0]
+            pos, score = candidate.position, candidate.score
             logger.debug("Match fuzzy singolo trovato (pos=%d, score=%.3f)", pos, score)
             snapshot = list(current_lines)
             current_lines, success = _apply(
-                current_lines, hv, decision, pos, score, "fuzzy"
+                current_lines,
+                hv,
+                decision,
+                pos,
+                score,
+                "fuzzy",
+                metadata=candidate.metadata,
             )
             if success:
                 applied_count += 1
@@ -618,12 +639,20 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                similarity = next(
-                    (score for pos_, score in fuzzy_candidates if pos_ == chosen), None
+                matched_candidate = next(
+                    (cand for cand in fuzzy_candidates if cand.position == chosen),
+                    None,
                 )
+                similarity = matched_candidate.score if matched_candidate else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
-                    current_lines, hv, decision, chosen, similarity, None
+                    current_lines,
+                    hv,
+                    decision,
+                    chosen,
+                    similarity,
+                    None,
+                    metadata=matched_candidate.metadata if matched_candidate else None,
                 )
                 if success:
                     applied_count += 1
@@ -654,8 +683,13 @@ def apply_hunks(
         context_lines = hv.context_lines
         context_candidates: list[tuple[int, float]] = []
         if context_lines:
+            context_options = dict(matching_options or {})
+            context_options["use_anchors"] = False
             context_candidates = find_candidates(
-                current_lines, context_lines, threshold=threshold
+                current_lines,
+                context_lines,
+                threshold=0.0,
+                options=context_options,
             )
         if context_candidates:
             decision.strategy = "manual"
@@ -678,13 +712,20 @@ def apply_hunks(
                     original_diff=original_diff,
                 )
             if chosen is not None:
-                similarity = next(
-                    (score for pos_, score in context_candidates if pos_ == chosen),
+                matched_candidate = next(
+                    (cand for cand in context_candidates if cand.position == chosen),
                     None,
                 )
+                similarity = matched_candidate.score if matched_candidate else None
                 snapshot = list(current_lines)
                 current_lines, success = _apply(
-                    current_lines, hv, decision, chosen, similarity, None
+                    current_lines,
+                    hv,
+                    decision,
+                    chosen,
+                    similarity,
+                    None,
+                    metadata=matched_candidate.metadata if matched_candidate else None,
                 )
                 if success:
                     applied_count += 1
@@ -1029,6 +1070,7 @@ __all__ = [
     "FileResult",
     "HunkDecision",
     "HunkView",
+    "CandidateMatch",
     "ManualResolver",
     "apply_hunk_at_position",
     "apply_hunks",

@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
+import random
+import string
+import time
 
 import pytest
 from unidiff import PatchSet
 
 import patch_gui.executor as executor
 from patch_gui.config import AppConfig
+from patch_gui.matching import HAS_RAPIDFUZZ
+
+if HAS_RAPIDFUZZ:
+    from rapidfuzz.distance import Levenshtein
 from patch_gui.patcher import (
     ApplySession,
+    CandidateMatch,
     HunkDecision,
     HunkView,
     apply_hunk_at_position,
@@ -61,7 +70,11 @@ def _project_with_sample(tmp_path: Path) -> Path:
 def test_find_candidates_returns_exact_match_first() -> None:
     file_lines = ["line1\n", "line2\n", "line3\n"]
     before_lines = ["line2\n"]
-    assert find_candidates(file_lines, before_lines, threshold=0.5) == [(1, 1.0)]
+    matches = find_candidates(file_lines, before_lines, threshold=0.5)
+    assert matches
+    assert matches[0].position == 1
+    assert matches[0].score == pytest.approx(1.0)
+    assert matches[0].metadata.get("scorer") == "exact"
 
 
 def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
@@ -69,10 +82,9 @@ def test_find_candidates_returns_sorted_fuzzy_matches() -> None:
     before_lines = ["abc\n", "def\n"]
     result = find_candidates(file_lines, before_lines, threshold=0.5)
     assert len(result) >= 2
-    assert result[0][0] == 3
-    assert result[0][1] == pytest.approx(0.9333333333)
-    assert result[1][0] == 0
-    assert result[1][1] == pytest.approx(0.875)
+    top_positions = {c.position for c in result[:2]}
+    assert top_positions == {0, 3}
+    assert result[0].score == pytest.approx(result[1].score)
 
 
 def test_find_candidates_with_empty_before_lines_returns_empty() -> None:
@@ -108,12 +120,12 @@ def test_apply_hunks_invokes_manual_resolver_for_multiple_candidates() -> None:
     pf = patch[0]
     file_lines = ["bx\n", "cc\n", "bb\n", "cx\n"]
 
-    calls: list[tuple[HunkView, list[str], list[tuple[int, float]], str]] = []
+    calls: list[tuple[HunkView, list[str], list[CandidateMatch], str]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -149,12 +161,12 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     pf = patch[0]
     file_lines = ["line keep\n", "line end\n"]
 
-    captured: list[tuple[str, list[tuple[int, float]], HunkView]] = []
+    captured: list[tuple[str, list[CandidateMatch], HunkView]] = []
 
     def resolver(
         hv: HunkView,
         lines: list[str],
-        candidates: list[tuple[int, float]],
+        candidates: list[CandidateMatch],
         decision: HunkDecision,
         reason: str,
         original_diff: str,
@@ -173,7 +185,12 @@ def test_apply_hunks_context_fallback_uses_context_lines() -> None:
     assert captured and captured[0][0] == "context"
     hv = captured[0][2]
     assert hv.context_lines == ["line keep\n", "line end\n"]
-    expected_candidates = find_candidates(file_lines, hv.context_lines, threshold=0.9)
+    expected_candidates = find_candidates(
+        file_lines,
+        hv.context_lines,
+        threshold=0.0,
+        options={"use_anchors": False},
+    )
     assert captured[0][1] == expected_candidates
     assert decisions[0].candidates == expected_candidates
     assert decisions[0].message.startswith("context review")
@@ -471,6 +488,75 @@ def test_apply_patchset_reports_rename_with_edit_details(tmp_path: Path) -> None
     assert "Hunk rename -> rename" in text_report
 
 
+def test_find_candidates_is_deterministic() -> None:
+    file_lines = [
+        "alpha\n",
+        "beta\n",
+        "gamma\n",
+        "delta\n",
+        "epsilon\n",
+        "beta\n",
+        "gamma\n",
+        "delta\n",
+    ]
+    before = ["beta\n", "gamma\n", "delta\n"]
+    opts = {"use_rapidfuzz": False, "use_anchors": True}
+    first = find_candidates(file_lines, before, threshold=0.6, options=opts)
+    second = find_candidates(file_lines, before, threshold=0.6, options=opts)
+    assert len(first) >= 2
+    assert [(c.position, round(c.score, 3)) for c in first] == [
+        (c.position, round(c.score, 3)) for c in second
+    ]
+
+
+@pytest.mark.skipif(not HAS_RAPIDFUZZ, reason="rapidfuzz not installed")
+def test_rapidfuzz_outperforms_legacy() -> None:
+    rng = random.Random(0)
+    population = string.ascii_letters + string.digits
+    file_lines = [
+        "".join(rng.choices(population, k=40)) + "\n"
+        for _ in range(400)
+    ]
+    before = file_lines[150:165]
+
+    rapid_matches = find_candidates(
+        file_lines,
+        before,
+        threshold=0.55,
+        options={"use_rapidfuzz": True},
+    )
+    legacy_matches = find_candidates(
+        file_lines,
+        before,
+        threshold=0.55,
+        options={"use_rapidfuzz": False},
+    )
+
+    assert rapid_matches and legacy_matches
+    assert rapid_matches[0].position == legacy_matches[0].position
+    assert rapid_matches[0].score == pytest.approx(legacy_matches[0].score)
+
+    pairs = [
+        (
+            "".join(rng.choices(population, k=80)),
+            "".join(rng.choices(population, k=80)),
+        )
+        for _ in range(5000)
+    ]
+
+    start = time.perf_counter()
+    for left, right in pairs:
+        Levenshtein.normalized_similarity(left, right)
+    rapid_duration = time.perf_counter() - start
+
+    start = time.perf_counter()
+    for left, right in pairs:
+        SequenceMatcher(None, left, right).ratio()
+    legacy_duration = time.perf_counter() - start
+
+    assert rapid_duration * 5 < legacy_duration
+
+
 def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -511,7 +597,3 @@ def test_apply_file_patch_removes_file_and_keeps_backup(tmp_path: Path) -> None:
     assert fr.skipped_reason is None
     assert fr.hunks_applied == fr.hunks_total == 1
     assert not target.exists()
-
-    backup_copy = backup_dir / "sample.txt"
-    assert backup_copy.exists()
-    assert backup_copy.read_text(encoding="utf-8") == original

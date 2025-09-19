@@ -47,6 +47,8 @@ _DEFAULT_BACKUP_RETENTION_DAYS = 0
 _DEFAULT_AI_ASSISTANT = False
 _DEFAULT_AI_AUTO_APPLY = False
 _DEFAULT_AI_DIFF_NOTES = False
+_DEFAULT_USE_RAPIDFUZZ = True
+_DEFAULT_USE_ANCHORS = True
 
 
 def _default_log_file() -> Path:
@@ -92,6 +94,8 @@ class AppConfig:
     ai_assistant_enabled: bool = _DEFAULT_AI_ASSISTANT
     ai_auto_apply: bool = _DEFAULT_AI_AUTO_APPLY
     ai_diff_notes_enabled: bool = _DEFAULT_AI_DIFF_NOTES
+    use_rapidfuzz: bool = _DEFAULT_USE_RAPIDFUZZ
+    use_structural_anchors: bool = _DEFAULT_USE_ANCHORS
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> "AppConfig":
@@ -124,6 +128,12 @@ class AppConfig:
         ai_diff_notes = _coerce_bool(
             data.get("ai_diff_notes_enabled"), base.ai_diff_notes_enabled
         )
+        use_rapidfuzz = _coerce_bool(
+            data.get("use_rapidfuzz"), base.use_rapidfuzz
+        )
+        use_anchors = _coerce_bool(
+            data.get("use_structural_anchors"), base.use_structural_anchors
+        )
 
         return cls(
             threshold=threshold,
@@ -139,6 +149,8 @@ class AppConfig:
             ai_assistant_enabled=ai_enabled,
             ai_auto_apply=ai_auto_apply,
             ai_diff_notes_enabled=ai_diff_notes,
+            use_rapidfuzz=use_rapidfuzz,
+            use_structural_anchors=use_anchors,
         )
 
     def to_mapping(self) -> MutableMapping[str, Any]:
@@ -158,6 +170,8 @@ class AppConfig:
             "ai_assistant_enabled": bool(self.ai_assistant_enabled),
             "ai_auto_apply": bool(self.ai_auto_apply),
             "ai_diff_notes_enabled": bool(self.ai_diff_notes_enabled),
+            "use_rapidfuzz": bool(self.use_rapidfuzz),
+            "use_structural_anchors": bool(self.use_structural_anchors),
         }
 
 
