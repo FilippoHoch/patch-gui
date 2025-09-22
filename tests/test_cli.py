@@ -186,6 +186,33 @@ def test_parser_version_reports_package_version(
     assert captured.err == ""
 
 
+def test_run_cli_emits_ai_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = _create_project(tmp_path)
+    diff_path = tmp_path / "change.diff"
+    diff_path.write_text(SAMPLE_DIFF, encoding="utf-8")
+
+    monkeypatch.setattr(cli, "generate_ai_summary", lambda session: "AI summary output")
+
+    exit_code = cli.run_cli(
+        [
+            str(diff_path),
+            "--root",
+            str(project),
+            "--dry-run",
+            "--summary-format",
+            "ai",
+        ]
+    )
+
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "AI summary output" in captured.out
+
+
 def test_build_parser_uses_config_defaults(tmp_path: Path) -> None:
     custom_backup = tmp_path / "backups"
     config = AppConfig(

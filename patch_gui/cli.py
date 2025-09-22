@@ -26,6 +26,7 @@ from .parser import (
     parse_exclude_dirs,
     threshold_value,
 )
+from .summaries import generate_ai_summary
 
 __all__ = [
     "CLIError",
@@ -196,6 +197,10 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         elif fmt == "json":
             json_output = json.dumps(session.to_json(), ensure_ascii=False)
             print(json_output)
+        elif fmt == "ai":
+            ai_output = generate_ai_summary(session)
+            if ai_output:
+                print(ai_output)
 
     if not summary_formats:
         if args.dry_run:

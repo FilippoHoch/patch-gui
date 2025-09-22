@@ -117,10 +117,12 @@ def build_parser(
     parser.add_argument(
         "--summary-format",
         action="append",
-        choices=("text", "json", "none"),
+        choices=("text", "json", "ai", "none"),
         help=_(
             "Choose one or more summary formats to print on stdout (defaults to text). "
-            "Repeat the option to combine formats; use 'none' to suppress summaries."
+            "Repeat the option to combine formats; use 'none' to suppress summaries. "
+            "The 'ai' option calls an optional endpoint configured via the "
+            "PATCH_GUI_AI_SUMMARY_ENDPOINT environment variable."
         ),
     )
     parser.add_argument(

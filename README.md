@@ -133,7 +133,7 @@ utili:
 - `--backup`: directory personalizzata per backup e report.
 - `--report-json` / `--report-txt`: percorsi espliciti per i report.
 - `--no-report`: disattiva la generazione dei file di report.
-- `--summary-format`: controlla il riepilogo su stdout (`text`, `json`, `none`).
+- `--summary-format`: controlla il riepilogo su stdout (`text`, `json`, `ai`, `none`). L'opzione `ai` usa, se disponibile, un endpoint esterno definito tramite la variabile d'ambiente `PATCH_GUI_AI_SUMMARY_ENDPOINT`.
 - `--exclude-dir`: aggiunge cartelle all'elenco di esclusioni.
 - `--no-default-exclude`: rimuove le esclusioni predefinite (es. `.git`,
   `.venv`).
