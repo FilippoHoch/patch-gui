@@ -1267,10 +1267,17 @@ class MainWindow(_QMainWindowBase):
         self.action_open_settings = settings_menu.addAction(_("Preferenze…"))
         self.action_open_settings.triggered.connect(self.open_settings_dialog)
 
-        banner = QtWidgets.QHBoxLayout()
+        banner_widget = QtWidgets.QWidget()
+        banner_widget.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Fixed,
+        )
+        banner = QtWidgets.QHBoxLayout(banner_widget)
         banner.setContentsMargins(0, 0, 0, 0)
         banner.setSpacing(12)
-        layout.addLayout(banner)
+        layout.addWidget(banner_widget)
+
+        banner_height = 0
 
         if running_under_wsl():
             wsl_heading = QtWidgets.QLabel(_("Patch GUI – Diff Applier"))
@@ -1280,6 +1287,7 @@ class MainWindow(_QMainWindowBase):
             wsl_heading.setFont(font)
             banner.addWidget(wsl_heading)
             banner.addStretch(1)
+            banner_height = wsl_heading.sizeHint().height()
         else:
             self.logo_widget = LogoWidget()
             banner.addWidget(self.logo_widget)
@@ -1288,6 +1296,22 @@ class MainWindow(_QMainWindowBase):
             self.wordmark_widget = WordmarkWidget()
             banner.addWidget(self.wordmark_widget)
             banner.addStretch(1)
+
+            banner_height = max(
+                self.logo_widget.sizeHint().height(),
+                self.wordmark_widget.sizeHint().height(),
+            )
+            self.logo_widget.setMaximumHeight(banner_height)
+            self.wordmark_widget.setMaximumHeight(banner_height)
+
+        if banner_height:
+            # Prevent the hero graphic from stretching infinitely when extra
+            # vertical space is available in the main layout.
+            extra_padding = (
+                banner.contentsMargins().top() + banner.contentsMargins().bottom()
+            )
+            banner_widget.setMinimumHeight(banner_height + extra_padding)
+            banner_widget.setMaximumHeight(banner_height + extra_padding + 12)
 
         layout.addSpacing(6)
 
