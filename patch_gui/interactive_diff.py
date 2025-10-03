@@ -337,8 +337,32 @@ class InteractiveDiffWidget(QtWidgets.QWidget):  # type: ignore[misc]
         self._order_label = QtWidgets.QLabel("")
         self._order_label.setObjectName("interactiveDiffOrderLabel")
         self._order_label.setWordWrap(True)
+        self._order_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignTop
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+        )
         self._order_label.setTextFormat(QtCore.Qt.TextFormat.RichText)
-        order_layout.addWidget(self._order_label)
+        self._order_label.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Maximum,
+        )
+
+        order_scroll = QtWidgets.QScrollArea()
+        order_scroll.setWidgetResizable(True)
+        order_scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        order_scroll.setHorizontalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        order_scroll.setVerticalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        order_scroll.setMaximumHeight(200)
+        order_scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+        order_scroll.setWidget(self._order_label)
+
+        order_layout.addWidget(order_scroll)
 
         upper_layout.addWidget(order_container)
 
